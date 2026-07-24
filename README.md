@@ -195,8 +195,14 @@ platform-relevant rules only.
 ```bash
 git clone --depth 1 https://github.com/SigmaHQ/sigma
 opseclint examples/recon.sh --sigma sigma/rules
-# detection  Sigma: Access To Sudoers File (2c9d1141-…) (high confidence)
+# ◆ Sigma: Linux Command History Tampering (fdc88d25-…) fires (high)
+# ◆ Sigma: Linux Reverse Shell Indicator (83dcd9f6-…) no-fire (critical)
 ```
+
+Each attached rule is also **evaluated** against the matched command, so the
+line notes whether it would actually `fire`, `no-fire`, or is `indeterminate`
+(the rule needs a field a static analyzer can't see). The same parsed index
+backs [`--coverage-gaps`](#coverage-gaps---coverage-gaps).
 
 The parsed index is cached to disk (fingerprinted by the ruleset directory), so
 repeat runs against a large checkout skip re-parsing and note `[cached]` on a

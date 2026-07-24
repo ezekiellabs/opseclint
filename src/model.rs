@@ -16,6 +16,10 @@ pub struct Detection {
     pub source: String,
     pub rule: String,
     pub confidence: String,
+    /// When enriched from a real ruleset, whether the rule would actually fire
+    /// on the matched command: `fires`, `no-fire`, or `indeterminate (…)`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verdict: Option<String>,
 }
 
 /// One entry in the knowledge base: a rule that maps a shell action to the

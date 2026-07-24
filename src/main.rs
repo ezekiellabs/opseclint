@@ -187,11 +187,12 @@ fn main() -> ExitCode {
     // --coverage-gaps is its own output mode (evaluate rule logic, not enrich).
     if cli.coverage_gaps {
         let dir = cli.sigma.as_deref().expect("clap requires --sigma");
-        let index = match sigma::DetectionIndex::load_dir(
+        let index = match sigma::load_cached(
             std::path::Path::new(dir),
             cli.platform.sigma_product(),
+            !cli.no_sigma_cache,
         ) {
-            Ok(i) => i,
+            Ok((i, _from_cache)) => i,
             Err(e) => {
                 eprintln!("opseclint: could not read sigma dir '{dir}': {e}");
                 return ExitCode::from(2);
@@ -214,7 +215,7 @@ fn main() -> ExitCode {
         let product = cli.platform.sigma_product();
         match sigma::load_cached(std::path::Path::new(dir), product, !cli.no_sigma_cache) {
             Ok((index, from_cache)) => {
-                let enriched = sigma::enrich(&mut report, &index);
+                let enriched = sigma::enrich(&mut report, &index, cli.platform);
                 if !cli.json && !cli.sarif {
                     eprintln!(
                         "opseclint: sigma — {} rule(s) from {} file(s){}; enriched {} finding(s)",

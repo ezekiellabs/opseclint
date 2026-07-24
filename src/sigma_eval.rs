@@ -11,6 +11,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use serde::{Deserialize, Serialize};
 use serde_yaml::Value;
 
 use crate::kb::Platform;
@@ -67,7 +68,7 @@ fn not_(t: Ternary) -> Ternary {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 enum Modifier {
     Contains,
     StartsWith,
@@ -78,7 +79,7 @@ enum Modifier {
 /// A `field|mods: values` match. `supported` is false when the field carries a
 /// modifier we don't implement yet (`re`, `cidr`, `base64`, …), which makes it
 /// evaluate to `Unknown`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct FieldMatch {
     field: String,
     mods: Vec<Modifier>,
@@ -86,14 +87,14 @@ struct FieldMatch {
     supported: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 enum Search {
     Fields(Vec<FieldMatch>),
     OneOfMaps(Vec<Vec<FieldMatch>>),
     Keywords(Vec<String>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 enum Cond {
     Id(String),
     And(Box<Cond>, Box<Cond>),
@@ -107,7 +108,7 @@ enum Cond {
 }
 
 /// A parsed Sigma rule reduced to what the evaluator needs.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DetectionRule {
     pub id: String,
     pub title: String,
@@ -508,7 +509,7 @@ pub fn evaluate(rule: &DetectionRule, cmd: &Command, platform: Platform) -> Verd
     let missing_fields = if outcome == Outcome::Indeterminate {
         let mut m: Vec<String> = referenced_fields(rule)
             .into_iter()
-            .filter(|f| !SYNTH_FIELDS.contains(&f.as_str()))
+            .filter(|f| !f.is_empty() && !SYNTH_FIELDS.contains(&f.as_str()))
             .collect();
         m.sort();
         m

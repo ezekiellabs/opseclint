@@ -113,11 +113,22 @@ pub fn render_human(report: &Report, color: bool) -> String {
             subs.push(p.paint(theme::COMMENT, &format!("◈ {tel}")));
         }
         for d in &f.detections {
-            subs.push(format!(
-                "{} {}",
-                p.paint(theme::CYAN, &format!("◆ {}: {}", d.source, d.rule)),
+            let mut line = p.paint(theme::CYAN, &format!("◆ {}: {}", d.source, d.rule));
+            if let Some(v) = &d.verdict {
+                let vcol = if v.starts_with("fires") {
+                    theme::GREEN
+                } else if v.starts_with("indeterminate") {
+                    theme::YELLOW
+                } else {
+                    theme::COMMENT
+                };
+                line.push_str(&format!(" {}", p.paint(vcol, v)));
+            }
+            line.push_str(&format!(
+                " {}",
                 p.paint(theme::COMMENT, &format!("({})", d.confidence))
             ));
+            subs.push(line);
         }
 
         let last = subs.len().saturating_sub(1);
