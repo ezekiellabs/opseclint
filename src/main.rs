@@ -39,47 +39,58 @@ struct Cli {
     #[arg(long, value_enum, default_value = "linux-auditd")]
     platform: kb::Platform,
 
+    /// Only report findings at or above this detectability score (0-100).
+    #[arg(long, default_value_t = 0, help_heading = "Filtering")]
+    min: u8,
+
     /// Emit machine-readable JSON instead of a terminal report.
-    #[arg(long)]
+    #[arg(long, help_heading = "Output")]
     json: bool,
 
     /// Emit SARIF 2.1.0 (for GitHub code scanning / SARIF-aware tools).
-    #[arg(long, conflicts_with = "json")]
+    #[arg(long, conflicts_with = "json", help_heading = "Output")]
     sarif: bool,
 
-    /// Only report findings at or above this detectability score (0-100).
-    #[arg(long, default_value_t = 0)]
-    min: u8,
+    /// Force-disable ANSI color (color is auto-disabled when not a TTY).
+    #[arg(long, help_heading = "Output")]
+    no_color: bool,
 
-    /// CI gate: exit non-zero if any finding's detectability is >= --threshold.
-    #[arg(long)]
+    /// CI gate: exit non-zero if any finding's detectability is >= --threshold
+    /// (or, with --coverage-gaps, if any gap is found).
+    #[arg(long, help_heading = "CI gate")]
     ci: bool,
 
     /// Detectability threshold used by --ci (0-100).
-    #[arg(long, default_value_t = 50)]
+    #[arg(long, default_value_t = 50, help_heading = "CI gate")]
     threshold: u8,
-
-    /// Force-disable ANSI color (color is auto-disabled when not a TTY).
-    #[arg(long)]
-    no_color: bool,
 
     /// Enrich findings with real rules from a SigmaHQ checkout (directory of
     /// Sigma YAML). Matched by ATT&CK technique; platform-relevant rules only.
-    #[arg(long, value_name = "DIR")]
+    #[arg(long, value_name = "DIR", help_heading = "Sigma")]
     sigma: Option<String>,
 
     /// Disable the on-disk Sigma index cache (always re-parse the ruleset).
-    #[arg(long)]
+    #[arg(long, help_heading = "Sigma")]
     no_sigma_cache: bool,
 
     /// Evaluate the input against a single Sigma rule's detection logic and
     /// print, per command, whether it FIRES / NO-FIRE / INDETERMINATE.
-    #[arg(long, value_name = "RULE.yml")]
+    #[arg(
+        long,
+        value_name = "RULE.yml",
+        conflicts_with_all = ["json", "sarif", "coverage_gaps"],
+        help_heading = "Modes"
+    )]
     check_rule: Option<String>,
 
     /// Report coverage gaps: actions whose techniques have rules in --sigma but
     /// where none actually fire. Requires --sigma.
-    #[arg(long, requires = "sigma")]
+    #[arg(
+        long,
+        requires = "sigma",
+        conflicts_with_all = ["json", "sarif"],
+        help_heading = "Modes"
+    )]
     coverage_gaps: bool,
 }
 

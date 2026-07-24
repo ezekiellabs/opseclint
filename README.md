@@ -334,7 +334,8 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - [x] `--coverage-gaps` — flag actions whose techniques have rules but where none fire
 - [ ] Deepen each KB and add EDR-specific telemetry mappings
 
-See the [open issues][issues-url] for the full list.
+See the [open issues][issues-url] for the full list, and
+[CHANGELOG.md](CHANGELOG.md) for release history.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
