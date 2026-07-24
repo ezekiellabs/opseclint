@@ -63,6 +63,8 @@ notable technique.
 - **Scope:** opseclint describes *detectability* — what a defender would see. It
   does **not** recommend evasions. Pull requests that add "how to be quieter /
   defeat this detection" guidance are out of scope and won't be merged.
+- For user-facing changes, add a line under `## [Unreleased]` in
+  [CHANGELOG.md](CHANGELOG.md).
 
 ## Reporting bugs and requesting coverage
 

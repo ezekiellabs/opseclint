@@ -1,0 +1,56 @@
+# Changelog
+
+All notable changes to opseclint are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- **Sigma rule-logic evaluator** (`--check-rule`) — evaluates a command against a
+  rule's actual `detection:`/`condition:` logic with three-valued (Kleene) logic:
+  `FIRES` / `NO-FIRE` / `INDETERMINATE`.
+- **`--coverage-gaps`** — flags actions whose ATT&CK techniques have rules in the
+  `--sigma` ruleset but where none would actually fire (the purple-team blind
+  spots). Exits non-zero with `--ci` when any gap is found.
+- **Verdicts inline in `--sigma`** — each enriched rule is evaluated against the
+  matched command and annotated `fires` / `no-fire` / `indeterminate`.
+- **Tokyo Night** themed terminal output across the report, coverage, and
+  rule-check views.
+- Container image on GHCR and a Marketplace-ready GitHub Action.
+
+### Changed
+- Unified the Sigma metadata index and the detection-logic index into a single
+  cached `SigmaIndex`; `--coverage-gaps` now benefits from the on-disk cache too.
+- CLI: `--help` is grouped into sections, and mutually-exclusive modes now error
+  clearly instead of silently taking precedence.
+
+## [0.1.2] - 2026-07-23
+
+### Added
+- Published to [crates.io](https://crates.io/crates/opseclint) (`cargo install opseclint`).
+- A GitHub Action (`action.yml`) and a `scratch`-based GHCR container image.
+
+### Fixed
+- Sync `Cargo.lock` so the tag-triggered `cargo publish` workflow succeeds.
+
+## [0.1.1] - 2026-07-23
+
+### Added
+- crates.io metadata and a tag-triggered publish workflow.
+
+## [0.1.0] - 2026-07-22
+
+### Added
+- Initial release. Detection-coverage analyzer for **Linux/auditd**,
+  **Windows/Sysmon**, and **macOS/Endpoint Security**.
+- ~150 modeled post-exploitation actions mapping to ATT&CK techniques, the host
+  telemetry they emit, representative Sigma-style detections, and a 0–100
+  detectability score.
+- Human / JSON / SARIF output; a `--ci` gate; `--sigma` enrichment from a real
+  SigmaHQ checkout with an on-disk cache; a `--platform` selector.
+
+[Unreleased]: https://github.com/Gerrrt/opseclint/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Gerrrt/opseclint/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/Gerrrt/opseclint/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/Gerrrt/opseclint/releases/tag/v0.1.0
