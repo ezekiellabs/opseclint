@@ -5,7 +5,7 @@
 
 use crate::kb::Platform;
 use crate::model::Report;
-use crate::sigma::DetectionIndex;
+use crate::sigma::SigmaIndex;
 use crate::sigma_eval::{self, Outcome};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,8 +28,8 @@ pub struct CoverageResult {
     pub firing: Vec<String>,
 }
 
-/// Classify every finding in `report` against the detection `index`.
-pub fn analyze(report: &Report, index: &DetectionIndex, platform: Platform) -> Vec<CoverageResult> {
+/// Classify every finding in `report` against the Sigma `index`.
+pub fn analyze(report: &Report, index: &SigmaIndex, platform: Platform) -> Vec<CoverageResult> {
     let mut out = Vec::new();
     for f in &report.findings {
         let tids: Vec<String> = f.techniques.iter().map(|t| t.id.clone()).collect();
@@ -42,13 +42,16 @@ pub fn analyze(report: &Report, index: &DetectionIndex, platform: Platform) -> V
             let mut any_fire = false;
             let mut any_indet = false;
             for c in &candidates {
-                match sigma_eval::evaluate(&c.rule, cmd, platform).outcome {
-                    Outcome::Fires => {
-                        any_fire = true;
-                        firing.push(c.title.clone());
-                    }
-                    Outcome::Indeterminate => any_indet = true,
-                    Outcome::NoFire => {}
+                match &c.rule {
+                    Some(dr) => match sigma_eval::evaluate(dr, cmd, platform).outcome {
+                        Outcome::Fires => {
+                            any_fire = true;
+                            firing.push(c.title.clone());
+                        }
+                        Outcome::Indeterminate => any_indet = true,
+                        Outcome::NoFire => {}
+                    },
+                    None => any_indet = true, // rule couldn't be lowered to logic
                 }
             }
             if any_fire {
@@ -183,12 +186,12 @@ pub fn render(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{analyzer, kb, sigma::DetectionIndex};
+    use crate::{analyzer, kb, sigma::SigmaIndex};
     use std::path::PathBuf;
 
-    fn index() -> DetectionIndex {
+    fn index() -> SigmaIndex {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sigma");
-        DetectionIndex::load_dir(&dir, "linux").expect("index loads")
+        SigmaIndex::load_dir(&dir, "linux").expect("index loads")
     }
 
     fn coverage_of(command: &str, rule_id: &str) -> Coverage {
