@@ -121,6 +121,48 @@ mod tests {
     }
 
     #[test]
+    fn macos_kb_detects_macos_specific_tradecraft() {
+        // Dynamic-linker hijacking via DYLD_INSERT_LIBRARIES.
+        let dyld = analyze(
+            "DYLD_INSERT_LIBRARIES=/tmp/evil.dylib /Applications/X.app/Contents/MacOS/X",
+            &mac_kb(),
+        );
+        let f = dyld
+            .findings
+            .iter()
+            .find(|f| f.rule_id == "dyld-insert")
+            .expect("DYLD_INSERT_LIBRARIES injection should be detected");
+        assert_eq!(f.techniques[0].id, "T1574.006");
+        assert!(f.noise >= 75);
+
+        // Local password-hash extraction via dscl ShadowHashData.
+        let hash = analyze("sudo dscl . read /Users/victim ShadowHashData", &mac_kb());
+        assert!(hash.findings.iter().any(|f| f.rule_id == "shadowhash-dump"));
+
+        // LoginHook persistence.
+        let hook = analyze(
+            "defaults write com.apple.loginwindow LoginHook /tmp/evil.sh",
+            &mac_kb(),
+        );
+        assert!(
+            hook.findings
+                .iter()
+                .any(|f| f.rule_id == "loginhook-persist")
+        );
+    }
+
+    #[test]
+    fn macos_kb_has_reached_platform_parity() {
+        // macOS coverage was deepened to match Linux/Windows breadth.
+        let mac = mac_kb();
+        assert!(
+            mac.entries.len() >= 60,
+            "expected a grown macOS KB, got {}",
+            mac.entries.len()
+        );
+    }
+
+    #[test]
     fn windows_kb_detects_lolbin_and_normalizes_exe_path() {
         // .exe extension and a full Windows path must still resolve to certutil.
         let report = analyze(

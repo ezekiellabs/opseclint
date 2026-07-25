@@ -264,6 +264,359 @@
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/log erase"],
       "detections": [{ "source": "Sigma", "rule": "Unified log erase (proc_creation_macos)", "confidence": "high" }],
       "noise": 72
+    },
+    {
+      "id": "ps",
+      "command": "ps",
+      "description": "Running process discovery",
+      "techniques": [{ "id": "T1057", "name": "Process Discovery" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /bin/ps"],
+      "detections": [{ "source": "Sigma", "rule": "Process discovery via ps (proc_creation_macos)", "confidence": "low" }],
+      "noise": 35
+    },
+    {
+      "id": "netstat",
+      "command": "netstat",
+      "description": "Network connection discovery",
+      "techniques": [{ "id": "T1049", "name": "System Network Connections Discovery" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/sbin/netstat"],
+      "detections": [{ "source": "Sigma", "rule": "Network connection discovery (proc_creation_macos)", "confidence": "low" }],
+      "noise": 40
+    },
+    {
+      "id": "lsof-net",
+      "command": "lsof",
+      "args_contains": "-i",
+      "description": "Open network socket enumeration via lsof -i",
+      "techniques": [{ "id": "T1049", "name": "System Network Connections Discovery" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/sbin/lsof with -i"],
+      "detections": [{ "source": "Sigma", "rule": "Network connection discovery (proc_creation_macos)", "confidence": "low" }],
+      "noise": 40
+    },
+    {
+      "id": "arp",
+      "command": "arp",
+      "description": "ARP cache enumeration — adjacent host discovery",
+      "techniques": [{ "id": "T1018", "name": "Remote System Discovery" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/sbin/arp"],
+      "detections": [{ "source": "Sigma", "rule": "Remote system discovery via arp (proc_creation_macos)", "confidence": "low" }],
+      "noise": 40
+    },
+    {
+      "id": "dscl-groups",
+      "command": "dscl",
+      "args_contains": "list /groups",
+      "description": "Local group enumeration via dscl",
+      "techniques": [{ "id": "T1069.001", "name": "Permission Groups Discovery: Local Groups" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/dscl reading the local group node"],
+      "detections": [{ "source": "Sigma", "rule": "Local group discovery via dscl (proc_creation_macos)", "confidence": "low" }],
+      "noise": 35
+    },
+    {
+      "id": "sudo-l",
+      "command": "sudo",
+      "args_contains": "-l",
+      "description": "Enumeration of the current user's sudo privileges",
+      "techniques": [{ "id": "T1069", "name": "Permission Groups Discovery" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/sudo with -l", "sudo(8) logging the privilege listing to the unified log"],
+      "detections": [{ "source": "Sigma", "rule": "sudo -l privilege enumeration (proc_creation_macos)", "confidence": "medium" }],
+      "noise": 50
+    },
+    {
+      "id": "last-login",
+      "command": "last",
+      "description": "Login history enumeration",
+      "techniques": [{ "id": "T1087.001", "name": "Account Discovery: Local Account" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/last reading utmpx"],
+      "detections": [{ "source": "Sigma", "rule": "Login history discovery (proc_creation_macos)", "confidence": "low" }],
+      "noise": 30
+    },
+    {
+      "id": "spctl-status",
+      "raw_contains": "spctl --status",
+      "description": "Querying Gatekeeper assessment status — security-software discovery",
+      "techniques": [{ "id": "T1518.001", "name": "Software Discovery: Security Software Discovery" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/sbin/spctl with --status"],
+      "detections": [{ "source": "Sigma", "rule": "Gatekeeper status query (proc_creation_macos)", "confidence": "low" }],
+      "noise": 35
+    },
+    {
+      "id": "private-key-ssh",
+      "raw_contains": "id_rsa",
+      "description": "Access to an SSH RSA private key — unsecured credentials",
+      "techniques": [{ "id": "T1552.004", "name": "Unsecured Credentials: Private Keys" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_OPEN of ~/.ssh/id_rsa"],
+      "detections": [{ "source": "Sigma", "rule": "SSH private key access (file_event_macos)", "confidence": "medium" }],
+      "noise": 65
+    },
+    {
+      "id": "private-key-ed25519",
+      "raw_contains": "id_ed25519",
+      "description": "Access to an SSH Ed25519 private key — unsecured credentials",
+      "techniques": [{ "id": "T1552.004", "name": "Unsecured Credentials: Private Keys" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_OPEN of ~/.ssh/id_ed25519"],
+      "detections": [{ "source": "Sigma", "rule": "SSH private key access (file_event_macos)", "confidence": "medium" }],
+      "noise": 65
+    },
+    {
+      "id": "creds-in-files",
+      "command": "grep",
+      "args_contains": "password",
+      "description": "Grepping the filesystem for passwords — credential hunting",
+      "techniques": [{ "id": "T1552.001", "name": "Unsecured Credentials: Credentials In Files" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/grep scanning for secrets"],
+      "detections": [{ "source": "Sigma", "rule": "Credential search in files (proc_creation_macos)", "confidence": "low" }],
+      "noise": 55
+    },
+    {
+      "id": "shadowhash-dump",
+      "raw_contains": "shadowhashdata",
+      "description": "Reading ShadowHashData via dscl — local password-hash extraction",
+      "techniques": [{ "id": "T1003", "name": "OS Credential Dumping" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/dscl reading ShadowHashData", "elevated (root) access to the local directory-services record"],
+      "detections": [{ "source": "Sigma", "rule": "ShadowHashData dump via dscl (proc_creation_macos)", "confidence": "high" }],
+      "noise": 70
+    },
+    {
+      "id": "browser-cookies",
+      "raw_contains": "cookies.binarycookies",
+      "description": "Reading Safari's binary cookie store — session-cookie theft",
+      "techniques": [{ "id": "T1539", "name": "Steal Web Session Cookie" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_OPEN of ~/Library/Cookies/Cookies.binarycookies"],
+      "detections": [{ "source": "Sigma", "rule": "Browser cookie store access (file_event_macos)", "confidence": "medium" }],
+      "noise": 50
+    },
+    {
+      "id": "chrome-logindata",
+      "raw_contains": "chrome/default/login data",
+      "description": "Reading Chrome's Login Data store — saved-credential theft",
+      "techniques": [{ "id": "T1555.003", "name": "Credentials from Password Stores: Credentials from Web Browsers" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_OPEN of ~/Library/Application Support/Google/Chrome/Default/Login Data"],
+      "detections": [{ "source": "Sigma", "rule": "Web-browser credential store access (file_event_macos)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "osascript-phish",
+      "raw_contains": "with hidden answer",
+      "description": "AppleScript password prompt (display dialog … with hidden answer) — GUI credential phishing",
+      "techniques": [{ "id": "T1056.002", "name": "Input Capture: GUI Input Capture" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/osascript rendering a credential dialog"],
+      "detections": [{ "source": "Sigma", "rule": "osascript credential prompt (proc_creation_macos)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "python-c",
+      "command": "python3",
+      "args_contains": "-c",
+      "description": "Inline Python execution — common for one-liner payloads",
+      "techniques": [{ "id": "T1059.006", "name": "Command and Scripting Interpreter: Python" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of python3 with -c"],
+      "detections": [{ "source": "Sigma", "rule": "Inline Python execution (proc_creation_macos)", "confidence": "low" }],
+      "noise": 55
+    },
+    {
+      "id": "netcat",
+      "command": "nc",
+      "description": "Raw TCP/UDP connection via nc — potential C2 or exfil channel",
+      "techniques": [{ "id": "T1095", "name": "Non-Application Layer Protocol" }, { "id": "T1071", "name": "Application Layer Protocol" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/nc", "outbound socket observed via a NetworkExtension flow / pf log"],
+      "detections": [{ "source": "Sigma", "rule": "Netcat execution (proc_creation_macos)", "confidence": "medium" }],
+      "noise": 70
+    },
+    {
+      "id": "python-http-server",
+      "command": "python3",
+      "args_contains": "http.server",
+      "description": "Ad-hoc HTTP server — data staging / exfiltration channel",
+      "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }, { "id": "T1567", "name": "Exfiltration Over Web Service" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of python3 with http.server", "process binding a listening TCP socket"],
+      "detections": [{ "source": "Sigma", "rule": "Ad-hoc Python HTTP server (proc_creation_macos)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "crontab-persist",
+      "command": "crontab",
+      "description": "Cron job listing or installation — scheduled-task persistence",
+      "techniques": [{ "id": "T1053.003", "name": "Scheduled Task/Job: Cron" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/crontab", "ES_EVENT_TYPE_NOTIFY_WRITE of /usr/lib/cron/tabs/<user>"],
+      "detections": [{ "source": "Sigma", "rule": "Cron persistence via crontab (proc_creation_macos)", "confidence": "medium" }],
+      "noise": 45
+    },
+    {
+      "id": "emond-persist",
+      "raw_contains": "emond",
+      "description": "Writing an emond rule — event-monitor persistence",
+      "techniques": [{ "id": "T1546.014", "name": "Event Triggered Execution: Emond" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE under /etc/emond.d/ or /private/var/db/emondClients"],
+      "detections": [{ "source": "Sigma", "rule": "Emond rule persistence (file_event_macos)", "confidence": "high" }],
+      "noise": 60
+    },
+    {
+      "id": "periodic-persist",
+      "raw_contains": "/etc/periodic",
+      "description": "Dropping a periodic script — scheduled-task persistence",
+      "techniques": [{ "id": "T1053.003", "name": "Scheduled Task/Job: Cron" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE under /etc/periodic/{daily,weekly,monthly}"],
+      "detections": [{ "source": "Sigma", "rule": "Periodic script persistence (file_event_macos)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "loginhook-persist",
+      "raw_contains": "loginhook",
+      "description": "Setting a LoginHook via com.apple.loginwindow — logon persistence",
+      "techniques": [{ "id": "T1037.002", "name": "Boot or Logon Initialization Scripts: Login Hook" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/defaults writing com.apple.loginwindow LoginHook"],
+      "detections": [{ "source": "Sigma", "rule": "LoginHook persistence (proc_creation_macos)", "confidence": "high" }],
+      "noise": 60
+    },
+    {
+      "id": "authorized-keys",
+      "raw_contains": "authorized_keys",
+      "description": "Modification of SSH authorized_keys — remote-access persistence",
+      "techniques": [{ "id": "T1098.004", "name": "Account Manipulation: SSH Authorized Keys" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE of ~/.ssh/authorized_keys"],
+      "detections": [{ "source": "Sigma", "rule": "authorized_keys modification (file_event_macos)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "shell-profile-persist",
+      "raw_contains": ".zshrc",
+      "description": "Modifying a shell rc file (.zshrc) — logon persistence",
+      "techniques": [{ "id": "T1546.004", "name": "Event Triggered Execution: Unix Shell Configuration Modification" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE of ~/.zshrc"],
+      "detections": [{ "source": "Sigma", "rule": "Shell profile modification (file_event_macos)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "hidden-user",
+      "raw_contains": "ishidden",
+      "description": "Creating an account with IsHidden — hidden local user for persistence",
+      "techniques": [{ "id": "T1564.002", "name": "Hide Artifacts: Hidden Users" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/dscl setting IsHidden on a user record"],
+      "detections": [{ "source": "Sigma", "rule": "Hidden user creation via dscl (proc_creation_macos)", "confidence": "high" }],
+      "noise": 55
+    },
+    {
+      "id": "dyld-insert",
+      "raw_contains": "dyld_insert_libraries",
+      "description": "DYLD_INSERT_LIBRARIES injection — dynamic-linker hijacking",
+      "techniques": [{ "id": "T1574.006", "name": "Hijack Execution Flow: Dynamic Linker Hijacking" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC with DYLD_INSERT_LIBRARIES in the environment"],
+      "detections": [{ "source": "Sigma", "rule": "DYLD_INSERT_LIBRARIES injection (proc_creation_macos)", "confidence": "high" }],
+      "noise": 78
+    },
+    {
+      "id": "firewall-disable",
+      "raw_contains": "socketfilterfw",
+      "description": "Disabling the application firewall via socketfilterfw — defense impairment",
+      "techniques": [{ "id": "T1562.004", "name": "Impair Defenses: Disable or Modify System Firewall" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of socketfilterfw with --setglobalstate off"],
+      "detections": [{ "source": "Sigma", "rule": "Application firewall disable (proc_creation_macos)", "confidence": "high" }],
+      "noise": 55
+    },
+    {
+      "id": "pfctl-disable",
+      "command": "pfctl",
+      "args_contains": "-d",
+      "description": "Disabling the packet filter via pfctl -d — defense impairment",
+      "techniques": [{ "id": "T1562.004", "name": "Impair Defenses: Disable or Modify System Firewall" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /sbin/pfctl with -d"],
+      "detections": [{ "source": "Sigma", "rule": "Packet filter disable via pfctl (proc_creation_macos)", "confidence": "medium" }],
+      "noise": 50
+    },
+    {
+      "id": "chflags-hidden",
+      "command": "chflags",
+      "args_contains": "hidden",
+      "description": "Setting the hidden flag — hide artifacts from Finder",
+      "techniques": [{ "id": "T1564.001", "name": "Hide Artifacts: Hidden Files and Directories" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_SETFLAGS marking a path hidden"],
+      "detections": [{ "source": "Sigma", "rule": "File hidden via chflags (proc_creation_macos)", "confidence": "low" }],
+      "noise": 40
+    },
+    {
+      "id": "chflags-uchg",
+      "command": "chflags",
+      "args_contains": "uchg",
+      "description": "Setting the immutable (uchg) flag — protect a dropped artifact",
+      "techniques": [{ "id": "T1222.002", "name": "File and Directory Permissions Modification: Linux and Mac" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_SETFLAGS setting the user-immutable flag"],
+      "detections": [{ "source": "Sigma", "rule": "Immutable flag set via chflags (proc_creation_macos)", "confidence": "low" }],
+      "noise": 45
+    },
+    {
+      "id": "chmod-exec",
+      "command": "chmod",
+      "args_contains": "+x",
+      "description": "Making a file executable — staging a dropped payload",
+      "techniques": [{ "id": "T1222.002", "name": "File and Directory Permissions Modification: Linux and Mac" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_SETMODE adding the execute bit"],
+      "detections": [{ "source": "Sigma", "rule": "Executable bit set via chmod (proc_creation_macos)", "confidence": "low" }],
+      "noise": 40
+    },
+    {
+      "id": "base64-decode",
+      "command": "base64",
+      "args_contains": "-d",
+      "description": "Base64 decoding — deobfuscation of payloads",
+      "techniques": [{ "id": "T1140", "name": "Deobfuscate/Decode Files or Information" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/base64 in decode mode"],
+      "detections": [{ "source": "Sigma", "rule": "Base64 decode (proc_creation_macos)", "confidence": "low" }],
+      "noise": 45
+    },
+    {
+      "id": "tar-archive",
+      "command": "tar",
+      "description": "Archiving data — collection prior to exfiltration",
+      "techniques": [{ "id": "T1560.001", "name": "Archive Collected Data: Archive via Utility" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/tar"],
+      "detections": [{ "source": "Sigma", "rule": "Data archived via tar (proc_creation_macos)", "confidence": "low" }],
+      "noise": 45
+    },
+    {
+      "id": "ditto-archive",
+      "command": "ditto",
+      "description": "Archiving data via ditto — collection prior to exfiltration",
+      "techniques": [{ "id": "T1560.001", "name": "Archive Collected Data: Archive via Utility" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/ditto"],
+      "detections": [{ "source": "Sigma", "rule": "Data archived via ditto (proc_creation_macos)", "confidence": "low" }],
+      "noise": 40
+    },
+    {
+      "id": "scp-exfil",
+      "command": "scp",
+      "description": "File transfer over SSH — ingress or exfiltration",
+      "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }, { "id": "T1048", "name": "Exfiltration Over Alternative Protocol" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/scp", "outbound SSH connection to a remote host"],
+      "detections": [{ "source": "Sigma", "rule": "File transfer via scp (proc_creation_macos)", "confidence": "low" }],
+      "noise": 45
+    },
+    {
+      "id": "ssh-lateral",
+      "command": "ssh",
+      "description": "Interactive SSH — potential lateral movement",
+      "techniques": [{ "id": "T1021.004", "name": "Remote Services: SSH" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/ssh", "outbound connection to a remote host on tcp/22"],
+      "detections": [{ "source": "Sigma", "rule": "Interactive SSH session (proc_creation_macos)", "confidence": "low" }],
+      "noise": 45
+    },
+    {
+      "id": "ard-kickstart",
+      "raw_contains": "kickstart -activate",
+      "description": "Enabling Apple Remote Desktop via kickstart — remote-management foothold",
+      "techniques": [{ "id": "T1021.005", "name": "Remote Services: VNC" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of the ARDAgent kickstart helper with -activate"],
+      "detections": [{ "source": "Sigma", "rule": "Remote Management enabled via kickstart (proc_creation_macos)", "confidence": "high" }],
+      "noise": 55
+    },
+    {
+      "id": "screensharing-enable",
+      "raw_contains": "com.apple.screensharing",
+      "description": "Enabling the Screen Sharing (VNC) service — remote-access foothold",
+      "techniques": [{ "id": "T1021.005", "name": "Remote Services: VNC" }],
+      "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /bin/launchctl loading com.apple.screensharing"],
+      "detections": [{ "source": "Sigma", "rule": "Screen Sharing service enabled (proc_creation_macos)", "confidence": "medium" }],
+      "noise": 50
     }
   ]
 }
