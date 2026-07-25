@@ -1,5 +1,7 @@
+---
 name: "opseclint detection-coverage"
-description: "Analyze shell/command playbooks: map actions to ATT&CK techniques, host telemetry, and the detections that would fire."
+description: "Analyze shell/command playbooks: map actions to ATT&CK techniques,
+  host telemetry, and the detections that would fire."
 author: "Garrett Allen (@Gerrrt)"
 
 branding:
@@ -19,11 +21,13 @@ inputs:
     required: false
     default: "latest"
   sarif-file:
-    description: "If set, also write SARIF here (e.g. opseclint.sarif) for a code-scanning upload step."
+    description: "If set, also write SARIF here (e.g. opseclint.sarif) for a
+      code-scanning upload step."
     required: false
     default: ""
   fail-threshold:
-    description: "If set (0-100), fail the job when the loudest action's detectability is >= this value."
+    description: "If set (0-100), fail the job when the loudest action's
+      detectability is >= this value."
     required: false
     default: ""
   args:

@@ -51,7 +51,7 @@ pub fn analyze(input: &str, kb: &KnowledgeBase) -> Report {
 
         for entry in &kb.entries {
             // The specific command that matched (for command entries), else the
-            // line's first command (for raw/line matches) — kept so coverage
+            // line's first command (for raw/line matches). Kept so coverage
             // analysis can evaluate rule logic against it.
             let (matched, matched_command) = if entry.command.is_some() {
                 let cmd = commands

@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Sample macOS post-exploitation playbook — illustrative only.
+# Sample macOS post-exploitation playbook. Illustrative only.
 # Analyze with: opseclint examples/macos-postex.sh --platform macos-es
 
 # Discovery

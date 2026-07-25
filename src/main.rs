@@ -1,9 +1,9 @@
-//! opseclint — a detection-coverage analyzer for Linux/auditd,
+//! opseclint: A detection-coverage analyzer for Linux/auditd,
 //! Windows/Sysmon, and macOS/Endpoint Security.
 //!
 //! Point it at a command, a script, or a playbook and it statically resolves
 //! each action to the ATT&CK technique(s) it implements, the host telemetry it
-//! emits, and the detections that would fire — with a detectability score.
+//! emits, and the detections that would fire. With a detectability score.
 //! It answers "what would a defender see?", to help red/purple teams and
 //! detection engineers reason about coverage. It does not recommend evasions.
 

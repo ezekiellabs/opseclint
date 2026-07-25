@@ -17,7 +17,7 @@ pub struct Command {
 }
 
 impl Command {
-    /// Arguments joined with spaces, lowercased — used for `args_contains`.
+    /// Arguments joined with spaces, lowercased. Used for `args_contains`.
     pub fn args_joined(&self) -> String {
         self.args.join(" ").to_lowercase()
     }

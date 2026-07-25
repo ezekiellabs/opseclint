@@ -1,3 +1,4 @@
+---
 name: Coverage request
 description: Add a new detection, or fix a false positive / false negative
 labels: ["detection-logic"]

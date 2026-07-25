@@ -1,5 +1,5 @@
 //! Coverage-gap analysis. For each analyzed action, checks whether the deployed
-//! ruleset actually *fires* on it — surfacing the purple-team blind spots:
+//! ruleset actually *fires* on it. Surfacing the purple-team blind spots:
 //! actions whose ATT&CK techniques have rules, yet none of those rules would
 //! trigger on this specific command.
 
@@ -12,7 +12,7 @@ use crate::sigma_eval::{self, Outcome};
 pub enum Coverage {
     /// At least one rule fires on this action.
     Covered,
-    /// Rules exist for the action's technique(s), but none fire — a blind spot.
+    /// Rules exist for the action's technique(s), but none fire. Known blind spot.
     Gap,
     /// Rules exist but only evaluate to INDETERMINATE (need host fields).
     Indeterminate,

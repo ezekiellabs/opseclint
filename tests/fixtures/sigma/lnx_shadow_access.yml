@@ -1,15 +1,16 @@
+---
 title: Access To /etc/shadow File
 id: 11111111-1111-1111-1111-111111111111
 status: test
 description: Detects access to the shadow password file.
 logsource:
-    product: linux
-    category: file_event
+  product: linux
+  category: file_event
 detection:
-    selection:
-        TargetFilename: '/etc/shadow'
-    condition: selection
+  selection:
+    TargetFilename: "/etc/shadow"
+  condition: selection
 level: high
 tags:
-    - attack.credential_access
-    - attack.t1003.008
+  - attack.credential_access
+  - attack.t1003.008

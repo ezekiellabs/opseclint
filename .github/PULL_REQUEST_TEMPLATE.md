@@ -1,6 +1,6 @@
 <!-- Thanks for contributing to opseclint! -->
 
-## What this changes
+# What this changes
 
 <!-- A short description. Link any related issue: "Closes #123". -->
 
@@ -18,4 +18,4 @@
 - [ ] `cargo clippy --all-targets -- -D warnings` passes
 - [ ] `cargo test` passes
 - [ ] New knowledge-base entries have unique `id`s and cite real ATT&CK techniques
-- [ ] This change describes *detectability* only — it does not add evasion guidance
+- [ ] This change describes _detectability_ only. It does not add evasion guidance

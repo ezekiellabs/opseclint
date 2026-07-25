@@ -1,15 +1,16 @@
+---
 title: Windows Process Discovery Via Tasklist
 id: 33333333-3333-3333-3333-333333333333
 status: test
-description: Windows-only rule that must be skipped by the Linux-focused indexer.
+description: Windows-only rule that must be skipped by Linux-focused indexer.
 logsource:
-    product: windows
-    category: process_creation
+  product: windows
+  category: process_creation
 detection:
-    selection:
-        Image|endswith: '\tasklist.exe'
-    condition: selection
+  selection:
+    Image|endswith: '\tasklist.exe'
+  condition: selection
 level: low
 tags:
-    - attack.discovery
-    - attack.t1057
+  - attack.discovery
+  - attack.t1057
