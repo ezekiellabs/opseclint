@@ -7,6 +7,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **EDR telemetry mappings (`--edr`)** — an opt-in flag that maps each finding's
+  native host telemetry to the concrete sensor event or hunting table the major
+  EDRs surface it as: CrowdStrike Falcon (`event_simpleName`), Microsoft Defender
+  for Endpoint (Advanced Hunting tables), SentinelOne (Deep Visibility event
+  types), and Elastic Defend (ECS `event.category`/`event.type`). Pass a vendor or
+  omit the value for all four. Mapping is driven by a telemetry event-class
+  classifier plus an embedded `data/edr-telemetry.json` table, so new KB entries
+  gain EDR coverage without per-entry authoring. Standard output is unchanged when
+  the flag is absent; the `edr` field is added to JSON only when requested.
 - **Deepened the macOS/Endpoint Security knowledge base** from 28 to 66 entries,
   reaching breadth parity with the Linux and Windows rulesets. New coverage spans
   process/network discovery (`ps`, `netstat`, `lsof -i`, `arp`), credential access
