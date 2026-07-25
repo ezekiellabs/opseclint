@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-23
+
 ### Added
 - **Sigma rule-logic evaluator** (`--check-rule`) — evaluates a command against a
   rule's actual `detection:`/`condition:` logic with three-valued (Kleene) logic:
@@ -50,7 +52,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Human / JSON / SARIF output; a `--ci` gate; `--sigma` enrichment from a real
   SigmaHQ checkout with an on-disk cache; a `--platform` selector.
 
-[Unreleased]: https://github.com/Gerrrt/opseclint/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/Gerrrt/opseclint/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Gerrrt/opseclint/compare/v0.1.2...v1.0.0
 [0.1.2]: https://github.com/Gerrrt/opseclint/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Gerrrt/opseclint/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Gerrrt/opseclint/releases/tag/v0.1.0

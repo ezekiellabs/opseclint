@@ -1,6 +1,6 @@
 [package]
 name = "opseclint"
-version = "0.1.2"
+version = "1.0.0"
 edition = "2024"
 description = "Detection-coverage analyzer for Linux/auditd, Windows/Sysmon, and macOS/Endpoint Security: resolve shell/command actions to ATT&CK techniques, the telemetry they emit, and the detections that would fire."
 license = "MIT"
