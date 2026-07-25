@@ -20,6 +20,7 @@ fn finding_from_entry(
         techniques: entry.techniques.clone(),
         telemetry: entry.telemetry.clone(),
         detections: entry.detections.clone(),
+        edr: Vec::new(),
         noise: entry.noise,
         severity: Severity::from_noise(entry.noise),
         matched_command,

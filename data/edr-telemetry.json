@@ -1,0 +1,102 @@
+{
+  "note": "Representative EDR sensor telemetry, mapped by event class. CrowdStrike values are event_simpleName (Falcon Data Replicator), aligned with the SigmaHQ CrowdStrike pipeline; Defender values are Advanced Hunting (KQL) tables; SentinelOne values are Deep Visibility event types; Elastic values are ECS event.category/event.type. Names vary by sensor version, platform, and telemetry configuration — validate against your own tenant. A '(…)' value means the sensor has no first-class event for that class and the activity surfaces indirectly (usually via the process that performed it).",
+  "vendors": {
+    "crowdstrike": "CrowdStrike Falcon",
+    "defender": "Microsoft Defender for Endpoint",
+    "sentinelone": "SentinelOne",
+    "elastic": "Elastic Defend"
+  },
+  "classes": {
+    "process_creation": {
+      "label": "Process creation",
+      "crowdstrike": ["ProcessRollup2", "SyntheticProcessRollup2"],
+      "defender": ["DeviceProcessEvents"],
+      "sentinelone": ["Process Creation"],
+      "elastic": ["process (event.type:start)"]
+    },
+    "network_connection": {
+      "label": "Network connection",
+      "crowdstrike": ["NetworkConnectIP4", "NetworkReceiveAcceptIP4"],
+      "defender": ["DeviceNetworkEvents"],
+      "sentinelone": ["IP Connect", "IP Listen"],
+      "elastic": ["network (event.type:connection)"]
+    },
+    "file_write": {
+      "label": "File write / create",
+      "crowdstrike": ["NewExecutableWritten", "NewScriptWritten"],
+      "defender": ["DeviceFileEvents"],
+      "sentinelone": ["File Creation", "File Modification"],
+      "elastic": ["file (event.type:creation)"]
+    },
+    "file_access": {
+      "label": "File read / access",
+      "crowdstrike": ["(reads surface via ProcessRollup2 of the accessing process)"],
+      "defender": ["DeviceFileEvents (sensitive-file access)"],
+      "sentinelone": ["File Scan"],
+      "elastic": ["file (event.type:access)"]
+    },
+    "image_load": {
+      "label": "Module / driver load",
+      "crowdstrike": ["ClassifiedModuleLoad", "DriverLoad"],
+      "defender": ["DeviceImageLoadEvents"],
+      "sentinelone": ["Module Load"],
+      "elastic": ["library (event.type:start)", "driver"]
+    },
+    "registry_set": {
+      "label": "Registry write",
+      "crowdstrike": ["AsepValueUpdate"],
+      "defender": ["DeviceRegistryEvents"],
+      "sentinelone": ["Registry Value Modified"],
+      "elastic": ["registry (event.type:change)"]
+    },
+    "process_access": {
+      "label": "Cross-process access",
+      "crowdstrike": ["(credential-access detection; ProcessRollup2 of the accessing process)"],
+      "defender": ["DeviceEvents (ActionType OpenProcessApiCall)"],
+      "sentinelone": ["Cross-Process (open process handle)"],
+      "elastic": ["process (event.action:process_access)"]
+    },
+    "scheduled_task": {
+      "label": "Scheduled task / cron",
+      "crowdstrike": ["(surfaces via ProcessRollup2 of the scheduler + registry/file writes)"],
+      "defender": ["DeviceEvents (ActionType ScheduledTaskCreated)"],
+      "sentinelone": ["Scheduled Task Register"],
+      "elastic": ["(process + file/registry writes)"]
+    },
+    "service_change": {
+      "label": "Service install / change",
+      "crowdstrike": ["(surfaces via registry ASEP + ProcessRollup2)"],
+      "defender": ["DeviceEvents (ActionType ServiceInstalled)"],
+      "sentinelone": ["(service via registry / process)"],
+      "elastic": ["(process + registry writes)"]
+    },
+    "ps_script": {
+      "label": "Script execution",
+      "crowdstrike": ["ScriptControlScanTelemetry", "CommandHistory"],
+      "defender": ["DeviceEvents (ActionType PowerShellCommand)"],
+      "sentinelone": ["Command Script"],
+      "elastic": ["process (PowerShell script block)"]
+    },
+    "authentication": {
+      "label": "Authentication / logon",
+      "crowdstrike": ["UserLogon", "UserLogoff"],
+      "defender": ["DeviceLogonEvents"],
+      "sentinelone": ["Login", "Logout"],
+      "elastic": ["authentication"]
+    },
+    "log_clear": {
+      "label": "Log clear / audit tamper",
+      "crowdstrike": ["(no dedicated event; ProcessRollup2 of the clearing tool)"],
+      "defender": ["DeviceEvents (ActionType SecurityLogCleared)"],
+      "sentinelone": ["(process context of the clearing tool)"],
+      "elastic": ["process (wevtutil / journalctl / log)"]
+    },
+    "permission_change": {
+      "label": "Permission / attribute change",
+      "crowdstrike": ["(surfaces via ProcessRollup2 of chmod / chattr / chflags)"],
+      "defender": ["DeviceProcessEvents", "DeviceFileEvents"],
+      "sentinelone": ["Process Creation"],
+      "elastic": ["process", "file"]
+    }
+  }
+}

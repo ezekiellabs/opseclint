@@ -95,6 +95,16 @@ impl Severity {
     }
 }
 
+/// The sensor events one EDR product would surface for a finding, derived by
+/// classifying its native telemetry into event classes (see `edr.rs`).
+#[derive(Debug, Clone, Serialize)]
+pub struct EdrMapping {
+    /// Human-readable vendor label, e.g. "CrowdStrike Falcon".
+    pub vendor: String,
+    /// Sensor events / hunting tables for this vendor, deduplicated.
+    pub events: Vec<String>,
+}
+
 /// A single detection-coverage finding tied to a source line.
 #[derive(Debug, Clone, Serialize)]
 pub struct Finding {
@@ -105,6 +115,9 @@ pub struct Finding {
     pub techniques: Vec<Technique>,
     pub telemetry: Vec<String>,
     pub detections: Vec<Detection>,
+    /// EDR sensor-event mappings, populated only when `--edr` is requested.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edr: Vec<EdrMapping>,
     pub noise: u8,
     pub severity: Severity,
     /// The command this finding was matched from, kept for rule-logic

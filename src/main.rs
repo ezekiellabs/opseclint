@@ -9,6 +9,7 @@
 
 mod analyzer;
 mod coverage;
+mod edr;
 mod kb;
 mod model;
 mod parser;
@@ -63,6 +64,19 @@ struct Cli {
     /// Detectability threshold used by --ci (0-100).
     #[arg(long, default_value_t = 50, help_heading = "CI gate")]
     threshold: u8,
+
+    /// Map each finding's telemetry to the sensor events major EDRs surface.
+    /// Give a vendor (crowdstrike, defender, sentinelone, elastic) or omit the
+    /// value for all four.
+    #[arg(
+        long,
+        value_enum,
+        value_name = "VENDOR",
+        num_args = 0..=1,
+        default_missing_value = "all",
+        help_heading = "EDR"
+    )]
+    edr: Option<edr::Vendor>,
 
     /// Enrich findings with real rules from a SigmaHQ checkout (directory of
     /// Sigma YAML). Matched by ATT&CK technique; platform-relevant rules only.
@@ -242,6 +256,14 @@ fn main() -> ExitCode {
                     "opseclint: could not read sigma dir '{dir}': {e} (using seed references)"
                 );
             }
+        }
+    }
+
+    // EDR telemetry mapping is additive enrichment on the standard report.
+    if let Some(vendor) = cli.edr {
+        let note = edr::annotate(&mut report, &[vendor]);
+        if !cli.json && !cli.sarif {
+            eprintln!("opseclint: edr — {note}");
         }
     }
 

@@ -130,6 +130,13 @@ pub fn render_human(report: &Report, color: bool) -> String {
             ));
             subs.push(line);
         }
+        for m in &f.edr {
+            subs.push(format!(
+                "{} {}",
+                p.paint(theme::BLUE, &format!("◎ {}:", m.vendor)),
+                p.paint(theme::FG_DIM, &m.events.join(" · ")),
+            ));
+        }
 
         let last = subs.len().saturating_sub(1);
         for (i, sub) in subs.iter().enumerate() {

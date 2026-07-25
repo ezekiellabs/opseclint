@@ -255,6 +255,36 @@ summary  1 gap(s), 10 covered, 3 indeterminate, 1 no-rules
 = the ruleset has nothing for that technique. With `--ci`, the run exits
 non-zero when any gap is found.
 
+### EDR telemetry (`--edr`)
+
+The native telemetry line answers "what does the OS record?"; `--edr` answers the
+question "what would my EDR console show?" by mapping each finding to
+the concrete sensor event or hunting table the major EDRs surface it as. Pass a
+vendor (`crowdstrike`, `defender`, `sentinelone`, `elastic`) or omit the value for
+all four. Output is otherwise unchanged, so it stays opt-in.
+
+```console
+$ opseclint -c 'rundll32 comsvcs.dll, MiniDump 660 lsass.dmp full' --platform windows --edr
+
+ ● CRITICAL 84  L1  LSASS memory dump via comsvcs.dll MiniDump — credential access
+                ├ T1003.001 OS Credential Dumping: LSASS Memory
+                ├ ◈ Sysmon EID 10 (Process Access) targeting lsass.exe
+                ├ ◆ Sigma: LSASS dump via comsvcs MiniDump (proc_creation_win) (high)
+                ├ ◎ CrowdStrike Falcon: (credential-access detection; ProcessRollup2 of the accessing process)
+                ├ ◎ Microsoft Defender for Endpoint: DeviceEvents (ActionType OpenProcessApiCall)
+                ├ ◎ SentinelOne: Cross-Process (open process handle)
+                └ ◎ Elastic Defend: process (event.action:process_access)
+```
+
+Mapping works by classifying the native telemetry into an **event class** (process
+creation, network connection, file write, module load, LSASS access, log clear, …)
+and looking that class up per vendor so new KB entries get EDR coverage for free.
+CrowdStrike values are `event_simpleName`, Defender values are Advanced Hunting
+tables, SentinelOne values are Deep Visibility event types, and Elastic values are
+ECS `event.category`/`event.type`. They're **representative**. Validate against
+your own sensor version and telemetry config. A `(…)` value means that sensor has
+no first-class event for the class and the activity surfaces indirectly.
+
 ### GitHub code scanning
 
 `--sarif` emits [SARIF 2.1.0][sarif-url], so findings surface in a repo's
@@ -338,7 +368,8 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - [x] [Sigma rule-logic evaluator](docs/design/rule-logic-evaluator.md): three-valued `FIRES` / `NO-FIRE` / `INDETERMINATE`, via `--check-rule`
 - [x] `--coverage-gaps`: flag actions whose techniques have rules but where none fire
 - [x] macOS/Endpoint Security KB deepened to breadth parity with Linux/Windows (66 entries)
-- [ ] Deepen the Linux/Windows KBs further and add EDR-specific telemetry mappings
+- [x] [EDR-specific telemetry mappings](#edr-telemetry---edr): CrowdStrike, Defender, SentinelOne, Elastic via `--edr`
+- [ ] Deepen the Linux/Windows KBs further
 
 See the [open issues][issues-url] for the full list, and
 [CHANGELOG.md](CHANGELOG.md) for release history.
