@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Deepened the macOS/Endpoint Security knowledge base** from 28 to 66 entries,
+  reaching breadth parity with the Linux and Windows rulesets. New coverage spans
+  process/network discovery (`ps`, `netstat`, `lsof -i`, `arp`), credential access
+  (SSH private keys, `grep` for secrets, `dscl` ShadowHashData dumping, Safari/Chrome
+  credential stores, `osascript` GUI phishing), scheduled-task and logon persistence
+  (`crontab`, emond, periodic scripts, LoginHook, `authorized_keys`, `.zshrc`, hidden
+  users), defense evasion (`DYLD_INSERT_LIBRARIES` hijacking, `socketfilterfw`/`pfctl`
+  firewall tampering, `chflags`, `chmod +x`, `base64 -d`), collection/exfil (`tar`,
+  `ditto`, `scp`), and lateral movement (`ssh`, ARD `kickstart`, Screen Sharing).
+
 ## [1.0.0] - 2026-07-23
 
 ### Added

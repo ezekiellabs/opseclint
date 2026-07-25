@@ -337,7 +337,8 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - [x] Distribution: crates.io, prebuilt binaries, a GitHub Action, and a GHCR image
 - [x] [Sigma rule-logic evaluator](docs/design/rule-logic-evaluator.md): three-valued `FIRES` / `NO-FIRE` / `INDETERMINATE`, via `--check-rule`
 - [x] `--coverage-gaps`: flag actions whose techniques have rules but where none fire
-- [ ] Deepen each KB and add EDR-specific telemetry mappings
+- [x] macOS/Endpoint Security KB deepened to breadth parity with Linux/Windows (66 entries)
+- [ ] Deepen the Linux/Windows KBs further and add EDR-specific telemetry mappings
 
 See the [open issues][issues-url] for the full list, and
 [CHANGELOG.md](CHANGELOG.md) for release history.
