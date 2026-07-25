@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sample defense-evasion / anti-forensics playbook — illustrative only.
+# Sample defense-evasion / anti-forensics playbook. Illustrative only.
 # Demonstrates opseclint coverage of impair-defenses and indicator-removal.
 
 # Disable host defenses
@@ -14,7 +14,7 @@ shred -u /tmp/loot.tar.gz
 
 # Clear operator tracks
 history -c
-cat /dev/null > ~/.bash_history
+cat /dev/null >~/.bash_history
 
 # Make an implant hard to remove
 chattr +i /usr/local/bin/beacon

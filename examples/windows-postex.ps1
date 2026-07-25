@@ -1,4 +1,4 @@
-# Sample Windows post-exploitation playbook — illustrative only.
+# Sample Windows post-exploitation playbook. Illustrative only.
 # Analyze with: opseclint examples/windows-postex.ps1 --platform windows-sysmon
 
 # Discovery

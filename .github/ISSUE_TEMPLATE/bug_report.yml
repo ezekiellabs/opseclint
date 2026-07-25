@@ -1,11 +1,12 @@
+---
 name: Bug report
-description: Something in opseclint behaves incorrectly (crash, wrong output, bad parse)
+description: Opseclint behaves incorrectly (crash, wrong output, bad parse)
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the report! For a *missed* or *spurious* detection, prefer the
+        Thank you! For a *missed* or *spurious* detection, prefer the
         **Coverage request** template. For security issues, see SECURITY.md.
   - type: input
     id: version

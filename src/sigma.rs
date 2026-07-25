@@ -2,8 +2,8 @@
 //!
 //! Point opseclint at a checkout of <https://github.com/SigmaHQ/sigma> (or any
 //! directory of Sigma-format YAML) with `--sigma <DIR>`. We index every rule by
-//! the ATT&CK technique(s) in its `tags` — together with its parsed detection
-//! logic — then attach the genuine rule title/UUID/level to any finding whose
+//! the ATT&CK technique(s) in its `tags` together with its parsed detection
+//! logic then attach the genuine rule title/UUID/level to any finding whose
 //! technique matches, and evaluate whether each rule would actually fire on the
 //! matched command (`fires` / `no-fire` / `indeterminate`). The same index
 //! powers coverage-gap analysis.

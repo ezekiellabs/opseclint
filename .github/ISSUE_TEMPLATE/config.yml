@@ -1,3 +1,4 @@
+---
 blank_issues_enabled: false
 contact_links:
   - name: Questions & ideas
@@ -5,4 +6,4 @@ contact_links:
     about: Use Discussions for questions, ideas, and show-and-tell.
   - name: Security vulnerability
     url: https://github.com/Gerrrt/opseclint/security/advisories/new
-    about: Report security issues privately (see SECURITY.md). Do NOT open a public issue.
+    about: Report security issues privately (see SECURITY.md), NOT public issue.
