@@ -507,7 +507,8 @@
     },
     {
       "id": "firewall-disable",
-      "raw_contains": "socketfilterfw",
+      "command": "socketfilterfw",
+      "args_contains": "setglobalstate off",
       "description": "Disabling the application firewall via socketfilterfw — defense impairment",
       "techniques": [{ "id": "T1562.004", "name": "Impair Defenses: Disable or Modify System Firewall" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of socketfilterfw with --setglobalstate off"],

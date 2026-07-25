@@ -155,8 +155,10 @@ mod tests {
     fn macos_kb_has_reached_platform_parity() {
         // macOS coverage was deepened to match Linux/Windows breadth.
         let mac = mac_kb();
+        // Matches the count documented in the README/CHANGELOG; still allows
+        // future growth, but catches a regression below the claimed breadth.
         assert!(
-            mac.entries.len() >= 60,
+            mac.entries.len() >= 66,
             "expected a grown macOS KB, got {}",
             mac.entries.len()
         );
