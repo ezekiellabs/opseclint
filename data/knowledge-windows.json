@@ -602,6 +602,190 @@
       "telemetry": ["Sysmon EID 1: runas.exe /netonly", "Security 4648 (explicit credential logon)"],
       "detections": [{ "source": "Sigma", "rule": "runas /netonly usage (proc_creation_win)", "confidence": "medium" }],
       "noise": 55
+    },
+    {
+      "id": "uac-bypass-fodhelper",
+      "raw_contains": "fodhelper",
+      "description": "UAC bypass via fodhelper.exe auto-elevation",
+      "techniques": [{ "id": "T1548.002", "name": "Abuse Elevation Control Mechanism: Bypass User Account Control" }],
+      "telemetry": ["Sysmon EID 1: fodhelper.exe spawning an auto-elevated child", "Sysmon EID 13 (Registry Set) under HKCU\\Software\\Classes\\ms-settings\\shell\\open\\command"],
+      "detections": [{ "source": "Sigma", "rule": "UAC bypass via fodhelper (proc_creation_win)", "confidence": "high" }],
+      "noise": 65
+    },
+    {
+      "id": "amsi-bypass",
+      "raw_contains": "amsiinitfailed",
+      "description": "In-memory AMSI bypass via amsiInitFailed — defense impairment",
+      "techniques": [{ "id": "T1562.001", "name": "Impair Defenses: Disable or Modify Tools" }],
+      "telemetry": ["PowerShell 4104: reflection patching AmsiUtils amsiInitFailed", "AMSI bypass performed before script execution"],
+      "detections": [{ "source": "Sigma", "rule": "AMSI bypass via amsiInitFailed (ps_script)", "confidence": "high" }],
+      "noise": 70
+    },
+    {
+      "id": "msiexec-remote",
+      "command": "msiexec",
+      "args_contains": "http",
+      "description": "Installing an MSI from a URL via msiexec — LOLBin proxy execution",
+      "techniques": [{ "id": "T1218.007", "name": "System Binary Proxy Execution: Msiexec" }],
+      "telemetry": ["Sysmon EID 1: msiexec.exe installing a package from a URL", "Sysmon EID 3 (network): msiexec.exe outbound to a remote host"],
+      "detections": [{ "source": "Sigma", "rule": "Remote MSI install via msiexec (proc_creation_win)", "confidence": "high" }],
+      "noise": 60
+    },
+    {
+      "id": "installutil",
+      "command": "installutil",
+      "description": "Executing a .NET assembly via InstallUtil — LOLBin proxy execution",
+      "techniques": [{ "id": "T1218.004", "name": "System Binary Proxy Execution: InstallUtil" }],
+      "telemetry": ["Sysmon EID 1: installutil.exe running an assembly's install hook"],
+      "detections": [{ "source": "Sigma", "rule": "Proxy execution via InstallUtil (proc_creation_win)", "confidence": "high" }],
+      "noise": 60
+    },
+    {
+      "id": "cmstp",
+      "command": "cmstp",
+      "description": "Executing an attacker INF via CMSTP — LOLBin proxy execution",
+      "techniques": [{ "id": "T1218.003", "name": "System Binary Proxy Execution: CMSTP" }],
+      "telemetry": ["Sysmon EID 1: cmstp.exe processing an INF (often with a remote scriptlet)"],
+      "detections": [{ "source": "Sigma", "rule": "Proxy execution via CMSTP (proc_creation_win)", "confidence": "high" }],
+      "noise": 60
+    },
+    {
+      "id": "msbuild-inline",
+      "command": "msbuild",
+      "description": "Running an inline C# task via MSBuild — trusted-utility proxy execution",
+      "techniques": [{ "id": "T1127.001", "name": "Trusted Developer Utilities Proxy Execution: MSBuild" }],
+      "telemetry": ["Sysmon EID 1: msbuild.exe compiling/running an inline task from a project file"],
+      "detections": [{ "source": "Sigma", "rule": "Inline task execution via MSBuild (proc_creation_win)", "confidence": "high" }],
+      "noise": 60
+    },
+    {
+      "id": "wscript-vbs",
+      "raw_contains": ".vbs",
+      "description": "Executing a VBScript via WSH (wscript/cscript)",
+      "techniques": [{ "id": "T1059.005", "name": "Command and Scripting Interpreter: Visual Basic" }],
+      "telemetry": ["Sysmon EID 1: wscript.exe/cscript.exe executing a .vbs script"],
+      "detections": [{ "source": "Sigma", "rule": "VBScript execution via WSH (proc_creation_win)", "confidence": "medium" }],
+      "noise": 50
+    },
+    {
+      "id": "wmi-event-persist",
+      "raw_contains": "eventconsumer",
+      "description": "WMI event subscription (EventFilter/Consumer) — persistence",
+      "techniques": [{ "id": "T1546.003", "name": "Event Triggered Execution: Windows Management Instrumentation Event Subscription" }],
+      "telemetry": ["WMI __EventFilter to CommandLineEventConsumer binding created", "Sysmon EID 20/21 (WMI event consumer/binding)"],
+      "detections": [{ "source": "Sigma", "rule": "WMI event subscription persistence (proc_creation_win)", "confidence": "high" }],
+      "noise": 70
+    },
+    {
+      "id": "accessibility-sethc",
+      "raw_contains": "sethc.exe",
+      "description": "Accessibility feature hijack (sticky keys / utilman) — persistence / backdoor",
+      "techniques": [{ "id": "T1546.008", "name": "Event Triggered Execution: Accessibility Features" }],
+      "telemetry": ["Sysmon EID 13 (Registry Set): IFEO Debugger for sethc.exe/utilman.exe", "Sysmon EID 11 (File Create): replacement of sethc.exe"],
+      "detections": [{ "source": "Sigma", "rule": "Accessibility feature hijack (registry_set_win)", "confidence": "high" }],
+      "noise": 65
+    },
+    {
+      "id": "ifeo-debugger",
+      "raw_contains": "image file execution options",
+      "description": "Image File Execution Options Debugger — persistence / hijack",
+      "techniques": [{ "id": "T1546.012", "name": "Event Triggered Execution: Image File Execution Options Injection" }],
+      "telemetry": ["Sysmon EID 13 (Registry Set): Debugger value under Image File Execution Options"],
+      "detections": [{ "source": "Sigma", "rule": "IFEO debugger persistence (registry_set_win)", "confidence": "high" }],
+      "noise": 65
+    },
+    {
+      "id": "winlogon-persist",
+      "raw_contains": "\\winlogon",
+      "description": "Modifying Winlogon Shell/Userinit — logon persistence",
+      "techniques": [{ "id": "T1547.004", "name": "Boot or Logon Autostart Execution: Winlogon Helper DLL" }],
+      "telemetry": ["Sysmon EID 13 (Registry Set): Winlogon Shell or Userinit value modified"],
+      "detections": [{ "source": "Sigma", "rule": "Winlogon helper persistence (registry_set_win)", "confidence": "high" }],
+      "noise": 60
+    },
+    {
+      "id": "cmdkey-creds",
+      "command": "cmdkey",
+      "args_contains": "/list",
+      "description": "Enumerating stored credentials via cmdkey — Credential Manager access",
+      "techniques": [{ "id": "T1555.004", "name": "Credentials from Password Stores: Windows Credential Manager" }],
+      "telemetry": ["Sysmon EID 1: cmdkey.exe /list enumerating saved credentials"],
+      "detections": [{ "source": "Sigma", "rule": "Credential Manager enumeration via cmdkey (proc_creation_win)", "confidence": "medium" }],
+      "noise": 45
+    },
+    {
+      "id": "findstr-creds",
+      "command": "findstr",
+      "args_contains": "password",
+      "description": "Searching files for passwords via findstr — credential hunting",
+      "techniques": [{ "id": "T1552.001", "name": "Unsecured Credentials: Credentials In Files" }],
+      "telemetry": ["Sysmon EID 1: findstr scanning files for password strings"],
+      "detections": [{ "source": "Sigma", "rule": "Credential search via findstr (proc_creation_win)", "confidence": "low" }],
+      "noise": 50
+    },
+    {
+      "id": "av-discovery",
+      "raw_contains": "antivirusproduct",
+      "description": "Enumerating installed AV via the AntiVirusProduct WMI class — security-software discovery",
+      "techniques": [{ "id": "T1518.001", "name": "Software Discovery: Security Software Discovery" }],
+      "telemetry": ["Sysmon EID 1: wmic querying AntiVirusProduct in root\\SecurityCenter2"],
+      "detections": [{ "source": "Sigma", "rule": "Security software discovery (proc_creation_win)", "confidence": "low" }],
+      "noise": 45
+    },
+    {
+      "id": "rdp-enable",
+      "raw_contains": "fdenytsconnections",
+      "description": "Enabling RDP via the fDenyTSConnections registry value — remote access",
+      "techniques": [{ "id": "T1021.001", "name": "Remote Services: Remote Desktop Protocol" }],
+      "telemetry": ["Sysmon EID 13 (Registry Set): fDenyTSConnections set to 0"],
+      "detections": [{ "source": "Sigma", "rule": "RDP enabled via registry (registry_set_win)", "confidence": "high" }],
+      "noise": 60
+    },
+    {
+      "id": "netsh-portproxy",
+      "raw_contains": "portproxy",
+      "description": "Local port forwarding via netsh portproxy — tunneling / pivot",
+      "techniques": [{ "id": "T1090.001", "name": "Proxy: Internal Proxy" }],
+      "telemetry": ["Sysmon EID 1: netsh interface portproxy add", "Sysmon EID 13 (Registry Set): portproxy configuration under Tcpip parameters"],
+      "detections": [{ "source": "Sigma", "rule": "Port forwarding via netsh portproxy (proc_creation_win)", "confidence": "high" }],
+      "noise": 55
+    },
+    {
+      "id": "wmic-shadow-delete",
+      "raw_contains": "shadowcopy delete",
+      "description": "Deleting volume shadow copies via wmic — inhibit system recovery",
+      "techniques": [{ "id": "T1490", "name": "Inhibit System Recovery" }],
+      "telemetry": ["Sysmon EID 1: wmic shadowcopy delete"],
+      "detections": [{ "source": "Sigma", "rule": "Shadow copy deletion via wmic (proc_creation_win)", "confidence": "high" }],
+      "noise": 70
+    },
+    {
+      "id": "wbadmin-delete",
+      "command": "wbadmin",
+      "args_contains": "delete",
+      "description": "Deleting backups/catalog via wbadmin — inhibit system recovery",
+      "techniques": [{ "id": "T1490", "name": "Inhibit System Recovery" }],
+      "telemetry": ["Sysmon EID 1: wbadmin delete catalog/backup"],
+      "detections": [{ "source": "Sigma", "rule": "Backup deletion via wbadmin (proc_creation_win)", "confidence": "high" }],
+      "noise": 68
+    },
+    {
+      "id": "timestomp-ps",
+      "raw_contains": "lastwritetime",
+      "description": "Backdating a file's timestamps via PowerShell — timestomping",
+      "techniques": [{ "id": "T1070.006", "name": "Indicator Removal: Timestomp" }],
+      "telemetry": ["PowerShell 4104: setting a file's LastWriteTime/CreationTime"],
+      "detections": [{ "source": "Sigma", "rule": "Timestomping via PowerShell (ps_script)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "token-impersonation",
+      "raw_contains": "invoke-tokenmanipulation",
+      "description": "Impersonating another process token via Invoke-TokenManipulation",
+      "techniques": [{ "id": "T1134.001", "name": "Access Token Manipulation: Token Impersonation/Theft" }],
+      "telemetry": ["PowerShell 4104: Invoke-TokenManipulation impersonating a process token"],
+      "detections": [{ "source": "Sigma", "rule": "Access token manipulation (ps_script)", "confidence": "high" }],
+      "noise": 65
     }
   ]
 }

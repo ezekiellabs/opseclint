@@ -7,11 +7,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+
+- **Deepened the Linux and Windows knowledge bases** — Linux 62 → 81 and Windows
+  62 → 82 entries, adding modern attack surface the seed KBs missed. Linux gains
+  cloud/container/Kubernetes coverage (instance-metadata credential theft, service-
+  account tokens, `kubectl exec`/`get`, `nsenter` and `/proc/1/root` host escape),
+  process injection (`gdb`/ptrace), persistence (`rc.local`, systemd timers),
+  tunneling/exfil (proxychains, SSH SOCKS, dnscat, `rclone`/`aws s3`), and evasion
+  (timestomp, `HISTFILE` tamper, GTFOBins shell escapes, `dd` wipe). Windows gains
+  LOLBins (`msiexec`, InstallUtil, CMSTP, MSBuild, WSH/VBScript), UAC and AMSI
+  bypasses, persistence (WMI event subscription, accessibility hijack, IFEO,
+  Winlogon), credential access (`cmdkey`, `findstr`), security-software discovery,
+  RDP enablement, `netsh portproxy` tunneling, and recovery inhibition
+  (`wmic shadowcopy delete`, `wbadmin`).
 - **EDR telemetry mappings (`--edr`)** — an opt-in flag that maps each finding's
   native host telemetry to the concrete sensor event or hunting table the major
   EDRs surface it as: CrowdStrike Falcon (`event_simpleName`), Microsoft Defender
   for Endpoint (Advanced Hunting tables), SentinelOne (Deep Visibility event
-  types), and Elastic Defend (ECS `event.category`/`event.type`). Pass a vendor or
+  types), and Elastic Defend (ECS `event.category`/`event.type`). Pass vendor or
   omit the value for all four. Mapping is driven by a telemetry event-class
   classifier plus an embedded `data/edr-telemetry.json` table, so new KB entries
   gain EDR coverage without per-entry authoring. Standard output is unchanged when
@@ -28,8 +41,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [1.0.0] - 2026-07-23
 
-### Added
-- **Sigma rule-logic evaluator** (`--check-rule`) — evaluates a command against a
+### Added - 1.0.0
+
+- **Sigma rule-logic evaluator** (`--check-rule`) — evaluate command against
   rule's actual `detection:`/`condition:` logic with three-valued (Kleene) logic:
   `FIRES` / `NO-FIRE` / `INDETERMINATE`.
 - **`--coverage-gaps`** — flags actions whose ATT&CK techniques have rules in the
@@ -41,7 +55,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rule-check views.
 - Container image on GHCR and a Marketplace-ready GitHub Action.
 
-### Changed
+### Changed - 1.0.0
+
 - Unified the Sigma metadata index and the detection-logic index into a single
   cached `SigmaIndex`; `--coverage-gaps` now benefits from the on-disk cache too.
 - CLI: `--help` is grouped into sections, and mutually-exclusive modes now error
@@ -49,21 +64,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.1.2] - 2026-07-23
 
-### Added
+### Added - 0.1.2
+
 - Published to [crates.io](https://crates.io/crates/opseclint) (`cargo install opseclint`).
 - A GitHub Action (`action.yml`) and a `scratch`-based GHCR container image.
 
-### Fixed
+### Fixed - 0.1.2
+
 - Sync `Cargo.lock` so the tag-triggered `cargo publish` workflow succeeds.
 
 ## [0.1.1] - 2026-07-23
 
-### Added
+### Added - 0.1.1
+
 - crates.io metadata and a tag-triggered publish workflow.
 
 ## [0.1.0] - 2026-07-22
 
-### Added
+### Added - 0.1.0
+
 - Initial release. Detection-coverage analyzer for **Linux/auditd**,
   **Windows/Sysmon**, and **macOS/Endpoint Security**.
 - ~150 modeled post-exploitation actions mapping to ATT&CK techniques, the host
