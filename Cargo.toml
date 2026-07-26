@@ -11,6 +11,18 @@ keywords = ["security", "detection", "attack", "sigma", "opsec"]
 categories = ["command-line-utilities", "development-tools"]
 exclude = ["/.github", "/docs", "/examples", "/tests/fixtures"]
 
+# cargo-binstall: fetch a prebuilt binary from the GitHub Release instead of
+# compiling from source. Templated to match the asset layout produced by
+# .github/workflows/release.yml: `opseclint-v<version>-<target>.<ext>`, with the
+# binary nested inside a same-named directory.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }-{ target }{ archive-suffix }"
+pkg-fmt = "tgz"
+bin-dir = "{ name }-v{ version }-{ target }/{ bin }{ binary-ext }"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }

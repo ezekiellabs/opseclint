@@ -608,6 +608,184 @@
       "telemetry": ["execve() of usermod", "writes to /etc/group,/etc/passwd — auditd file watch"],
       "detections": [{ "source": "Sigma", "rule": "User account/group modification (proc_creation_lnx)", "confidence": "medium" }],
       "noise": 60
+    },
+    {
+      "id": "cloud-imds",
+      "raw_contains": "169.254.169.254",
+      "description": "Querying the cloud instance metadata endpoint — credential theft",
+      "techniques": [{ "id": "T1552.005", "name": "Unsecured Credentials: Cloud Instance Metadata API" }],
+      "telemetry": ["connect() to the link-local metadata endpoint 169.254.169.254:80 from a shell/utility", "outbound HTTP GET to /latest/meta-data/iam/security-credentials/"],
+      "detections": [{ "source": "Sigma", "rule": "Cloud instance metadata access (net_connection_lnx)", "confidence": "medium" }],
+      "noise": 60
+    },
+    {
+      "id": "k8s-sa-token",
+      "raw_contains": "serviceaccount/token",
+      "description": "Reading the Kubernetes service-account token — credential theft",
+      "techniques": [{ "id": "T1552.007", "name": "Unsecured Credentials: Container API" }],
+      "telemetry": ["openat()/read() of /var/run/secrets/kubernetes.io/serviceaccount/token"],
+      "detections": [{ "source": "Sigma", "rule": "Kubernetes service account token access (file_event_lnx)", "confidence": "medium" }],
+      "noise": 60
+    },
+    {
+      "id": "kubectl-exec",
+      "command": "kubectl",
+      "args_contains": "exec",
+      "description": "Command execution inside a pod via kubectl exec",
+      "techniques": [{ "id": "T1609", "name": "Container Administration Command" }],
+      "telemetry": ["execve() of kubectl exec — running a command inside a container/pod"],
+      "detections": [{ "source": "Sigma", "rule": "kubectl exec into a pod (proc_creation_lnx)", "confidence": "medium" }],
+      "noise": 50
+    },
+    {
+      "id": "kubectl-get",
+      "command": "kubectl",
+      "args_contains": "get",
+      "description": "Enumerating cluster resources via kubectl get",
+      "techniques": [{ "id": "T1613", "name": "Container and Resource Discovery" }],
+      "telemetry": ["execve() of kubectl get — enumerating pods, secrets, or nodes"],
+      "detections": [{ "source": "Sigma", "rule": "Kubernetes resource enumeration (proc_creation_lnx)", "confidence": "low" }],
+      "noise": 40
+    },
+    {
+      "id": "nsenter-escape",
+      "command": "nsenter",
+      "description": "Entering host namespaces via nsenter — container escape",
+      "techniques": [{ "id": "T1611", "name": "Escape to Host" }],
+      "telemetry": ["execve() of nsenter joining host namespaces (often --target 1 --mount)", "container process attaching to PID 1 namespaces"],
+      "detections": [{ "source": "Sigma", "rule": "Container escape via nsenter (proc_creation_lnx)", "confidence": "high" }],
+      "noise": 65
+    },
+    {
+      "id": "proc-root-escape",
+      "raw_contains": "/proc/1/root",
+      "description": "Accessing the host filesystem via /proc/1/root — container escape",
+      "techniques": [{ "id": "T1611", "name": "Escape to Host" }],
+      "telemetry": ["openat() under /proc/1/root — reaching the host root filesystem from a container"],
+      "detections": [{ "source": "Sigma", "rule": "Host filesystem access via /proc/1/root (file_event_lnx)", "confidence": "high" }],
+      "noise": 60
+    },
+    {
+      "id": "ptrace-gdb",
+      "command": "gdb",
+      "args_contains": "-p",
+      "description": "Attaching to a live process with gdb — process injection / inspection",
+      "techniques": [{ "id": "T1055.008", "name": "Process Injection: Ptrace System Calls" }],
+      "telemetry": ["execve() of gdb attaching to a running PID (ptrace PTRACE_ATTACH)", "ptrace() syscall against another process"],
+      "detections": [{ "source": "Sigma", "rule": "Process attach via gdb/ptrace (proc_creation_lnx)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "timestomp-touch",
+      "command": "touch",
+      "args_contains": "-r",
+      "description": "Copying a reference file's timestamps with touch — timestomping",
+      "techniques": [{ "id": "T1070.006", "name": "Indicator Removal: Timestomp" }],
+      "telemetry": ["utimensat()/utimes() setting a file's times to match a reference", "execve() of touch with -r"],
+      "detections": [{ "source": "Sigma", "rule": "Timestomping via touch (proc_creation_lnx)", "confidence": "medium" }],
+      "noise": 45
+    },
+    {
+      "id": "rc-local-persist",
+      "raw_contains": "rc.local",
+      "description": "Writing to /etc/rc.local — boot persistence",
+      "techniques": [{ "id": "T1037.004", "name": "Boot or Logon Initialization Scripts: RC Scripts" }],
+      "telemetry": ["write()/create() to /etc/rc.local", "auditd file watch on /etc/rc.local"],
+      "detections": [{ "source": "Sigma", "rule": "RC script persistence (file_event_lnx)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "systemd-timer-persist",
+      "raw_contains": ".timer",
+      "description": "Installing a systemd .timer unit — scheduled-task persistence",
+      "techniques": [{ "id": "T1053.006", "name": "Scheduled Task/Job: Systemd Timers" }],
+      "telemetry": ["write()/create() of a .timer unit under /etc/systemd/system or ~/.config/systemd/user", "systemctl enabling a timer unit"],
+      "detections": [{ "source": "Sigma", "rule": "Systemd timer persistence (file_event_lnx)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "proxychains",
+      "raw_contains": "proxychains",
+      "description": "Wrapping a tool with proxychains — multi-hop proxying",
+      "techniques": [{ "id": "T1090.003", "name": "Proxy: Multi-hop Proxy" }],
+      "telemetry": ["execve() of proxychains/proxychains4 wrapping another program", "child-process traffic relayed through a proxy chain"],
+      "detections": [{ "source": "Sigma", "rule": "Proxied execution via proxychains (proc_creation_lnx)", "confidence": "medium" }],
+      "noise": 50
+    },
+    {
+      "id": "ssh-socks-proxy",
+      "command": "ssh",
+      "args_contains": "-d ",
+      "description": "SSH dynamic port forwarding (-D SOCKS) — tunneling",
+      "techniques": [{ "id": "T1572", "name": "Protocol Tunneling" }],
+      "telemetry": ["execve() of ssh with dynamic port forwarding (-D)", "long-lived ssh session carrying tunneled traffic"],
+      "detections": [{ "source": "Sigma", "rule": "SSH dynamic port forwarding (proc_creation_lnx)", "confidence": "medium" }],
+      "noise": 50
+    },
+    {
+      "id": "dnscat",
+      "raw_contains": "dnscat",
+      "description": "DNS-tunneled C2 via dnscat",
+      "techniques": [{ "id": "T1071.004", "name": "Application Layer Protocol: DNS" }],
+      "telemetry": ["execve() of dnscat/dnscat2", "burst of TXT/NULL DNS queries to a single authoritative name server"],
+      "detections": [{ "source": "Sigma", "rule": "DNS tunneling C2 (proc_creation_lnx)", "confidence": "high" }],
+      "noise": 65
+    },
+    {
+      "id": "rclone-exfil",
+      "command": "rclone",
+      "description": "Copying data to a remote/cloud backend via rclone — exfiltration",
+      "techniques": [{ "id": "T1567.002", "name": "Exfiltration Over Web Service: Exfiltration to Cloud Storage" }],
+      "telemetry": ["execve() of rclone copying to a remote backend", "sustained outbound TLS to a cloud storage provider"],
+      "detections": [{ "source": "Sigma", "rule": "Data exfiltration via rclone (proc_creation_lnx)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "aws-s3-exfil",
+      "command": "aws",
+      "args_contains": "s3",
+      "description": "Transferring data via the aws CLI (s3 cp/sync) — exfiltration",
+      "techniques": [{ "id": "T1567.002", "name": "Exfiltration Over Web Service: Exfiltration to Cloud Storage" }],
+      "telemetry": ["execve() of the aws CLI performing an s3 cp/sync", "outbound TLS to *.amazonaws.com carrying object data"],
+      "detections": [{ "source": "Sigma", "rule": "S3 data transfer via aws CLI (proc_creation_lnx)", "confidence": "low" }],
+      "noise": 45
+    },
+    {
+      "id": "histfile-tamper",
+      "raw_contains": "histfile",
+      "description": "Disabling shell history (HISTFILE) — impairing command logging",
+      "techniques": [{ "id": "T1562.003", "name": "Impair Defenses: Impair Command History Logging" }],
+      "telemetry": ["shell setting HISTFILE=/dev/null or unsetting HISTFILE (no execve)", "command-history logging disabled for the session"],
+      "detections": [{ "source": "Sigma", "rule": "Shell history logging disabled (proc_creation_lnx)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "find-exec-shell",
+      "raw_contains": "-exec /bin",
+      "description": "Spawning a shell via find -exec — SUID/restricted-shell escape (GTFOBins)",
+      "techniques": [{ "id": "T1548.001", "name": "Abuse Elevation Control Mechanism: Setuid and Setgid" }, { "id": "T1059.004", "name": "Command and Scripting Interpreter: Unix Shell" }],
+      "telemetry": ["execve() of find spawning a shell through -exec", "child /bin/sh inheriting the parent's (possibly SUID) privileges"],
+      "detections": [{ "source": "Sigma", "rule": "Shell spawned via find -exec (proc_creation_lnx)", "confidence": "high" }],
+      "noise": 55
+    },
+    {
+      "id": "awk-system-exec",
+      "raw_contains": "begin{system",
+      "description": "Command execution via awk system() (GTFOBins)",
+      "techniques": [{ "id": "T1059.004", "name": "Command and Scripting Interpreter: Unix Shell" }],
+      "telemetry": ["execve() of awk invoking system() to run a command"],
+      "detections": [{ "source": "Sigma", "rule": "Command execution via awk system() (proc_creation_lnx)", "confidence": "medium" }],
+      "noise": 55
+    },
+    {
+      "id": "dd-wipe",
+      "command": "dd",
+      "args_contains": "of=/dev/",
+      "description": "Overwriting a block device with dd — data destruction",
+      "techniques": [{ "id": "T1485", "name": "Data Destruction" }],
+      "telemetry": ["execve() of dd writing to a raw block device (e.g. of=/dev/sda)", "large write() burst to a disk device"],
+      "detections": [{ "source": "Sigma", "rule": "Disk overwrite via dd (proc_creation_lnx)", "confidence": "high" }],
+      "noise": 65
     }
   ]
 }
