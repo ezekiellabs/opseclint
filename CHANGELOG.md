@@ -9,7 +9,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - **Deepened the Linux and Windows knowledge bases** — Linux 62 → 81 and Windows
-  62 → 82 entries, adding modern attack surface the seed KBs missed. Linux gains
+  62 → 83 entries, adding modern attack surface the seed KBs missed. Linux gains
   cloud/container/Kubernetes coverage (instance-metadata credential theft, service-
   account tokens, `kubectl exec`/`get`, `nsenter` and `/proc/1/root` host escape),
   process injection (`gdb`/ptrace), persistence (`rc.local`, systemd timers),

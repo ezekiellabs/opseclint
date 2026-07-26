@@ -369,7 +369,7 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - [x] `--coverage-gaps`: flag actions whose techniques have rules but where none fire
 - [x] macOS/Endpoint Security KB deepened to breadth parity with Linux/Windows (66 entries)
 - [x] [EDR-specific telemetry mappings](#edr-telemetry---edr): CrowdStrike, Defender, SentinelOne, Elastic via `--edr`
-- [x] Linux/Windows KBs deepened with cloud, container/Kubernetes, LOLBin, and modern persistence/evasion coverage (81 / 82 entries)
+- [x] Linux/Windows KBs deepened with cloud, container/Kubernetes, LOLBin, and modern persistence/evasion coverage (81 / 83 entries)
 
 See the [open issues][issues-url] for the full list, and
 [CHANGELOG.md](CHANGELOG.md) for release history.

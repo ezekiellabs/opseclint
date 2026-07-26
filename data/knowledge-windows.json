@@ -660,11 +660,20 @@
     },
     {
       "id": "wscript-vbs",
-      "raw_contains": ".vbs",
-      "description": "Executing a VBScript via WSH (wscript/cscript)",
+      "command": "wscript",
+      "description": "Script-host execution via wscript (WSH) — VBScript/JScript",
       "techniques": [{ "id": "T1059.005", "name": "Command and Scripting Interpreter: Visual Basic" }],
-      "telemetry": ["Sysmon EID 1: wscript.exe/cscript.exe executing a .vbs script"],
-      "detections": [{ "source": "Sigma", "rule": "VBScript execution via WSH (proc_creation_win)", "confidence": "medium" }],
+      "telemetry": ["Sysmon EID 1: wscript.exe executing a script (.vbs/.js/.wsf)"],
+      "detections": [{ "source": "Sigma", "rule": "Script execution via wscript (proc_creation_win)", "confidence": "medium" }],
+      "noise": 50
+    },
+    {
+      "id": "cscript-vbs",
+      "command": "cscript",
+      "description": "Script-host execution via cscript (WSH) — VBScript/JScript",
+      "techniques": [{ "id": "T1059.005", "name": "Command and Scripting Interpreter: Visual Basic" }],
+      "telemetry": ["Sysmon EID 1: cscript.exe executing a script (.vbs/.js/.wsf)"],
+      "detections": [{ "source": "Sigma", "rule": "Script execution via cscript (proc_creation_win)", "confidence": "medium" }],
       "noise": 50
     },
     {
