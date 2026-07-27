@@ -195,6 +195,14 @@ fn run_check_rule(cli: &Cli, rule_path: &str, input: &str) -> ExitCode {
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
+    // With no input on an interactive terminal, greet with the banner instead
+    // of blocking on a stdin read that will never arrive.
+    if cli.command.is_none() && cli.path.is_none() && std::io::stdin().is_terminal() {
+        let color = !cli.no_color && std::io::stdout().is_terminal();
+        print!("{}", theme::banner(color));
+        return ExitCode::SUCCESS;
+    }
+
     let kb = match kb::load(cli.platform) {
         Ok(kb) => kb,
         Err(e) => {

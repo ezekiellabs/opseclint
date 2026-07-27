@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <clipPath id="hl"><rect x="0" y="0" width="100" height="200"/></clipPath>
+    <clipPath id="hr"><rect x="100" y="0" width="100" height="200"/></clipPath>
+    <linearGradient id="rb" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#f7768e"/>
+      <stop offset="100%" stop-color="#7aa2f7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- background -->
+  <rect width="1280" height="640" fill="#1a1b26"/>
+  <rect x="0" y="0" width="1280" height="6" fill="url(#rb)"/>
+
+  <!-- eye mark -->
+  <g transform="translate(300,320) scale(1.9) translate(-100,-100)">
+    <g stroke-width="13" stroke-linecap="round" stroke-linejoin="round">
+      <path clip-path="url(#hl)" stroke="#f7768e" d="M 24 100 C 58 42 142 42 176 100 C 142 158 58 158 24 100 Z"/>
+      <path clip-path="url(#hr)" stroke="#7aa2f7" d="M 24 100 C 58 42 142 42 176 100 C 142 158 58 158 24 100 Z"/>
+    </g>
+    <circle cx="100" cy="100" r="26" fill="#bb9af7"/>
+  </g>
+
+  <!-- wordmark + copy -->
+  <text x="560" y="290" font-size="130" font-weight="700" fill="#c0caf5" letter-spacing="-2">opseclint</text>
+  <rect x="564" y="322" width="150" height="5" rx="2.5" fill="url(#rb)"/>
+  <text x="564" y="386" font-size="44" font-style="italic" fill="#a9b1d6">what would a defender see?</text>
+  <text x="564" y="440" font-size="28" fill="#565f89">ATT&#38;CK · telemetry · Sigma · EDR coverage</text>
+  <text x="564" y="486" font-size="24" letter-spacing="3" fill="#7aa2f7">EZEKIEL LABS</text>
+</svg>
