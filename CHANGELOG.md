@@ -6,7 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-27
+
 ### Added
+
+- **Startup banner** — running `opseclint` with no input on an interactive
+  terminal now prints a brief banner and usage hint instead of blocking on a
+  stdin read that never arrives.
 
 - **Coverage diff (`--diff`)** — compare the current analysis against a report
   saved earlier with `--json` and render the delta: findings added, removed, or
@@ -101,8 +107,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Human / JSON / SARIF output; a `--ci` gate; `--sigma` enrichment from a real
   SigmaHQ checkout with an on-disk cache; a `--platform` selector.
 
-[Unreleased]: https://github.com/Gerrrt/opseclint/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/Gerrrt/opseclint/compare/v0.1.2...v1.0.0
-[0.1.2]: https://github.com/Gerrrt/opseclint/compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com/Gerrrt/opseclint/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/Gerrrt/opseclint/releases/tag/v0.1.0
+[Unreleased]: https://github.com/ezekiellabs/opseclint/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/ezekiellabs/opseclint/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/ezekiellabs/opseclint/compare/v0.1.2...v1.0.0
+[0.1.2]: https://github.com/ezekiellabs/opseclint/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/ezekiellabs/opseclint/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/ezekiellabs/opseclint/releases/tag/v0.1.0

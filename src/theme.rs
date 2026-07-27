@@ -49,3 +49,62 @@ impl Painter {
         self.paint(RULE, &"─".repeat(width))
     }
 }
+
+/// The startup banner: the eye mark drawn in text (red-left · purple-iris ·
+/// blue-right, mirroring the logo), the name, tagline, and a short usage hint.
+/// Shown when opseclint is run with no input on an interactive terminal.
+pub fn banner(color: bool) -> String {
+    let p = Painter::new(color);
+    let ver = env!("CARGO_PKG_VERSION");
+    let eye = format!(
+        "{}{}{}",
+        p.paint(RED, "◖"),
+        p.paint(PURPLE, "●"),
+        p.paint(BLUE, "◗")
+    );
+    let mut s = String::new();
+    s.push('\n');
+    s.push_str(&format!(
+        "  {}  {}  {}\n",
+        eye,
+        p.bold(FG, "opseclint"),
+        p.paint(COMMENT, &format!("v{ver} · Ezekiel Labs"))
+    ));
+    s.push_str(&format!(
+        "        {}\n\n",
+        p.paint(FG_DIM, "what would a defender see?")
+    ));
+    s.push_str(&format!(
+        "  {}   {}\n",
+        p.paint(CYAN, "opseclint script.sh"),
+        p.paint(COMMENT, "· analyze a file, script, or playbook")
+    ));
+    s.push_str(&format!(
+        "  {}  {}\n",
+        p.paint(CYAN, "opseclint -c '<cmd>'"),
+        p.paint(COMMENT, "· analyze a single command")
+    ));
+    s.push_str(&format!(
+        "  {}\n",
+        p.paint(COMMENT, "opseclint --help     · every flag and mode")
+    ));
+    s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn banner_is_plain_without_color() {
+        let b = banner(false);
+        assert!(b.contains("opseclint"));
+        assert!(b.contains("what would a defender see?"));
+        assert!(!b.contains('\x1b'), "no ANSI escapes when color is off");
+    }
+
+    #[test]
+    fn banner_paints_when_color_on() {
+        assert!(banner(true).contains('\x1b'));
+    }
+}

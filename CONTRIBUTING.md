@@ -70,4 +70,4 @@ notable technique.
 
 Use the issue templates (Bug report / Coverage request). For security issues,
 see [SECURITY.md](SECURITY.md). For questions and ideas, use
-[Discussions](https://github.com/Gerrrt/opseclint/discussions).
+[Discussions](https://github.com/ezekiellabs/opseclint/discussions).

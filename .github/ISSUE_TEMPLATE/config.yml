@@ -2,8 +2,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Questions & ideas
-    url: https://github.com/Gerrrt/opseclint/discussions
+    url: https://github.com/ezekiellabs/opseclint/discussions
     about: Use Discussions for questions, ideas, and show-and-tell.
   - name: Security vulnerability
-    url: https://github.com/Gerrrt/opseclint/security/advisories/new
+    url: https://github.com/ezekiellabs/opseclint/security/advisories/new
     about: Report security issues privately (see SECURITY.md), NOT public issue.
