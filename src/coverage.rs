@@ -3,12 +3,17 @@
 //! actions whose ATT&CK techniques have rules, yet none of those rules would
 //! trigger on this specific command.
 
+use std::collections::BTreeMap;
+
+use serde::{Deserialize, Serialize};
+
 use crate::kb::Platform;
 use crate::model::Report;
 use crate::sigma::SigmaIndex;
 use crate::sigma_eval::{self, Outcome};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum Coverage {
     /// At least one rule fires on this action.
     Covered,
@@ -20,12 +25,24 @@ pub enum Coverage {
     NoRules,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoverageResult {
     pub line: usize,
+    pub rule_id: String,
     pub description: String,
     pub techniques: Vec<String>,
     pub coverage: Coverage,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub firing: Vec<String>,
+}
+
+/// A saveable coverage-gaps run: the platform, ruleset size, and per-action
+/// results. Serialized by `--coverage-gaps --json` and read back by `--diff`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoverageReport {
+    pub platform: String,
+    pub rules_indexed: usize,
+    pub results: Vec<CoverageResult>,
 }
 
 /// Classify every finding in `report` against the Sigma `index`.
@@ -67,6 +84,7 @@ pub fn analyze(report: &Report, index: &SigmaIndex, platform: Platform) -> Vec<C
 
         out.push(CoverageResult {
             line: f.line,
+            rule_id: f.rule_id.clone(),
             description: f.description.clone(),
             techniques: tids,
             coverage,
@@ -183,6 +201,276 @@ pub fn render(
     out
 }
 
+/// Serialize a coverage run for later `--diff` comparison.
+pub fn render_json(report: &CoverageReport) -> String {
+    serde_json::to_string_pretty(report).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"))
+}
+
+impl Coverage {
+    fn label(self) -> &'static str {
+        match self {
+            Coverage::Covered => "COVERED",
+            Coverage::Gap => "GAP",
+            Coverage::Indeterminate => "INDET",
+            Coverage::NoRules => "NO-RULES",
+        }
+    }
+
+    /// Ranking used when collapsing an action seen on several lines: keep its
+    /// best coverage state (covered > indeterminate > gap > no-rules).
+    fn rank(self) -> u8 {
+        match self {
+            Coverage::Covered => 3,
+            Coverage::Indeterminate => 2,
+            Coverage::Gap => 1,
+            Coverage::NoRules => 0,
+        }
+    }
+}
+
+/// A rule whose coverage state moved between two runs.
+#[derive(Debug, Clone, Serialize)]
+pub struct CoverageTransition {
+    pub rule_id: String,
+    pub description: String,
+    pub techniques: Vec<String>,
+    pub before: Coverage,
+    pub after: Coverage,
+}
+
+/// The delta between two coverage-gaps runs — which blind spots closed, which
+/// opened, and everything that otherwise shifted.
+#[derive(Debug, Clone, Serialize)]
+pub struct CoverageDelta {
+    pub platform: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform_mismatch: Option<String>,
+    /// Improved to `covered` (blind spot closed).
+    pub closed: Vec<CoverageTransition>,
+    /// Regressed away from `covered` (blind spot opened).
+    pub opened: Vec<CoverageTransition>,
+    /// Other status transitions (e.g. no-rules → gap).
+    pub changed: Vec<CoverageTransition>,
+    pub added: Vec<CoverageResult>,
+    pub removed: Vec<CoverageResult>,
+    pub baseline_gaps: usize,
+    pub current_gaps: usize,
+    pub baseline_covered: usize,
+    pub current_covered: usize,
+}
+
+impl CoverageDelta {
+    /// True when coverage regressed: a previously-covered action became a blind
+    /// spot, or the total gap count rose. Drives the `--ci` gate for this mode.
+    pub fn has_regressed(&self) -> bool {
+        !self.opened.is_empty() || self.current_gaps > self.baseline_gaps
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.closed.is_empty()
+            && self.opened.is_empty()
+            && self.changed.is_empty()
+            && self.added.is_empty()
+            && self.removed.is_empty()
+    }
+}
+
+/// Collapse per-line results into one entry per rule, keeping its best coverage.
+fn collapse(results: &[CoverageResult]) -> BTreeMap<String, CoverageResult> {
+    let mut map: BTreeMap<String, CoverageResult> = BTreeMap::new();
+    for r in results {
+        map.entry(r.rule_id.clone())
+            .and_modify(|e| {
+                if r.coverage.rank() > e.coverage.rank() {
+                    *e = r.clone();
+                }
+            })
+            .or_insert_with(|| r.clone());
+    }
+    map
+}
+
+/// Compute the coverage delta of `current` relative to `baseline`.
+pub fn compute_delta(baseline: &CoverageReport, current: &CoverageReport) -> CoverageDelta {
+    let base = collapse(&baseline.results);
+    let curr = collapse(&current.results);
+
+    let (mut closed, mut opened, mut changed) = (Vec::new(), Vec::new(), Vec::new());
+    let mut added = Vec::new();
+    for (id, c) in &curr {
+        match base.get(id) {
+            None => added.push(c.clone()),
+            Some(b) if b.coverage != c.coverage => {
+                let t = CoverageTransition {
+                    rule_id: c.rule_id.clone(),
+                    description: c.description.clone(),
+                    techniques: c.techniques.clone(),
+                    before: b.coverage,
+                    after: c.coverage,
+                };
+                if c.coverage == Coverage::Covered {
+                    closed.push(t);
+                } else if b.coverage == Coverage::Covered {
+                    opened.push(t);
+                } else {
+                    changed.push(t);
+                }
+            }
+            Some(_) => {}
+        }
+    }
+    let removed: Vec<CoverageResult> = base
+        .iter()
+        .filter(|(id, _)| !curr.contains_key(*id))
+        .map(|(_, b)| b.clone())
+        .collect();
+
+    for v in [&mut closed, &mut opened, &mut changed] {
+        v.sort_by(|a, b| a.rule_id.cmp(&b.rule_id));
+    }
+    let count = |m: &BTreeMap<String, CoverageResult>, cov: Coverage| {
+        m.values().filter(|r| r.coverage == cov).count()
+    };
+
+    CoverageDelta {
+        platform: current.platform.clone(),
+        platform_mismatch: (baseline.platform != current.platform)
+            .then(|| baseline.platform.clone()),
+        closed,
+        opened,
+        changed,
+        added,
+        removed,
+        baseline_gaps: count(&base, Coverage::Gap),
+        current_gaps: count(&curr, Coverage::Gap),
+        baseline_covered: count(&base, Coverage::Covered),
+        current_covered: count(&curr, Coverage::Covered),
+    }
+}
+
+/// Render a coverage delta as pretty JSON.
+pub fn render_delta_json(delta: &CoverageDelta) -> String {
+    serde_json::to_string_pretty(delta).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"))
+}
+
+/// Render a coverage delta for a terminal in the Tokyo Night palette.
+pub fn render_delta(delta: &CoverageDelta, color: bool) -> String {
+    use crate::theme::{self, Painter};
+    use std::fmt::Write as _;
+
+    let p = Painter::new(color);
+    let mut out = String::new();
+
+    let _ = writeln!(
+        out,
+        "{}{}",
+        p.bold(theme::BLUE, "opseclint"),
+        p.paint(
+            theme::COMMENT,
+            &format!(" · coverage-gap diff · {}", delta.platform)
+        )
+    );
+    if let Some(base_plat) = &delta.platform_mismatch {
+        let _ = writeln!(
+            out,
+            "{}",
+            p.paint(
+                theme::YELLOW,
+                &format!(
+                    "  ! baseline platform was {base_plat}, current is {}",
+                    delta.platform
+                )
+            )
+        );
+    }
+    let _ = writeln!(
+        out,
+        "{}",
+        p.paint(
+            theme::COMMENT,
+            &format!(
+                "gaps {} → {} · covered {} → {}",
+                delta.baseline_gaps,
+                delta.current_gaps,
+                delta.baseline_covered,
+                delta.current_covered
+            )
+        )
+    );
+    let _ = writeln!(out, "{}", p.rule(60));
+
+    if delta.is_empty() {
+        let _ = writeln!(out, " {}", p.paint(theme::FG_DIM, "No coverage change."));
+    }
+
+    let transition = |p: &Painter, glyph: &str, col: &str, label: &str, t: &CoverageTransition| {
+        let techs = t
+            .techniques
+            .iter()
+            .map(|x| p.paint(theme::PURPLE, x))
+            .collect::<Vec<_>>()
+            .join(&p.paint(theme::COMMENT, ", "));
+        format!(
+            " {} {}  {}  {} {} {} {}{}{}\n",
+            p.paint(col, glyph),
+            p.paint(col, label),
+            p.paint(theme::FG, &t.description),
+            p.paint(theme::COMMENT, t.before.label()),
+            p.paint(theme::COMMENT, "→"),
+            p.paint(col, t.after.label()),
+            p.paint(theme::COMMENT, "["),
+            techs,
+            p.paint(theme::COMMENT, "]"),
+        )
+    };
+    for t in &delta.closed {
+        out.push_str(&transition(&p, "✓", theme::GREEN, "CLOSED ", t));
+    }
+    for t in &delta.opened {
+        out.push_str(&transition(&p, "⚠", theme::RED, "OPENED ", t));
+    }
+    for t in &delta.changed {
+        out.push_str(&transition(&p, "~", theme::YELLOW, "CHANGED", t));
+    }
+    for r in &delta.added {
+        let _ = writeln!(
+            out,
+            " {}  {} {}",
+            p.paint(theme::COMMENT, "+ ADDED  "),
+            p.paint(theme::FG_DIM, &r.description),
+            p.paint(theme::COMMENT, &format!("({})", r.coverage.label())),
+        );
+    }
+    for r in &delta.removed {
+        let _ = writeln!(
+            out,
+            " {}  {} {}",
+            p.paint(theme::COMMENT, "- REMOVED"),
+            p.paint(theme::FG_DIM, &r.description),
+            p.paint(theme::COMMENT, &format!("({})", r.coverage.label())),
+        );
+    }
+
+    let _ = writeln!(out, "{}", p.rule(60));
+    let trend = if delta.has_regressed() {
+        p.paint(theme::RED, "coverage regressed")
+    } else if !delta.closed.is_empty() {
+        p.paint(theme::GREEN, "coverage improved")
+    } else {
+        p.paint(theme::COMMENT, "no regression")
+    };
+    let _ = writeln!(
+        out,
+        " {}  {} · {} · {} · {}",
+        p.bold(theme::FG, "summary"),
+        p.paint(theme::GREEN, &format!("{} closed", delta.closed.len())),
+        p.paint(theme::RED, &format!("{} opened", delta.opened.len())),
+        p.paint(theme::YELLOW, &format!("{} changed", delta.changed.len())),
+        trend,
+    );
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,5 +521,80 @@ mod tests {
     fn no_rules_when_technique_absent_from_ruleset() {
         // T1033 (whoami) has no rule in the fixture set.
         assert_eq!(coverage_of("whoami", "whoami"), Coverage::NoRules);
+    }
+
+    fn cov_report(platform: &str, entries: &[(&str, Coverage)]) -> CoverageReport {
+        CoverageReport {
+            platform: platform.into(),
+            rules_indexed: 1,
+            results: entries
+                .iter()
+                .enumerate()
+                .map(|(i, (id, cov))| CoverageResult {
+                    line: i + 1,
+                    rule_id: (*id).into(),
+                    description: format!("desc {id}"),
+                    techniques: vec!["T1059".into()],
+                    coverage: *cov,
+                    firing: vec![],
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn delta_classifies_closed_opened_and_changed() {
+        let base = cov_report(
+            "linux-auditd",
+            &[
+                ("a", Coverage::Gap),     // will close (-> covered)
+                ("b", Coverage::Covered), // will open (-> gap)
+                ("c", Coverage::NoRules), // will change (-> gap)
+                ("d", Coverage::Covered), // unchanged
+            ],
+        );
+        let curr = cov_report(
+            "linux-auditd",
+            &[
+                ("a", Coverage::Covered),
+                ("b", Coverage::Gap),
+                ("c", Coverage::Gap),
+                ("d", Coverage::Covered),
+            ],
+        );
+        let delta = compute_delta(&base, &curr);
+        assert_eq!(
+            delta
+                .closed
+                .iter()
+                .map(|t| t.rule_id.as_str())
+                .collect::<Vec<_>>(),
+            ["a"]
+        );
+        assert_eq!(
+            delta
+                .opened
+                .iter()
+                .map(|t| t.rule_id.as_str())
+                .collect::<Vec<_>>(),
+            ["b"]
+        );
+        assert_eq!(
+            delta
+                .changed
+                .iter()
+                .map(|t| t.rule_id.as_str())
+                .collect::<Vec<_>>(),
+            ["c"]
+        );
+        assert!(delta.has_regressed()); // b opened
+    }
+
+    #[test]
+    fn delta_is_clean_when_nothing_moves() {
+        let r = cov_report("linux-auditd", &[("a", Coverage::Covered)]);
+        let delta = compute_delta(&r, &r);
+        assert!(delta.is_empty());
+        assert!(!delta.has_regressed());
     }
 }

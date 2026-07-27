@@ -255,6 +255,55 @@ summary  1 gap(s), 10 covered, 3 indeterminate, 1 no-rules
 = the ruleset has nothing for that technique. With `--ci`, the run exits
 non-zero when any gap is found.
 
+### Coverage diff (`--diff`)
+
+Save a report with `--json`, then later compare a new run against it to see what
+coverage changed — findings **added**, **removed**, or whose detectability / Sigma
+verdict **shifted**. It answers "did this change make me louder or quieter?" —
+whether the change is to the playbook (did I get stealthier?) or to the `--sigma`
+ruleset (did my new rules close gaps?).
+
+```console
+$ opseclint before.sh --json > baseline.json
+$ opseclint after.sh --diff baseline.json
+
+opseclint · coverage diff · linux-auditd
+baseline 4 finding(s) · current 2 finding(s)
+────────────────────────────────────────────────────────────
+ + MEDIUM   35  Running process discovery  T1057
+ - CRITICAL 82  Bash /dev/tcp reverse shell — interactive C2 channel  T1059.004, T1071
+ - CRITICAL 80  Piping downloaded content directly into a shell interpreter  T1059.004, T1105
+ - HIGH     55  Remote file transfer / HTTP client — tool ingress or exfil  T1105
+────────────────────────────────────────────────────────────
+ summary  +1 · -3 · ~0 · max noise 82 → 45 · quieter
+```
+
+Collapsed per rule (not per line), so it survives line-number shifts. `--diff`
+honors `--json` for a machine-readable delta, and pairs with `--sigma` to catch a
+rule flipping a finding from `no-fire` to `fires`. With `--ci`, the run exits
+non-zero when the change is **louder** — peak detectability rose above the
+baseline — matching the tool's "loudest action" metric.
+
+Combine it with **`--coverage-gaps`** to diff blind spots between two rulesets —
+which gaps **closed** and which **opened** — the purple-team "did my new rules
+actually improve coverage, and did anything regress?" check:
+
+```console
+$ opseclint playbook.sh --sigma old-rules --coverage-gaps --json > gaps.json
+$ opseclint playbook.sh --sigma new-rules --coverage-gaps --diff gaps.json
+
+opseclint · coverage-gap diff · linux-auditd
+gaps 3 → 1 · covered 5 → 7
+────────────────────────────────────────────────────────────
+ ✓ CLOSED   Bash /dev/tcp reverse shell — interactive C2 channel  GAP → COVERED [T1059.004, T1071]
+ ⚠ OPENED   Socket / network connection discovery  COVERED → GAP [T1049]
+────────────────────────────────────────────────────────────
+ summary  1 closed · 1 opened · 0 changed · coverage regressed
+```
+
+Here `--ci` exits non-zero when coverage **regressed** — a previously-covered
+action became a blind spot, or the total gap count rose.
+
 ### EDR telemetry (`--edr`)
 
 The native telemetry line answers "what does the OS record?"; `--edr` answers the
@@ -370,6 +419,7 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - [x] macOS/Endpoint Security KB deepened to breadth parity with Linux/Windows (66 entries)
 - [x] [EDR-specific telemetry mappings](#edr-telemetry---edr): CrowdStrike, Defender, SentinelOne, Elastic via `--edr`
 - [x] Linux/Windows KBs deepened with cloud, container/Kubernetes, LOLBin, and modern persistence/evasion coverage (81 / 83 entries)
+- [x] [Coverage diff](#coverage-diff---diff): compare a run against a saved report to see what coverage changed, via `--diff`
 
 See the [open issues][issues-url] for the full list, and
 [CHANGELOG.md](CHANGELOG.md) for release history.
