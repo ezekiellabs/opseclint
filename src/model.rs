@@ -56,7 +56,7 @@ pub struct KnowledgeBase {
 }
 
 /// Detectability bucket derived from a numeric noise score.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     Low,
@@ -97,7 +97,7 @@ impl Severity {
 
 /// The sensor events one EDR product would surface for a finding, derived by
 /// classifying its native telemetry into event classes (see `edr.rs`).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdrMapping {
     /// Human-readable vendor label, e.g. "CrowdStrike Falcon".
     pub vendor: String,
@@ -106,7 +106,7 @@ pub struct EdrMapping {
 }
 
 /// A single detection-coverage finding tied to a source line.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Finding {
     pub line: usize,
     pub source: String,
@@ -127,12 +127,14 @@ pub struct Finding {
 }
 
 /// The full report for an analyzed input.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
     pub platform: String,
+    #[serde(default)]
     pub note: String,
     pub findings: Vec<Finding>,
     pub max_noise: u8,
+    #[serde(default)]
     pub lines_analyzed: usize,
 }
 

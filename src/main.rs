@@ -9,6 +9,7 @@
 
 mod analyzer;
 mod coverage;
+mod diff;
 mod edr;
 mod kb;
 mod model;
@@ -98,14 +99,25 @@ struct Cli {
     check_rule: Option<String>,
 
     /// Report coverage gaps: actions whose techniques have rules in --sigma but
-    /// where none actually fire. Requires --sigma.
+    /// where none actually fire. Requires --sigma. Honors --json and --diff.
     #[arg(
         long,
         requires = "sigma",
-        conflicts_with_all = ["json", "sarif"],
+        conflicts_with = "sarif",
         help_heading = "Modes"
     )]
     coverage_gaps: bool,
+
+    /// Compare this run against a previously saved --json report and show the
+    /// coverage delta. On its own, diffs findings (added / removed / changed);
+    /// with --coverage-gaps, diffs blind spots (closed / opened). Honors --json.
+    #[arg(
+        long,
+        value_name = "BASELINE.json",
+        conflicts_with_all = ["sarif", "check_rule"],
+        help_heading = "Modes"
+    )]
+    diff: Option<String>,
 }
 
 fn read_input(cli: &Cli) -> std::io::Result<String> {
@@ -225,12 +237,57 @@ fn main() -> ExitCode {
         };
         let results = coverage::analyze(&report, &index, cli.platform);
         let color = !cli.no_color && std::io::stdout().is_terminal();
-        print!(
-            "{}",
-            coverage::render(&results, &report.platform, index.rules_indexed, color)
-        );
+        let current = coverage::CoverageReport {
+            platform: report.platform.clone(),
+            rules_indexed: index.rules_indexed,
+            results,
+        };
+
+        // --coverage-gaps + --diff: compare blind spots against a saved run.
+        if let Some(baseline_path) = &cli.diff {
+            let baseline: coverage::CoverageReport = match std::fs::read_to_string(baseline_path)
+                .map_err(|e| e.to_string())
+                .and_then(|s| serde_json::from_str(&s).map_err(|e| e.to_string()))
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!(
+                        "opseclint: could not read baseline '{baseline_path}': {e} \
+                         (expected a file saved with --coverage-gaps --json)"
+                    );
+                    return ExitCode::from(2);
+                }
+            };
+            let delta = coverage::compute_delta(&baseline, &current);
+            if cli.json {
+                println!("{}", coverage::render_delta_json(&delta));
+            } else {
+                print!("{}", coverage::render_delta(&delta, color));
+            }
+            if cli.ci && delta.has_regressed() {
+                if !cli.json {
+                    eprintln!("\nopseclint: CI gate failed — coverage regressed from the baseline");
+                }
+                return ExitCode::from(1);
+            }
+            return ExitCode::SUCCESS;
+        }
+
+        if cli.json {
+            println!("{}", coverage::render_json(&current));
+        } else {
+            print!(
+                "{}",
+                coverage::render(
+                    &current.results,
+                    &current.platform,
+                    current.rules_indexed,
+                    color
+                )
+            );
+        }
         // In --ci mode, fail the run when blind spots exist.
-        if cli.ci && coverage::gap_count(&results) > 0 {
+        if cli.ci && coverage::gap_count(&current.results) > 0 {
             return ExitCode::from(1);
         }
         return ExitCode::SUCCESS;
@@ -265,6 +322,39 @@ fn main() -> ExitCode {
         if !cli.json && !cli.sarif {
             eprintln!("opseclint: edr — {note}");
         }
+    }
+
+    // --diff is its own output mode: compare against a saved report and render
+    // the coverage delta instead of the standard report.
+    if let Some(baseline_path) = &cli.diff {
+        let baseline: model::Report = match std::fs::read_to_string(baseline_path)
+            .map_err(|e| e.to_string())
+            .and_then(|s| serde_json::from_str(&s).map_err(|e| e.to_string()))
+        {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!(
+                    "opseclint: could not read baseline report '{baseline_path}': {e} \
+                     (expected a file saved with --json)"
+                );
+                return ExitCode::from(2);
+            }
+        };
+        let delta = diff::compute(&baseline, &report);
+        if cli.json {
+            println!("{}", diff::render_json(&delta));
+        } else {
+            let color = !cli.no_color && std::io::stdout().is_terminal();
+            print!("{}", diff::render_human(&delta, color));
+        }
+        // In --ci mode, fail when the change made the input louder.
+        if cli.ci && delta.is_louder() {
+            if !cli.json {
+                eprintln!("\nopseclint: CI gate failed — coverage is louder than the baseline");
+            }
+            return ExitCode::from(1);
+        }
+        return ExitCode::SUCCESS;
     }
 
     if cli.sarif {

@@ -8,6 +8,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Coverage diff (`--diff`)** — compare the current analysis against a report
+  saved earlier with `--json` and render the delta: findings added, removed, or
+  whose detectability / Sigma verdict shifted. Collapsed per rule (survives line
+  shifts), honors `--json` for a machine-readable delta, and pairs with `--sigma`
+  to catch a rule flipping a finding from `no-fire` to `fires`. With `--ci`, exits
+  non-zero when peak detectability rose above the baseline.
+- **`--coverage-gaps` now honors `--json` and `--diff`.** `--coverage-gaps --json`
+  saves a coverage run; `--coverage-gaps --diff <saved.json>` diffs blind spots
+  between two rulesets, reporting which gaps **closed** and which **opened**, and
+  fails `--ci` when coverage regressed.
 - **Deepened the Linux and Windows knowledge bases** — Linux 62 → 81 and Windows
   62 → 83 entries, adding modern attack surface the seed KBs missed. Linux gains
   cloud/container/Kubernetes coverage (instance-metadata credential theft, service-
