@@ -68,7 +68,7 @@ pub fn banner(color: bool) -> String {
         "  {}  {}  {}\n",
         eye,
         p.bold(FG, "opseclint"),
-        p.paint(COMMENT, &format!("v{ver} · ezekiel labs"))
+        p.paint(COMMENT, &format!("v{ver} · Ezekiel Labs"))
     ));
     s.push_str(&format!(
         "        {}\n\n",
