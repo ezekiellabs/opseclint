@@ -306,12 +306,22 @@ impl Matcher {
     /// A representative command line that this matcher would match, for
     /// synthesizing an example event. Returns `None` when nothing positive can
     /// be derived (e.g. a bare or purely-negated matcher).
+    ///
+    /// Argument literals are placed positionally so that `at` predicates land at
+    /// the index they require (padding earlier positions with a filler token);
+    /// existential leaves fill any free slot. Line literals are appended so the
+    /// raw line carries them.
     pub fn representative_line(&self) -> Option<String> {
         let mut parts: Vec<String> = Vec::new();
         if let Some(prog) = self.program_representative() {
             parts.push(prog);
         }
-        parts.extend(self.commandline_terms());
+        if let Some(a) = &self.args {
+            parts.extend(representative_args(a));
+        }
+        if let Some(l) = &self.line {
+            collect_line_terms(l, &mut parts);
+        }
         let line = parts.join(" ");
         let line = line.trim();
         (!line.is_empty()).then(|| line.to_string())
@@ -325,6 +335,67 @@ impl Matcher {
             Some(ProgramMatch::AnyOf { any }) => any.first().cloned(),
             None => None,
         }
+    }
+}
+
+/// Filler token used to pad argument positions with no constraint of their own,
+/// so a later `at` index can be reached. Chosen to be inert: it satisfies no
+/// leaf a real matcher keys on and trips no typical negation.
+const ARG_FILLER: &str = "_";
+
+/// Build a representative argument vector satisfying `pred`, honoring `at`
+/// positions. Positional constraints fix specific indices; existential leaves
+/// fill free slots (or append); gaps before a positional index get a filler.
+fn representative_args(pred: &ArgPred) -> Vec<String> {
+    let mut positional: Vec<(usize, String)> = Vec::new();
+    let mut floating: Vec<String> = Vec::new();
+    collect_arg_repr(pred, &mut positional, &mut floating);
+
+    let size = positional.iter().map(|(i, _)| i + 1).max().unwrap_or(0);
+    let mut slots: Vec<Option<String>> = vec![None; size];
+    for (i, lit) in positional {
+        slots[i] = Some(lit); // last write wins on a (pathological) index clash
+    }
+
+    let mut floating = floating.into_iter();
+    let mut out: Vec<String> = slots
+        .into_iter()
+        .map(|slot| {
+            slot.or_else(|| floating.next())
+                .unwrap_or_else(|| ARG_FILLER.to_string())
+        })
+        .collect();
+    out.extend(floating); // any existential literals beyond the fixed positions
+    out
+}
+
+/// Split an argument predicate into positional `(index, literal)` constraints
+/// (from `at`) and order-independent existential literals (everything else).
+/// `any` takes its first branch; `not` contributes nothing positive.
+fn collect_arg_repr(
+    pred: &ArgPred,
+    positional: &mut Vec<(usize, String)>,
+    floating: &mut Vec<String>,
+) {
+    match pred {
+        ArgPred::All(v) => v
+            .iter()
+            .for_each(|p| collect_arg_repr(p, positional, floating)),
+        ArgPred::Any(v) => {
+            if let Some(first) = v.first() {
+                collect_arg_repr(first, positional, floating);
+            }
+        }
+        ArgPred::Not(_) => {}
+        ArgPred::Flag(s)
+        | ArgPred::Eq(s)
+        | ArgPred::Contains(s)
+        | ArgPred::Prefix(s)
+        | ArgPred::Suffix(s)
+        | ArgPred::Word(s)
+        | ArgPred::PathUnder(s) => floating.push(s.clone()),
+        ArgPred::At(pos) => positional.push((pos.index, str_leaf_literal(&pos.value))),
+        ArgPred::Joined(leaf) => floating.push(str_leaf_literal(leaf)),
     }
 }
 
@@ -476,6 +547,12 @@ mod tests {
                 { "flag": "-e" }, { "any": [ {"eq": "/bin/sh"} ] } ] } }"#,
             r#"{ "line": { "contains": "/dev/tcp" } }"#,
             r#"{ "line": { "word": "id_rsa" } }"#,
+            // Positional `at` beyond index 0: the representative must place the
+            // literal at the requested index (padding earlier positions), and a
+            // co-occurring existential leaf must still be satisfied.
+            r#"{ "program": "x", "args": { "all": [
+                { "at": { "index": 2, "value": { "eq": "foo" } } },
+                { "flag": "-z" } ] } }"#,
         ] {
             let matcher = m(json);
             let repr = matcher
