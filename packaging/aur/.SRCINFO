@@ -1,0 +1,13 @@
+pkgbase = opseclint-bin
+	pkgdesc = Detection-coverage analyzer: map shell/command actions to ATT&CK techniques, host telemetry, and the detections that would fire
+	pkgver = 1.1.0
+	pkgrel = 1
+	url = https://github.com/ezekiellabs/opseclint
+	arch = x86_64
+	license = MIT
+	provides = opseclint
+	conflicts = opseclint
+	source = opseclint-1.1.0.tar.gz::https://github.com/ezekiellabs/opseclint/releases/download/v1.1.0/opseclint-v1.1.0-x86_64-unknown-linux-gnu.tar.gz
+	sha256sums = 18307d5fb97a15b60e0232d650676d82e00f20bc458525f91cd286c110a997e6
+
+pkgname = opseclint-bin

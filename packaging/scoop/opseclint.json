@@ -1,0 +1,23 @@
+{
+    "version": "1.1.0",
+    "description": "Detection-coverage analyzer: resolve shell/command actions to ATT&CK techniques, the telemetry they emit, and the detections that would fire.",
+    "homepage": "https://github.com/ezekiellabs/opseclint",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/ezekiellabs/opseclint/releases/download/v1.1.0/opseclint-v1.1.0-x86_64-pc-windows-msvc.zip",
+            "hash": "5fba423f8246ec26af4651d5f9fd7eda087d27edc6023769840bc910eb39cead",
+            "extract_dir": "opseclint-v1.1.0-x86_64-pc-windows-msvc"
+        }
+    },
+    "bin": "opseclint.exe",
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/ezekiellabs/opseclint/releases/download/v$version/opseclint-v$version-x86_64-pc-windows-msvc.zip",
+                "extract_dir": "opseclint-v$version-x86_64-pc-windows-msvc"
+            }
+        }
+    }
+}
