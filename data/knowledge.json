@@ -546,7 +546,7 @@
     {
       "id": "clear-syslog-rm",
       "command": "rm",
-      "raw_contains": "/var/log",
+      "args_contains": "/var/log",
       "description": "Deleting system logs under /var/log — log clearing (anti-forensics)",
       "techniques": [{ "id": "T1070.002", "name": "Indicator Removal: Clear Linux or Mac System Logs" }],
       "telemetry": ["unlink() under /var/log — auditd file watch"],
@@ -556,7 +556,7 @@
     {
       "id": "clear-syslog-truncate",
       "command": "truncate",
-      "raw_contains": "/var/log",
+      "args_contains": "/var/log",
       "description": "Truncating system logs under /var/log — log clearing (anti-forensics)",
       "techniques": [{ "id": "T1070.002", "name": "Indicator Removal: Clear Linux or Mac System Logs" }],
       "telemetry": ["truncate() under /var/log — auditd file watch"],
@@ -566,7 +566,7 @@
     {
       "id": "clear-syslog-shred",
       "command": "shred",
-      "raw_contains": "/var/log",
+      "args_contains": "/var/log",
       "description": "Shredding system logs under /var/log — log clearing (anti-forensics)",
       "techniques": [{ "id": "T1070.002", "name": "Indicator Removal: Clear Linux or Mac System Logs" }],
       "telemetry": ["write()/unlink() under /var/log — auditd file watch"],

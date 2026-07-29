@@ -372,6 +372,8 @@ mod tests {
         "tail -f /var/log/syslog", // be read as anti-forensic log clearing
         "ls /var/log/nginx",
         "cat /var/log/app.log",
+        "cd /var/log && rm -rf target/debug", // rm not targeting /var/log, even
+        "cd /var/log && ls -la",              // when the line also mentions it
         "pwd",
         "echo build complete",
         "cat README.md",
@@ -464,6 +466,8 @@ mod tests {
             "rm -rf /var/log/nginx",
             "truncate -s 0 /var/log/syslog",
             "shred -u /var/log/auth.log",
+            "cd /tmp && rm -rf /var/log/nginx", // arg-scoped: still fires in a
+                                                // compound line where rm hits /var/log
         ] {
             let report = analyze(cmd, &kb());
             assert!(
