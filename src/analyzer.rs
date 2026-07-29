@@ -540,7 +540,7 @@ mod tests {
             kb.entries
                 .iter()
                 .find(|e| e.id == id)
-                .unwrap()
+                .unwrap_or_else(|| panic!("no KB entry with id `{id}`"))
                 .compiled_matcher()
                 .representative_line()
         };
