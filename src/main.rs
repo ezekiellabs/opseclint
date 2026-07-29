@@ -279,6 +279,14 @@ fn run_verify(cli: &Cli) -> ExitCode {
                 return ExitCode::from(2);
             }
         };
+        if baseline.platform != current.platform {
+            eprintln!(
+                "opseclint: baseline platform '{}' does not match --platform '{}' \
+                 (pass the matching .ci/verified-<platform>.json)",
+                baseline.platform, current.platform
+            );
+            return ExitCode::from(2);
+        }
         let delta = verify::compute_delta(&baseline, &current);
         if cli.json {
             println!("{}", verify::render_delta_json(&delta));

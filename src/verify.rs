@@ -32,6 +32,9 @@ pub enum Status {
     Indeterminate,
     /// No rule in the ruleset covers the entry's technique(s) at all.
     NoRule,
+    /// Delta-only: a previously-verified entry vanished from the current run
+    /// (its entry or Sigma claim was removed). Never produced by classify.
+    Removed,
 }
 
 impl Status {
@@ -41,6 +44,7 @@ impl Status {
             Status::Unverified => "UNVERIFIED",
             Status::Indeterminate => "INDETERMINATE",
             Status::NoRule => "NO-RULE",
+            Status::Removed => "REMOVED",
         }
     }
 
@@ -50,6 +54,7 @@ impl Status {
             Status::NoRule => 1,
             Status::Indeterminate => 2,
             Status::Verified => 3,
+            Status::Removed => 0,
         }
     }
 }
@@ -87,7 +92,7 @@ fn claims_sigma(entry: &KbEntry) -> bool {
     entry
         .detections
         .iter()
-        .any(|d| d.source.to_lowercase().contains("sigma"))
+        .any(|d| d.source.eq_ignore_ascii_case("sigma"))
 }
 
 /// The Sigma rule name(s) the entry claims.
@@ -95,7 +100,7 @@ fn claimed_rules(entry: &KbEntry) -> Vec<String> {
     entry
         .detections
         .iter()
-        .filter(|d| d.source.to_lowercase().contains("sigma"))
+        .filter(|d| d.source.eq_ignore_ascii_case("sigma"))
         .map(|d| d.rule.clone())
         .filter(|r| !r.is_empty())
         .collect()
@@ -298,6 +303,19 @@ pub fn compute_delta(baseline: &VerifyReport, current: &VerifyReport) -> VerifyD
                 description: cr.description.clone(),
                 from: br.status,
                 to: cr.status,
+            });
+        }
+    }
+    // A previously-verified entry that vanished from the current run is also a
+    // regression: the claim is no longer being proven at all, so the gate must
+    // not pass just because the id disappeared.
+    for (id, br) in &base {
+        if br.status == Status::Verified && !curr.contains_key(id) {
+            delta.regressions.push(StatusChange {
+                id: br.id.clone(),
+                description: br.description.clone(),
+                from: Status::Verified,
+                to: Status::Removed,
             });
         }
     }
@@ -518,5 +536,34 @@ mod tests {
         assert_eq!(delta.regressions[0].id, "a");
         assert_eq!(delta.improvements.len(), 1);
         assert_eq!(delta.improvements[0].id, "b");
+    }
+
+    #[test]
+    fn delta_flags_vanished_verified_entry() {
+        // A previously-verified entry missing from the current run must count as
+        // a regression, not silently pass the gate.
+        let mk = |id: &str, status: Status| VerifyResult {
+            id: id.into(),
+            description: format!("{id} desc"),
+            techniques: vec!["T1000".into()],
+            claimed: vec!["some rule".into()],
+            status,
+            firing: vec![],
+        };
+        let baseline = VerifyReport {
+            platform: "linux".into(),
+            rules_indexed: 1,
+            results: vec![mk("gone", Status::Verified), mk("stay", Status::Verified)],
+        };
+        let current = VerifyReport {
+            platform: "linux".into(),
+            rules_indexed: 1,
+            results: vec![mk("stay", Status::Verified)],
+        };
+        let delta = compute_delta(&baseline, &current);
+        assert!(delta.has_regressed());
+        assert_eq!(delta.regressions.len(), 1);
+        assert_eq!(delta.regressions[0].id, "gone");
+        assert_eq!(delta.regressions[0].to, Status::Removed);
     }
 }
