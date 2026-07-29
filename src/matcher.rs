@@ -347,39 +347,31 @@ fn path_under(arg: &str, base: &str) -> bool {
 // derived by walking the predicate tree for the literals a match keys on.
 
 impl Matcher {
-    /// The literal program basename for an `Image|endswith` scaffold, if the
-    /// program is matched exactly. `None` for any-of / line-scoped matchers.
-    pub fn program_literal(&self) -> Option<&str> {
+    /// Lower the matcher into the fields a starter Sigma `selection:` should
+    /// test (see [`SigmaSelection`]). Program any-of and an `any`-of-`contains`
+    /// group become OR-lists; everything else is ANDed. `simplified` is set when
+    /// the matcher uses alternation/nesting that a flat selection can't mirror,
+    /// so the scaffold flags it for review instead of silently narrowing.
+    pub fn sigma_selection(&self) -> SigmaSelection {
+        let mut sel = SigmaSelection::default();
         match &self.program {
-            Some(ProgramMatch::Exact(p)) => Some(p),
-            _ => None,
+            Some(ProgramMatch::Exact(p)) => sel.image_endswith.push(p.clone()),
+            Some(ProgramMatch::AnyOf { any }) => sel.image_endswith.extend(any.iter().cloned()),
+            None => {}
         }
-    }
-
-    /// The substrings a mirroring Sigma `CommandLine` selection should test:
-    /// the literals from the `args` and `line` predicates, in that order.
-    pub fn commandline_terms(&self) -> Vec<String> {
-        let mut terms = Vec::new();
         if let Some(a) = &self.args {
-            collect_arg_terms(a, &mut terms);
+            lower_arg_selection(a, &mut sel);
         }
         if let Some(l) = &self.line {
-            collect_line_terms(l, &mut terms);
+            lower_line_selection(l, &mut sel);
         }
-        terms
-    }
-
-    /// The regex patterns a mirroring Sigma `CommandLine|re` selection should
-    /// test — the source of every `regex` leaf in the `args` and `line` trees.
-    pub fn commandline_regexes(&self) -> Vec<String> {
-        let mut out = Vec::new();
-        if let Some(a) = &self.args {
-            collect_arg_regexes(a, &mut out);
+        // A flat `CommandLine|contains` field can't hold both an AND set and a
+        // separate OR-group; when both are present the OR-group is dropped at
+        // render time, so flag it.
+        if !sel.contains_all.is_empty() && !sel.contains_any.is_empty() {
+            sel.simplified = true;
         }
-        if let Some(l) = &self.line {
-            collect_line_regexes(l, &mut out);
-        }
-        out
+        sel
     }
 
     /// Whether any leaf in this matcher is a `regex`. Such an entry cannot derive
@@ -494,28 +486,121 @@ fn collect_arg_repr(
     }
 }
 
-/// Collect literals from an argument predicate that a satisfying argument would
-/// carry. `any` takes its first branch; `not` contributes nothing.
-fn collect_arg_terms(pred: &ArgPred, out: &mut Vec<String>) {
+/// A Sigma-friendly lowering of a matcher for scaffolding — the fields a starter
+/// `selection:` should test (see [`Matcher::sigma_selection`]).
+#[derive(Debug, Default)]
+pub struct SigmaSelection {
+    /// `Image|endswith` values: one for an exact program, several (OR) for any-of.
+    pub image_endswith: Vec<String>,
+    /// `CommandLine|contains` literals ANDed together.
+    pub contains_all: Vec<String>,
+    /// One `CommandLine|contains` OR-group (from an `any` of contains-like leaves).
+    pub contains_any: Vec<String>,
+    /// `CommandLine|re` patterns.
+    pub regexes: Vec<String>,
+    /// Set when alternation/nesting couldn't be represented faithfully, so the
+    /// scaffold can flag itself for review instead of silently narrowing.
+    pub simplified: bool,
+}
+
+/// Record an OR-group of contains literals. A matcher can carry only one such
+/// group in a single flat selection; a second is flagged as `simplified`.
+fn add_or_group(sel: &mut SigmaSelection, lits: Vec<String>) {
+    if sel.contains_any.is_empty() {
+        sel.contains_any = lits;
+    } else {
+        sel.simplified = true;
+    }
+}
+
+/// Lower an argument predicate into the selection. `all` ANDs its children; an
+/// `any` of plain contains-like leaves becomes the OR-group. A nested `any`
+/// falls back to its first branch, and a `not` is dropped (unrepresentable in a
+/// positive selection); both mark `simplified` so the scaffold warns.
+fn lower_arg_selection(pred: &ArgPred, sel: &mut SigmaSelection) {
     match pred {
-        ArgPred::All(v) => v.iter().for_each(|p| collect_arg_terms(p, out)),
-        ArgPred::Any(v) => {
-            if let Some(first) = v.first() {
-                collect_arg_terms(first, out);
+        ArgPred::All(v) => v.iter().for_each(|p| lower_arg_selection(p, sel)),
+        ArgPred::Any(v) => match arg_or_literals(v) {
+            Some(lits) => add_or_group(sel, lits),
+            None => {
+                sel.simplified = true;
+                if let Some(first) = v.first() {
+                    lower_arg_selection(first, sel);
+                }
             }
-        }
-        ArgPred::Not(_) => {}
+        },
+        // A `not` can't be expressed in a positive Sigma `selection:` field;
+        // dropping it broadens the scaffold, so flag the loss.
+        ArgPred::Not(_) => sel.simplified = true,
         ArgPred::Flag(s)
         | ArgPred::Eq(s)
         | ArgPred::Contains(s)
         | ArgPred::Prefix(s)
         | ArgPred::Suffix(s)
         | ArgPred::Word(s)
-        | ArgPred::PathUnder(s) => out.push(s.clone()),
-        ArgPred::At(pos) => out.extend(str_leaf_literal(&pos.value)),
-        ArgPred::Joined(leaf) => out.extend(str_leaf_literal(leaf)),
-        ArgPred::Regex(_) => {}
+        | ArgPred::PathUnder(s) => sel.contains_all.push(s.clone()),
+        ArgPred::At(PosMatch {
+            value: StrLeaf::Regex(re),
+            ..
+        })
+        | ArgPred::Joined(StrLeaf::Regex(re))
+        | ArgPred::Regex(re) => sel.regexes.push(re.as_str().to_string()),
+        ArgPred::At(pos) => sel.contains_all.extend(str_leaf_literal(&pos.value)),
+        ArgPred::Joined(leaf) => sel.contains_all.extend(str_leaf_literal(leaf)),
     }
+}
+
+/// Lower a line predicate into the selection (see [`lower_arg_selection`]).
+fn lower_line_selection(pred: &LinePred, sel: &mut SigmaSelection) {
+    match pred {
+        LinePred::All(v) => v.iter().for_each(|p| lower_line_selection(p, sel)),
+        LinePred::Any(v) => match line_or_literals(v) {
+            Some(lits) => add_or_group(sel, lits),
+            None => {
+                sel.simplified = true;
+                if let Some(first) = v.first() {
+                    lower_line_selection(first, sel);
+                }
+            }
+        },
+        // See `lower_arg_selection`: a dropped `not` broadens the scaffold.
+        LinePred::Not(_) => sel.simplified = true,
+        LinePred::Contains(s) | LinePred::Word(s) | LinePred::Prefix(s) | LinePred::Suffix(s) => {
+            sel.contains_all.push(s.clone())
+        }
+        LinePred::Regex(re) => sel.regexes.push(re.as_str().to_string()),
+    }
+}
+
+/// `Some(literals)` iff every branch is a plain contains-like leaf, so the `any`
+/// can render as one `CommandLine|contains` OR-list; `None` otherwise.
+fn arg_or_literals(branches: &[ArgPred]) -> Option<Vec<String>> {
+    branches
+        .iter()
+        .map(|b| match b {
+            ArgPred::Flag(s)
+            | ArgPred::Eq(s)
+            | ArgPred::Contains(s)
+            | ArgPred::Prefix(s)
+            | ArgPred::Suffix(s)
+            | ArgPred::Word(s)
+            | ArgPred::PathUnder(s) => Some(s.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn line_or_literals(branches: &[LinePred]) -> Option<Vec<String>> {
+    branches
+        .iter()
+        .map(|b| match b {
+            LinePred::Contains(s)
+            | LinePred::Word(s)
+            | LinePred::Prefix(s)
+            | LinePred::Suffix(s) => Some(s.clone()),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Collect literals from a line predicate.
@@ -532,47 +617,6 @@ fn collect_line_terms(pred: &LinePred, out: &mut Vec<String>) {
             out.push(s.clone())
         }
         LinePred::Regex(_) => {}
-    }
-}
-
-/// Collect the source of every *required* `regex` leaf in an argument predicate,
-/// mirroring `collect_arg_terms`: `any` follows only its first branch and `not`
-/// contributes nothing, so a scaffold never surfaces a negated or non-required
-/// pattern.
-fn collect_arg_regexes(pred: &ArgPred, out: &mut Vec<String>) {
-    match pred {
-        ArgPred::All(v) => v.iter().for_each(|p| collect_arg_regexes(p, out)),
-        ArgPred::Any(v) => {
-            if let Some(first) = v.first() {
-                collect_arg_regexes(first, out);
-            }
-        }
-        ArgPred::Not(_) => {}
-        ArgPred::At(pos) => {
-            if let StrLeaf::Regex(re) = &pos.value {
-                out.push(re.as_str().to_string());
-            }
-        }
-        ArgPred::Joined(StrLeaf::Regex(re)) | ArgPred::Regex(re) => {
-            out.push(re.as_str().to_string())
-        }
-        _ => {}
-    }
-}
-
-/// Collect the source of every *required* `regex` leaf in a line predicate
-/// (see `collect_arg_regexes` for the `any` / `not` handling).
-fn collect_line_regexes(pred: &LinePred, out: &mut Vec<String>) {
-    match pred {
-        LinePred::All(v) => v.iter().for_each(|p| collect_line_regexes(p, out)),
-        LinePred::Any(v) => {
-            if let Some(first) = v.first() {
-                collect_line_regexes(first, out);
-            }
-        }
-        LinePred::Not(_) => {}
-        LinePred::Regex(re) => out.push(re.as_str().to_string()),
-        _ => {}
     }
 }
 
@@ -707,11 +751,25 @@ mod tests {
     }
 
     #[test]
-    fn commandline_terms_order_args_then_line() {
+    fn sigma_selection_program_and_anded_terms() {
         let matcher = m(r#"{ "program": "x", "args": { "contains": "aaa" },
                              "line": { "contains": "bbb" } }"#);
-        assert_eq!(matcher.commandline_terms(), vec!["aaa", "bbb"]);
-        assert_eq!(matcher.program_literal(), Some("x"));
+        let sel = matcher.sigma_selection();
+        assert_eq!(sel.image_endswith, vec!["x"]);
+        assert_eq!(sel.contains_all, vec!["aaa", "bbb"]);
+        assert!(sel.contains_any.is_empty() && !sel.simplified);
+    }
+
+    #[test]
+    fn sigma_selection_lowers_alternation_to_or_groups() {
+        // Program any-of -> Image list; an `any` of contains -> a CommandLine OR
+        // group; neither is a lossy narrowing.
+        let matcher = m(r#"{ "program": { "any": ["net", "net1"] },
+                             "line": { "any": [ {"contains": "a"}, {"contains": "b"} ] } }"#);
+        let sel = matcher.sigma_selection();
+        assert_eq!(sel.image_endswith, vec!["net", "net1"]);
+        assert_eq!(sel.contains_any, vec!["a", "b"]);
+        assert!(sel.contains_all.is_empty() && !sel.simplified);
     }
 
     #[test]
@@ -757,26 +815,41 @@ mod tests {
     }
 
     #[test]
-    fn regex_sources_surface_for_scaffolding() {
-        // `commandline_regexes` feeds the Sigma `CommandLine|re` scaffold; regex
-        // leaves contribute no literal to `commandline_terms`.
+    fn sigma_selection_surfaces_regexes_and_contains() {
+        // A regex leaf feeds `CommandLine|re`; the contains literal feeds
+        // `CommandLine|contains` — neither drops the other.
         let matcher = m(r#"{ "line": { "all": [
             { "contains": "powershell" }, { "regex": "-w\\s+hidden" }
         ] } }"#);
-        assert_eq!(matcher.commandline_terms(), vec!["powershell"]);
-        assert_eq!(matcher.commandline_regexes(), vec!["-w\\s+hidden"]);
+        let sel = matcher.sigma_selection();
+        assert_eq!(sel.contains_all, vec!["powershell"]);
+        assert_eq!(sel.regexes, vec!["-w\\s+hidden"]);
     }
 
     #[test]
-    fn regex_collection_ignores_not_and_non_first_any() {
-        // Mirrors literal collection: `all` keeps every branch, `any` keeps only
-        // its first, and `not` contributes nothing — so a scaffold never surfaces
-        // a negated or non-required pattern.
+    fn sigma_selection_flags_unrepresentable_nesting() {
+        // `all` keeps every branch; a non-literal `any` falls back to its first
+        // branch and `not` contributes nothing — and the loss is flagged so the
+        // scaffold can warn instead of silently narrowing.
         let matcher = m(r#"{ "line": { "all": [
             { "regex": "aa" },
             { "any": [ { "regex": "bb" }, { "regex": "cc" } ] },
             { "not": { "regex": "dd" } }
         ] } }"#);
-        assert_eq!(matcher.commandline_regexes(), vec!["aa", "bb"]);
+        let sel = matcher.sigma_selection();
+        assert_eq!(sel.regexes, vec!["aa", "bb"]);
+        assert!(sel.simplified);
+    }
+
+    #[test]
+    fn sigma_selection_flags_a_dropped_negation() {
+        // A `not` can't be represented in a positive selection; the positive
+        // terms survive but the loss is flagged (the private-key `.pub` shape).
+        let matcher = m(r#"{ "line": { "all": [
+            { "word": "id_rsa" }, { "not": { "contains": "id_rsa.pub" } }
+        ] } }"#);
+        let sel = matcher.sigma_selection();
+        assert_eq!(sel.contains_all, vec!["id_rsa"]);
+        assert!(sel.simplified);
     }
 }

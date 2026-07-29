@@ -79,50 +79,83 @@ pub fn rule_for(entry: &KbEntry, platform: Platform, date: &str) -> String {
 }
 
 /// Build the `selection:` block from the entry's matcher, mirroring opseclint's
-/// own matching: an exact `program` -> `Image|endswith`, the `args` / `line`
-/// literals -> `CommandLine|contains`, and any `regex` leaf -> `CommandLine|re`.
-/// Multiple CommandLine terms are ANDed via `contains|all`.
+/// own matching: `program` -> `Image|endswith` (a list for an any-of program),
+/// the `args` / `line` literals -> `CommandLine|contains` (an OR-list for an
+/// `any`-of-`contains` group, `contains|all` for ANDed terms), and any `regex`
+/// leaf -> `CommandLine|re`. Alternation/nesting a flat selection can't mirror is
+/// flagged with a NOTE rather than silently narrowed.
 fn build_selection(entry: &KbEntry, platform: Platform) -> String {
-    let matcher = &entry.matcher;
+    let sel = entry.matcher.sigma_selection();
     let mut s = String::new();
-    if let Some(cmd) = matcher.program_literal() {
-        // Mirror how opseclint synthesizes the Image field per platform.
-        let image = match platform {
-            Platform::WindowsSysmon => format!("\\{}.exe", yaml_sq(cmd)),
-            _ => format!("/{}", yaml_sq(cmd)),
-        };
-        s.push_str(&format!("        Image|endswith: '{image}'\n"));
+
+    if sel.simplified {
+        s.push_str(
+            "        # NOTE: this matcher uses alternation/nesting the scaffold can't fully\n\
+             \x20       # mirror; review the selection (some alternatives may be missing).\n",
+        );
     }
-    let terms = matcher.commandline_terms();
-    match terms.as_slice() {
-        [] => {}
-        [only] => s.push_str(&format!(
-            "        CommandLine|contains: '{}'\n",
-            yaml_sq(only)
-        )),
-        many => {
-            s.push_str("        CommandLine|contains|all:\n");
-            for term in many {
-                s.push_str(&format!("            - '{}'\n", yaml_sq(term)));
-            }
-        }
+
+    // program -> Image|endswith (scalar for one, list for an any-of program).
+    let image = |p: &str| match platform {
+        Platform::WindowsSysmon => format!("\\{}.exe", yaml_sq(p)),
+        _ => format!("/{}", yaml_sq(p)),
+    };
+    push_field(&mut s, "Image|endswith", &sel.image_endswith, false, image);
+
+    // CommandLine|contains: an OR-list for the any-group, else scalar / |all.
+    let ident = |v: &str| yaml_sq(v);
+    if sel.contains_all.is_empty() && !sel.contains_any.is_empty() {
+        push_field(
+            &mut s,
+            "CommandLine|contains",
+            &sel.contains_any,
+            false,
+            ident,
+        );
+    } else {
+        push_field(
+            &mut s,
+            "CommandLine|contains",
+            &sel.contains_all,
+            true,
+            ident,
+        );
     }
-    // A single `CommandLine|re` key: a scalar for one pattern, a list for many
-    // (repeating the key would be invalid / lossy YAML).
-    match matcher.commandline_regexes().as_slice() {
-        [] => {}
-        [only] => s.push_str(&format!("        CommandLine|re: '{}'\n", yaml_sq(only))),
-        many => {
-            s.push_str("        CommandLine|re:\n");
-            for re in many {
-                s.push_str(&format!("            - '{}'\n", yaml_sq(re)));
-            }
-        }
-    }
+
+    // CommandLine|re: scalar for one pattern, list for many.
+    push_field(&mut s, "CommandLine|re", &sel.regexes, false, ident);
+
     if s.is_empty() {
         s.push_str("        # TODO: no matchable field on this entry; define the selection\n");
     }
     s
+}
+
+/// Emit a Sigma selection field: nothing for an empty list, a scalar for one
+/// value, and a YAML sequence for several — appending `|all` to the key when the
+/// several values are ANDed (`and_list`) rather than ORed.
+fn push_field(
+    out: &mut String,
+    key: &str,
+    values: &[String],
+    and_list: bool,
+    fmt: impl Fn(&str) -> String,
+) {
+    match values {
+        [] => {}
+        [only] => out.push_str(&format!("        {key}: '{}'\n", fmt(only))),
+        many => {
+            let key = if and_list {
+                format!("{key}|all")
+            } else {
+                key.to_string()
+            };
+            out.push_str(&format!("        {key}:\n"));
+            for v in many {
+                out.push_str(&format!("            - '{}'\n", fmt(v)));
+            }
+        }
+    }
 }
 
 /// Escape a value for a YAML single-quoted scalar.
@@ -342,8 +375,9 @@ mod tests {
 
     #[test]
     fn scaffold_maps_a_regex_leaf_to_commandline_re() {
-        // A `regex` leaf lowers to a Sigma `CommandLine|re` selection alongside
-        // the `contains` terms.
+        // A `regex` leaf lowers to a Sigma `CommandLine|re` selection, and the
+        // `any` of contains around it lowers to a CommandLine OR-list carrying
+        // *both* alternatives (not just the first).
         let kb = kb::load(kb::Platform::WindowsSysmon).unwrap();
         let e = entry(&kb, "powershell-hidden");
         let yaml = rule_for(e, kb::Platform::WindowsSysmon, "2026-07-29");
@@ -353,6 +387,73 @@ mod tests {
             sel["CommandLine|re"].as_str().is_some(),
             "expected a CommandLine|re selection, got:\n{yaml}"
         );
+        let contains: Vec<&str> = sel["CommandLine|contains"]
+            .as_sequence()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_str().unwrap())
+            .collect();
+        assert!(
+            contains.contains(&"powershell") && contains.contains(&"pwsh"),
+            "{yaml}"
+        );
+    }
+
+    #[test]
+    fn scaffold_lowers_program_any_of_to_an_image_list() {
+        // `net-user` matches `net`/`net1`; the scaffold keeps both as an
+        // `Image|endswith` OR-list.
+        let kb = kb::load(kb::Platform::WindowsSysmon).unwrap();
+        let yaml = rule_for(
+            entry(&kb, "net-user"),
+            kb::Platform::WindowsSysmon,
+            "2026-07-29",
+        );
+        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let imgs: Vec<&str> = v["detection"]["selection"]["Image|endswith"]
+            .as_sequence()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_str().unwrap())
+            .collect();
+        assert_eq!(imgs, vec!["\\net.exe", "\\net1.exe"]);
+    }
+
+    #[test]
+    fn scaffold_lowers_line_any_to_a_contains_or_list() {
+        // `sudo-l` matches `sudo -l` OR `sudo --list`; both survive scaffolding.
+        let kb = kb::load(kb::Platform::LinuxAuditd).unwrap();
+        let yaml = rule_for(
+            entry(&kb, "sudo-l"),
+            kb::Platform::LinuxAuditd,
+            "2026-07-29",
+        );
+        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let contains: Vec<&str> = v["detection"]["selection"]["CommandLine|contains"]
+            .as_sequence()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_str().unwrap())
+            .collect();
+        assert_eq!(contains, vec!["sudo -l", "sudo --list"]);
+    }
+
+    #[test]
+    fn scaffold_flags_a_dropped_negation_with_a_note() {
+        // `private-key-rsa` excludes `id_rsa.pub` via `not`, which a positive
+        // selection can't express — the scaffold must carry the review NOTE.
+        let kb = kb::load(kb::Platform::LinuxAuditd).unwrap();
+        let yaml = rule_for(
+            entry(&kb, "private-key-rsa"),
+            kb::Platform::LinuxAuditd,
+            "2026-07-29",
+        );
+        assert!(
+            yaml.contains("# NOTE:"),
+            "expected a review NOTE, got:\n{yaml}"
+        );
+        // The generated rule is still valid YAML.
+        serde_yaml::from_str::<serde_yaml::Value>(&yaml).unwrap();
     }
 
     #[test]
