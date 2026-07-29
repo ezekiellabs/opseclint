@@ -13,6 +13,7 @@ mod diff;
 mod edr;
 mod kb;
 mod model;
+mod navigator;
 mod parser;
 mod report;
 mod sarif;
@@ -52,6 +53,11 @@ struct Cli {
     /// Emit SARIF 2.1.0 (for GitHub code scanning / SARIF-aware tools).
     #[arg(long, conflicts_with = "json", help_heading = "Output")]
     sarif: bool,
+
+    /// Emit an ATT&CK Navigator layer (JSON) of the techniques surfaced, scored
+    /// by detectability. Import at mitre-attack.github.io/attack-navigator.
+    #[arg(long, conflicts_with_all = ["json", "sarif"], help_heading = "Output")]
+    navigator: bool,
 
     /// Force-disable ANSI color (color is auto-disabled when not a TTY).
     #[arg(long, help_heading = "Output")]
@@ -310,7 +316,7 @@ fn main() -> ExitCode {
         match sigma::load_cached(std::path::Path::new(dir), product, !cli.no_sigma_cache) {
             Ok((index, from_cache)) => {
                 let enriched = sigma::enrich(&mut report, &index, cli.platform);
-                if !cli.json && !cli.sarif {
+                if !cli.json && !cli.sarif && !cli.navigator {
                     eprintln!(
                         "opseclint: sigma — {} rule(s) from {} file(s){}; enriched {} finding(s)",
                         index.rules_indexed,
@@ -331,7 +337,7 @@ fn main() -> ExitCode {
     // EDR telemetry mapping is additive enrichment on the standard report.
     if let Some(vendor) = cli.edr {
         let note = edr::annotate(&mut report, &[vendor]);
-        if !cli.json && !cli.sarif {
+        if !cli.json && !cli.sarif && !cli.navigator {
             eprintln!("opseclint: edr — {note}");
         }
     }
@@ -369,7 +375,9 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    if cli.sarif {
+    if cli.navigator {
+        println!("{}", navigator::render(&report));
+    } else if cli.sarif {
         let source_uri = cli.path.clone().unwrap_or_else(|| {
             if cli.command.is_some() {
                 "<command>"

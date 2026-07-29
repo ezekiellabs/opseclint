@@ -8,6 +8,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`--navigator`** — emit an ATT&CK Navigator layer (JSON) of the techniques an
+  input surfaces, scored by detectability, for import at the MITRE ATT&CK
+  Navigator to visualize coverage on the matrix.
 - **Known-benign corpus test** — asserts a curated corpus of everyday commands
   per platform (navigation, dev/build tooling, log reads) produces zero
   findings, guarding against knowledge-base false positives.
