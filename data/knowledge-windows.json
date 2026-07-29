@@ -67,7 +67,7 @@
     },
     {
       "id": "net-user",
-      "match": { "program": "net", "args": { "contains": "user" } },
+      "match": { "program": { "any": ["net", "net1"] }, "args": { "at": { "index": 0, "value": { "eq": "user" } } } },
       "description": "Local/domain account enumeration via net user",
       "techniques": [{ "id": "T1087.001", "name": "Account Discovery: Local Account" }],
       "telemetry": ["Sysmon EID 1: net.exe user (often via net1.exe child)"],
@@ -169,7 +169,7 @@
     },
     {
       "id": "powershell-hidden",
-      "match": { "line": { "contains": "hidden" } },
+      "match": { "line": { "all": [{ "any": [{ "contains": "powershell" }, { "contains": "pwsh" }] }, { "any": [{ "contains": "windowstyle hidden" }, { "contains": "-w hidden" }] }] } },
       "description": "Hidden-window PowerShell — defense evasion",
       "techniques": [
         { "id": "T1564.003", "name": "Hide Artifacts: Hidden Window" },
