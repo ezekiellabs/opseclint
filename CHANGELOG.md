@@ -34,6 +34,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **EDR classifier re-audit** — after the knowledge base was deepened, the
+  telemetry → EDR event-class classifier had drifted: 41 telemetry lines matched
+  no class, and four Active Directory entries (`dcsync`, `kerberoast-getuserspns`,
+  `asreproast`, `golden-ticket`) silently fell back to the `process_creation`
+  default despite being Kerberos/replication **authentication** events (`4768`,
+  `4769`, `4662`, TGS/AS-REQ, DRSUAPI). Extended the class patterns to cover the
+  new telemetry vocabulary (Kerberos/AD auth, LDAP/DNS/tunnel network activity,
+  `ptrace`/`init_module`/`getxattr`, systemd timers, etc.) with no reclassification
+  of already-correct lines, so `--edr` now maps every entry to its true event
+  class. Added a guard test asserting no entry with telemetry falls back to the
+  default, so future KB growth can't silently regress the mapping.
+
 - **`clear-syslog` false positive** — the Linux log-tampering rule keyed on a
   bare `/var/log` substring, so ordinary reads and navigation (`cd /var/log`,
   `tail -f /var/log/syslog`, `ls /var/log`) were flagged as anti-forensic log
