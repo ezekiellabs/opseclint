@@ -32,15 +32,14 @@ Coverage lives in the per-platform knowledge bases:
 - `data/knowledge-windows.json` — Windows / Sysmon
 - `data/knowledge-macos.json` — macOS / Endpoint Security
 
-Each entry maps a command (or a raw pattern) to ATT&CK technique(s), the
-telemetry it emits, representative Sigma-style detections, and a detectability
-score:
+Each entry maps an action to ATT&CK technique(s), the telemetry it emits,
+representative Sigma-style detections, and a detectability score. Matching is
+driven by a structured `match` predicate:
 
 ```json
 {
   "id": "short-kebab-id",
-  "command": "curl",
-  "args_contains": "urlcache",
+  "match": { "program": "certutil", "args": { "contains": "urlcache" } },
   "description": "One line: what a defender would observe.",
   "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }],
   "telemetry": ["the concrete host event(s) this produces"],
@@ -49,10 +48,15 @@ score:
 }
 ```
 
-An entry matches either by `command` (with optional `args_contains` /
-`raw_contains` refinements) or by `raw_contains` alone. Keep `id`s unique within
-a file, and add a matching test in `src/analyzer.rs` when you introduce a
-notable technique.
+`match` has three optional axes — `program` (the resolved basename), `args` (a
+predicate tree over the arguments), and `line` (the whole raw line) — with leaves
+like `contains`, `flag`, `word`, `path_under`, `any`/`all`/`not`. Prefer the
+boundary-aware leaves (`word`, `path_under`) over a bare `contains` to avoid
+false positives. The full reference is
+[docs/design/match-schema.md](docs/design/match-schema.md).
+
+Keep `id`s unique within a file, and add a matching test in `src/analyzer.rs`
+when you introduce a notable technique.
 
 ## Guidelines
 
