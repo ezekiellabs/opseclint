@@ -314,8 +314,7 @@
     },
     {
       "id": "sudo-l",
-      "command": "sudo",
-      "args_contains": "-l",
+      "match": { "line": { "any": [{ "contains": "sudo -l" }, { "contains": "sudo --list" }] } },
       "description": "Enumeration of the current user's sudo privileges",
       "techniques": [{ "id": "T1069", "name": "Permission Groups Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/sudo with -l", "sudo(8) logging the privilege listing to the unified log"],

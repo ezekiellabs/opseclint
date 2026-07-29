@@ -3,6 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::matcher::{ArgPred, LinePred, Matcher, ProgramMatch, StrLeaf};
+
 /// A single ATT&CK technique reference.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Technique {
@@ -24,11 +26,20 @@ pub struct Detection {
 
 /// One entry in the knowledge base: a rule that maps a shell action to the
 /// techniques it implements, the telemetry it emits, and the detections that
-/// would fire. An entry matches either by `command` (with optional
-/// `args_contains` / `raw_contains` refinements) or by `raw_contains` alone.
+/// would fire.
+///
+/// Matching is driven by a structured [`Matcher`] under the `match` key. For
+/// backward compatibility the legacy substring fields (`command`,
+/// `args_contains`, `raw_contains`) are still accepted; when `match` is absent
+/// they are lowered into an equivalent matcher by [`KbEntry::compiled_matcher`],
+/// so the two forms behave identically and the knowledge bases can migrate one
+/// entry at a time.
 #[derive(Debug, Clone, Deserialize)]
 pub struct KbEntry {
     pub id: String,
+    /// Structured matcher (preferred). Overrides the legacy fields when present.
+    #[serde(default, rename = "match")]
+    pub matcher: Option<Matcher>,
     #[serde(default)]
     pub command: Option<String>,
     #[serde(default)]
@@ -44,6 +55,34 @@ pub struct KbEntry {
     /// Detectability on a 0-100 scale: how likely this action is to surface in
     /// defensive telemetry. Higher = louder.
     pub noise: u8,
+}
+
+impl KbEntry {
+    /// The effective [`Matcher`] for this entry: the explicit `match` object if
+    /// present, otherwise the legacy `command`/`args_contains`/`raw_contains`
+    /// fields lowered into their exact structural equivalent.
+    pub fn compiled_matcher(&self) -> Matcher {
+        if let Some(m) = &self.matcher {
+            return m.clone();
+        }
+        // Lower the legacy substring fields. `command` present ⇒ command-scoped
+        // (exact program + optional joined-args / line refinements); otherwise
+        // line-scoped over the raw line.
+        let program = self.command.clone().map(ProgramMatch::Exact);
+        let args = if self.command.is_some() {
+            self.args_contains
+                .clone()
+                .map(|s| ArgPred::Joined(StrLeaf::Contains(s)))
+        } else {
+            None
+        };
+        let line = self.raw_contains.clone().map(LinePred::Contains);
+        Matcher {
+            program,
+            args,
+            line,
+        }
+    }
 }
 
 /// The deserialized knowledge base.

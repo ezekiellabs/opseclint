@@ -16,13 +16,6 @@ pub struct Command {
     pub raw: String,
 }
 
-impl Command {
-    /// Arguments joined with spaces, lowercased. Used for `args_contains`.
-    pub fn args_joined(&self) -> String {
-        self.args.join(" ").to_lowercase()
-    }
-}
-
 /// Wrapper programs whose presence at the head of a segment should be skipped
 /// to reach the "real" command underneath.
 const WRAPPERS: &[&str] = &[
