@@ -644,22 +644,33 @@ mod tests {
             "powershell.exe -WindowStyle Hidden -c calc",
             "powershell-hidden"
         ));
-        // No longer fires on unrelated uses of the word "hidden".
+        // Wrapped launches (cmd /c powershell …) still fire — the marker is
+        // matched on the whole line, not just the resolved program.
+        assert!(fires(
+            "cmd /c powershell -w hidden -enc ZQBjAA==",
+            "powershell-hidden"
+        ));
+        // No longer fires on unrelated uses of the word "hidden", nor on a
+        // non-PowerShell line that merely contains the "-w hidden" marker.
         assert!(!fires(
             "Get-ChildItem -Hidden C:\\Users",
             "powershell-hidden"
         ));
+        assert!(!fires("cmd.exe /c echo -w hidden", "powershell-hidden"));
     }
 
     /// `net-user` was keyed on the substring `user` (also firing on
-    /// `net localgroup users`); it now requires `user` as its own argument.
+    /// `net localgroup users` / `net help user`); it now pins `user` to the
+    /// subcommand position and matches the `net1` alias seen in telemetry.
     #[test]
     fn net_user_requires_user_subcommand() {
         let kb = win_kb();
         let fires =
             |cmd: &str, rule: &str| analyze(cmd, &kb).findings.iter().any(|f| f.rule_id == rule);
         assert!(fires("net user administrator /domain", "net-user"));
+        assert!(fires("net1 user administrator /domain", "net-user"));
         assert!(!fires("net localgroup users", "net-user"));
+        assert!(!fires("net help user", "net-user"));
     }
 
     /// `journal-vacuum` was keyed on the bare `--vacuum` substring; it now scopes
