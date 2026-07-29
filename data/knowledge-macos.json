@@ -4,7 +4,7 @@
   "entries": [
     {
       "id": "whoami",
-      "command": "whoami",
+      "match": { "program": "whoami" },
       "description": "Current user discovery",
       "techniques": [{ "id": "T1033", "name": "System Owner/User Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/whoami"],
@@ -13,7 +13,7 @@
     },
     {
       "id": "id",
-      "command": "id",
+      "match": { "program": "id" },
       "description": "User and group identity discovery",
       "techniques": [{ "id": "T1033", "name": "System Owner/User Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/id"],
@@ -22,7 +22,7 @@
     },
     {
       "id": "sw-vers",
-      "command": "sw_vers",
+      "match": { "program": "sw_vers" },
       "description": "macOS version fingerprinting",
       "techniques": [{ "id": "T1082", "name": "System Information Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/sw_vers"],
@@ -31,7 +31,7 @@
     },
     {
       "id": "system-profiler",
-      "command": "system_profiler",
+      "match": { "program": "system_profiler" },
       "description": "Detailed system/hardware inventory",
       "techniques": [{ "id": "T1082", "name": "System Information Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of system_profiler"],
@@ -40,7 +40,7 @@
     },
     {
       "id": "networksetup",
-      "command": "networksetup",
+      "match": { "program": "networksetup" },
       "description": "Network configuration discovery / modification",
       "techniques": [{ "id": "T1016", "name": "System Network Configuration Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of networksetup"],
@@ -49,7 +49,7 @@
     },
     {
       "id": "mdfind",
-      "command": "mdfind",
+      "match": { "program": "mdfind" },
       "description": "Spotlight-backed file search — file and directory discovery",
       "techniques": [{ "id": "T1083", "name": "File and Directory Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of mdfind"],
@@ -58,8 +58,7 @@
     },
     {
       "id": "dscl-list-users",
-      "command": "dscl",
-      "args_contains": "list /users",
+      "match": { "program": "dscl", "args": { "joined": { "contains": "list /users" } } },
       "description": "Local account enumeration via dscl",
       "techniques": [{ "id": "T1087.001", "name": "Account Discovery: Local Account" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of dscl with -list /Users"],
@@ -68,8 +67,7 @@
     },
     {
       "id": "dscl-create-user",
-      "command": "dscl",
-      "args_contains": "-create",
+      "match": { "program": "dscl", "args": { "contains": "-create" } },
       "description": "Local account creation via dscl — persistence",
       "techniques": [{ "id": "T1136.001", "name": "Create Account: Local Account" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of dscl with -create /Users/..."],
@@ -78,7 +76,7 @@
     },
     {
       "id": "dseditgroup-admin",
-      "raw_contains": "dseditgroup",
+      "match": { "line": { "contains": "dseditgroup" } },
       "description": "Group membership modification (e.g. adding to admin) via dseditgroup",
       "techniques": [{ "id": "T1098", "name": "Account Manipulation" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of dseditgroup -o edit -a <user> admin"],
@@ -87,7 +85,7 @@
     },
     {
       "id": "launch-agent-persist",
-      "raw_contains": "launchagents",
+      "match": { "line": { "contains": "launchagents" } },
       "description": "Writing a LaunchAgent plist — user logon persistence",
       "techniques": [{ "id": "T1543.001", "name": "Create or Modify System Process: Launch Agent" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_CREATE of ~/Library/LaunchAgents/*.plist"],
@@ -96,7 +94,7 @@
     },
     {
       "id": "launch-daemon-persist",
-      "raw_contains": "launchdaemons",
+      "match": { "line": { "contains": "launchdaemons" } },
       "description": "Writing a LaunchDaemon plist — system-wide persistence",
       "techniques": [{ "id": "T1543.004", "name": "Create or Modify System Process: Launch Daemon" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_CREATE of /Library/LaunchDaemons/*.plist"],
@@ -105,8 +103,7 @@
     },
     {
       "id": "launchctl-load",
-      "command": "launchctl",
-      "args_contains": "load",
+      "match": { "program": "launchctl", "args": { "contains": "load" } },
       "description": "Loading a launchd job — persistence / execution",
       "techniques": [
         { "id": "T1543.001", "name": "Create or Modify System Process: Launch Agent" },
@@ -118,7 +115,7 @@
     },
     {
       "id": "login-items-persist",
-      "raw_contains": "loginitems",
+      "match": { "line": { "contains": "loginitems" } },
       "description": "Adding a Login Item — logon persistence",
       "techniques": [{ "id": "T1547.015", "name": "Boot or Logon Autostart Execution: Login Items" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of osascript/defaults modifying Login Items"],
@@ -127,8 +124,7 @@
     },
     {
       "id": "keychain-dump",
-      "command": "security",
-      "args_contains": "dump-keychain",
+      "match": { "program": "security", "args": { "contains": "dump-keychain" } },
       "description": "Dumping the login keychain — credential access",
       "techniques": [{ "id": "T1555.001", "name": "Credentials from Password Stores: Keychain" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/security dump-keychain", "ESF open of ~/Library/Keychains/login.keychain-db"],
@@ -137,7 +133,7 @@
     },
     {
       "id": "keychain-find",
-      "raw_contains": "find-generic-password",
+      "match": { "line": { "contains": "find-generic-password" } },
       "description": "Extracting a stored secret via security find-*-password",
       "techniques": [{ "id": "T1555.001", "name": "Credentials from Password Stores: Keychain" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of security find-generic-password -w"],
@@ -146,8 +142,7 @@
     },
     {
       "id": "osascript",
-      "command": "osascript",
-      "args_contains": "-e",
+      "match": { "program": "osascript", "args": { "contains": "-e" } },
       "description": "Inline AppleScript execution",
       "techniques": [{ "id": "T1059.002", "name": "Command and Scripting Interpreter: AppleScript" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of osascript -e"],
@@ -156,7 +151,7 @@
     },
     {
       "id": "osascript-shell",
-      "raw_contains": "do shell script",
+      "match": { "line": { "contains": "do shell script" } },
       "description": "AppleScript spawning a shell (do shell script) — often privilege prompt abuse",
       "techniques": [{ "id": "T1059.002", "name": "Command and Scripting Interpreter: AppleScript" }],
       "telemetry": ["osascript spawning /bin/sh as a child process (ESF EXEC chain)"],
@@ -165,7 +160,7 @@
     },
     {
       "id": "gatekeeper-disable",
-      "raw_contains": "--master-disable",
+      "match": { "line": { "contains": "--master-disable" } },
       "description": "Disabling Gatekeeper via spctl --master-disable — defense evasion",
       "techniques": [{ "id": "T1553.001", "name": "Subvert Trust Controls: Gatekeeper Bypass" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of spctl --master-disable"],
@@ -174,7 +169,7 @@
     },
     {
       "id": "quarantine-removal",
-      "raw_contains": "com.apple.quarantine",
+      "match": { "line": { "contains": "com.apple.quarantine" } },
       "description": "Removing the quarantine attribute — Gatekeeper bypass",
       "techniques": [{ "id": "T1553.001", "name": "Subvert Trust Controls: Gatekeeper Bypass" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_SETEXTATTR / xattr -d com.apple.quarantine"],
@@ -183,7 +178,7 @@
     },
     {
       "id": "sip-disable",
-      "raw_contains": "csrutil disable",
+      "match": { "line": { "contains": "csrutil disable" } },
       "description": "Disabling System Integrity Protection — defense evasion",
       "techniques": [{ "id": "T1562.001", "name": "Impair Defenses: Disable or Modify Tools" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of csrutil disable (recovery context)"],
@@ -192,7 +187,7 @@
     },
     {
       "id": "tcc-tamper",
-      "raw_contains": "tcc.db",
+      "match": { "line": { "contains": "tcc.db" } },
       "description": "Direct access to the TCC database — privacy/permission control bypass",
       "techniques": [{ "id": "T1548.006", "name": "Abuse Elevation Control Mechanism: TCC Manipulation" }],
       "telemetry": ["ESF open/write of TCC.db under ~/Library/Application Support/com.apple.TCC"],
@@ -201,7 +196,7 @@
     },
     {
       "id": "kextload",
-      "command": "kextload",
+      "match": { "program": "kextload" },
       "description": "Loading a kernel extension — potential rootkit / persistence",
       "techniques": [{ "id": "T1547.006", "name": "Boot or Logon Autostart Execution: Kernel Modules and Extensions" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of kextload / ES_EVENT_TYPE_NOTIFY_KEXTLOAD"],
@@ -210,7 +205,7 @@
     },
     {
       "id": "screencapture",
-      "command": "screencapture",
+      "match": { "program": "screencapture" },
       "description": "Screen capture — collection",
       "techniques": [{ "id": "T1113", "name": "Screen Capture" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of screencapture"],
@@ -219,7 +214,7 @@
     },
     {
       "id": "clipboard-capture",
-      "command": "pbpaste",
+      "match": { "program": "pbpaste" },
       "description": "Reading the clipboard — collection",
       "techniques": [{ "id": "T1115", "name": "Clipboard Data" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of pbpaste"],
@@ -228,7 +223,7 @@
     },
     {
       "id": "curl",
-      "command": "curl",
+      "match": { "program": "curl" },
       "description": "Remote file transfer / HTTP client — tool ingress or exfil",
       "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of curl", "outbound network connection"],
@@ -237,7 +232,7 @@
     },
     {
       "id": "reverse-shell-devtcp",
-      "raw_contains": "/dev/tcp",
+      "match": { "line": { "contains": "/dev/tcp" } },
       "description": "Bash /dev/tcp reverse shell — interactive C2 channel",
       "techniques": [
         { "id": "T1059.004", "name": "Command and Scripting Interpreter: Unix Shell" },
@@ -249,7 +244,7 @@
     },
     {
       "id": "history-clear",
-      "raw_contains": "history -c",
+      "match": { "line": { "contains": "history -c" } },
       "description": "Shell command-history clearing — anti-forensics",
       "techniques": [{ "id": "T1070.003", "name": "Indicator Removal: Clear Command History" }],
       "telemetry": ["truncate/write of ~/.zsh_history or ~/.bash_history"],
@@ -258,7 +253,7 @@
     },
     {
       "id": "unified-log-erase",
-      "raw_contains": "log erase",
+      "match": { "line": { "contains": "log erase" } },
       "description": "Erasing the unified log — anti-forensics",
       "techniques": [{ "id": "T1070.002", "name": "Indicator Removal: Clear Linux or Mac System Logs" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/log erase"],
@@ -267,7 +262,7 @@
     },
     {
       "id": "ps",
-      "command": "ps",
+      "match": { "program": "ps" },
       "description": "Running process discovery",
       "techniques": [{ "id": "T1057", "name": "Process Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /bin/ps"],
@@ -276,7 +271,7 @@
     },
     {
       "id": "netstat",
-      "command": "netstat",
+      "match": { "program": "netstat" },
       "description": "Network connection discovery",
       "techniques": [{ "id": "T1049", "name": "System Network Connections Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/sbin/netstat"],
@@ -285,8 +280,7 @@
     },
     {
       "id": "lsof-net",
-      "command": "lsof",
-      "args_contains": "-i",
+      "match": { "program": "lsof", "args": { "contains": "-i" } },
       "description": "Open network socket enumeration via lsof -i",
       "techniques": [{ "id": "T1049", "name": "System Network Connections Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/sbin/lsof with -i"],
@@ -295,7 +289,7 @@
     },
     {
       "id": "arp",
-      "command": "arp",
+      "match": { "program": "arp" },
       "description": "ARP cache enumeration — adjacent host discovery",
       "techniques": [{ "id": "T1018", "name": "Remote System Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/sbin/arp"],
@@ -304,8 +298,7 @@
     },
     {
       "id": "dscl-groups",
-      "command": "dscl",
-      "args_contains": "list /groups",
+      "match": { "program": "dscl", "args": { "joined": { "contains": "list /groups" } } },
       "description": "Local group enumeration via dscl",
       "techniques": [{ "id": "T1069.001", "name": "Permission Groups Discovery: Local Groups" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/dscl reading the local group node"],
@@ -323,7 +316,7 @@
     },
     {
       "id": "last-login",
-      "command": "last",
+      "match": { "program": "last" },
       "description": "Login history enumeration",
       "techniques": [{ "id": "T1087.001", "name": "Account Discovery: Local Account" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/last reading utmpx"],
@@ -332,7 +325,7 @@
     },
     {
       "id": "spctl-status",
-      "raw_contains": "spctl --status",
+      "match": { "line": { "contains": "spctl --status" } },
       "description": "Querying Gatekeeper assessment status — security-software discovery",
       "techniques": [{ "id": "T1518.001", "name": "Software Discovery: Security Software Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/sbin/spctl with --status"],
@@ -341,7 +334,7 @@
     },
     {
       "id": "private-key-ssh",
-      "raw_contains": "id_rsa",
+      "match": { "line": { "all": [{ "word": "id_rsa" }, { "not": { "contains": "id_rsa.pub" } }] } },
       "description": "Access to an SSH RSA private key — unsecured credentials",
       "techniques": [{ "id": "T1552.004", "name": "Unsecured Credentials: Private Keys" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_OPEN of ~/.ssh/id_rsa"],
@@ -350,7 +343,7 @@
     },
     {
       "id": "private-key-ed25519",
-      "raw_contains": "id_ed25519",
+      "match": { "line": { "all": [{ "word": "id_ed25519" }, { "not": { "contains": "id_ed25519.pub" } }] } },
       "description": "Access to an SSH Ed25519 private key — unsecured credentials",
       "techniques": [{ "id": "T1552.004", "name": "Unsecured Credentials: Private Keys" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_OPEN of ~/.ssh/id_ed25519"],
@@ -359,8 +352,7 @@
     },
     {
       "id": "creds-in-files",
-      "command": "grep",
-      "args_contains": "password",
+      "match": { "program": "grep", "args": { "contains": "password" } },
       "description": "Grepping the filesystem for passwords — credential hunting",
       "techniques": [{ "id": "T1552.001", "name": "Unsecured Credentials: Credentials In Files" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/grep scanning for secrets"],
@@ -369,7 +361,7 @@
     },
     {
       "id": "shadowhash-dump",
-      "raw_contains": "shadowhashdata",
+      "match": { "line": { "contains": "shadowhashdata" } },
       "description": "Reading ShadowHashData via dscl — local password-hash extraction",
       "techniques": [{ "id": "T1003", "name": "OS Credential Dumping" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/dscl reading ShadowHashData", "elevated (root) access to the local directory-services record"],
@@ -378,7 +370,7 @@
     },
     {
       "id": "browser-cookies",
-      "raw_contains": "cookies.binarycookies",
+      "match": { "line": { "contains": "cookies.binarycookies" } },
       "description": "Reading Safari's binary cookie store — session-cookie theft",
       "techniques": [{ "id": "T1539", "name": "Steal Web Session Cookie" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_OPEN of ~/Library/Cookies/Cookies.binarycookies"],
@@ -387,7 +379,7 @@
     },
     {
       "id": "chrome-logindata",
-      "raw_contains": "chrome/default/login data",
+      "match": { "line": { "contains": "chrome/default/login data" } },
       "description": "Reading Chrome's Login Data store — saved-credential theft",
       "techniques": [{ "id": "T1555.003", "name": "Credentials from Password Stores: Credentials from Web Browsers" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_OPEN of ~/Library/Application Support/Google/Chrome/Default/Login Data"],
@@ -396,7 +388,7 @@
     },
     {
       "id": "osascript-phish",
-      "raw_contains": "with hidden answer",
+      "match": { "line": { "contains": "with hidden answer" } },
       "description": "AppleScript password prompt (display dialog … with hidden answer) — GUI credential phishing",
       "techniques": [{ "id": "T1056.002", "name": "Input Capture: GUI Input Capture" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/osascript rendering a credential dialog"],
@@ -405,8 +397,7 @@
     },
     {
       "id": "python-c",
-      "command": "python3",
-      "args_contains": "-c",
+      "match": { "program": "python3", "args": { "contains": "-c" } },
       "description": "Inline Python execution — common for one-liner payloads",
       "techniques": [{ "id": "T1059.006", "name": "Command and Scripting Interpreter: Python" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of python3 with -c"],
@@ -415,7 +406,7 @@
     },
     {
       "id": "netcat",
-      "command": "nc",
+      "match": { "program": "nc" },
       "description": "Raw TCP/UDP connection via nc — potential C2 or exfil channel",
       "techniques": [{ "id": "T1095", "name": "Non-Application Layer Protocol" }, { "id": "T1071", "name": "Application Layer Protocol" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/nc", "outbound socket observed via a NetworkExtension flow / pf log"],
@@ -424,8 +415,7 @@
     },
     {
       "id": "python-http-server",
-      "command": "python3",
-      "args_contains": "http.server",
+      "match": { "program": "python3", "args": { "contains": "http.server" } },
       "description": "Ad-hoc HTTP server — data staging / exfiltration channel",
       "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }, { "id": "T1567", "name": "Exfiltration Over Web Service" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of python3 with http.server", "process binding a listening TCP socket"],
@@ -434,7 +424,7 @@
     },
     {
       "id": "crontab-persist",
-      "command": "crontab",
+      "match": { "program": "crontab" },
       "description": "Cron job listing or installation — scheduled-task persistence",
       "techniques": [{ "id": "T1053.003", "name": "Scheduled Task/Job: Cron" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/crontab", "ES_EVENT_TYPE_NOTIFY_WRITE of /usr/lib/cron/tabs/<user>"],
@@ -443,7 +433,7 @@
     },
     {
       "id": "emond-persist",
-      "raw_contains": "emond",
+      "match": { "line": { "contains": "emond" } },
       "description": "Writing an emond rule — event-monitor persistence",
       "techniques": [{ "id": "T1546.014", "name": "Event Triggered Execution: Emond" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE under /etc/emond.d/ or /private/var/db/emondClients"],
@@ -452,7 +442,7 @@
     },
     {
       "id": "periodic-persist",
-      "raw_contains": "/etc/periodic",
+      "match": { "line": { "contains": "/etc/periodic" } },
       "description": "Dropping a periodic script — scheduled-task persistence",
       "techniques": [{ "id": "T1053.003", "name": "Scheduled Task/Job: Cron" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE under /etc/periodic/{daily,weekly,monthly}"],
@@ -461,7 +451,7 @@
     },
     {
       "id": "loginhook-persist",
-      "raw_contains": "loginhook",
+      "match": { "line": { "contains": "loginhook" } },
       "description": "Setting a LoginHook via com.apple.loginwindow — logon persistence",
       "techniques": [{ "id": "T1037.002", "name": "Boot or Logon Initialization Scripts: Login Hook" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/defaults writing com.apple.loginwindow LoginHook"],
@@ -470,7 +460,7 @@
     },
     {
       "id": "authorized-keys",
-      "raw_contains": "authorized_keys",
+      "match": { "line": { "contains": "authorized_keys" } },
       "description": "Modification of SSH authorized_keys — remote-access persistence",
       "techniques": [{ "id": "T1098.004", "name": "Account Manipulation: SSH Authorized Keys" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE of ~/.ssh/authorized_keys"],
@@ -479,7 +469,7 @@
     },
     {
       "id": "shell-profile-persist",
-      "raw_contains": ".zshrc",
+      "match": { "line": { "contains": ".zshrc" } },
       "description": "Modifying a shell rc file (.zshrc) — logon persistence",
       "techniques": [{ "id": "T1546.004", "name": "Event Triggered Execution: Unix Shell Configuration Modification" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE of ~/.zshrc"],
@@ -488,7 +478,7 @@
     },
     {
       "id": "hidden-user",
-      "raw_contains": "ishidden",
+      "match": { "line": { "contains": "ishidden" } },
       "description": "Creating an account with IsHidden — hidden local user for persistence",
       "techniques": [{ "id": "T1564.002", "name": "Hide Artifacts: Hidden Users" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/dscl setting IsHidden on a user record"],
@@ -497,7 +487,7 @@
     },
     {
       "id": "dyld-insert",
-      "raw_contains": "dyld_insert_libraries",
+      "match": { "line": { "contains": "dyld_insert_libraries" } },
       "description": "DYLD_INSERT_LIBRARIES injection — dynamic-linker hijacking",
       "techniques": [{ "id": "T1574.006", "name": "Hijack Execution Flow: Dynamic Linker Hijacking" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC with DYLD_INSERT_LIBRARIES in the environment"],
@@ -506,8 +496,7 @@
     },
     {
       "id": "firewall-disable",
-      "command": "socketfilterfw",
-      "args_contains": "setglobalstate off",
+      "match": { "program": "socketfilterfw", "args": { "joined": { "contains": "setglobalstate off" } } },
       "description": "Disabling the application firewall via socketfilterfw — defense impairment",
       "techniques": [{ "id": "T1562.004", "name": "Impair Defenses: Disable or Modify System Firewall" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of socketfilterfw with --setglobalstate off"],
@@ -516,8 +505,7 @@
     },
     {
       "id": "pfctl-disable",
-      "command": "pfctl",
-      "args_contains": "-d",
+      "match": { "program": "pfctl", "args": { "contains": "-d" } },
       "description": "Disabling the packet filter via pfctl -d — defense impairment",
       "techniques": [{ "id": "T1562.004", "name": "Impair Defenses: Disable or Modify System Firewall" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /sbin/pfctl with -d"],
@@ -526,8 +514,7 @@
     },
     {
       "id": "chflags-hidden",
-      "command": "chflags",
-      "args_contains": "hidden",
+      "match": { "program": "chflags", "args": { "contains": "hidden" } },
       "description": "Setting the hidden flag — hide artifacts from Finder",
       "techniques": [{ "id": "T1564.001", "name": "Hide Artifacts: Hidden Files and Directories" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_SETFLAGS marking a path hidden"],
@@ -536,8 +523,7 @@
     },
     {
       "id": "chflags-uchg",
-      "command": "chflags",
-      "args_contains": "uchg",
+      "match": { "program": "chflags", "args": { "contains": "uchg" } },
       "description": "Setting the immutable (uchg) flag — protect a dropped artifact",
       "techniques": [{ "id": "T1222.002", "name": "File and Directory Permissions Modification: Linux and Mac" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_SETFLAGS setting the user-immutable flag"],
@@ -546,8 +532,7 @@
     },
     {
       "id": "chmod-exec",
-      "command": "chmod",
-      "args_contains": "+x",
+      "match": { "program": "chmod", "args": { "contains": "+x" } },
       "description": "Making a file executable — staging a dropped payload",
       "techniques": [{ "id": "T1222.002", "name": "File and Directory Permissions Modification: Linux and Mac" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_SETMODE adding the execute bit"],
@@ -556,8 +541,7 @@
     },
     {
       "id": "base64-decode",
-      "command": "base64",
-      "args_contains": "-d",
+      "match": { "program": "base64", "args": { "contains": "-d" } },
       "description": "Base64 decoding — deobfuscation of payloads",
       "techniques": [{ "id": "T1140", "name": "Deobfuscate/Decode Files or Information" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/base64 in decode mode"],
@@ -566,7 +550,7 @@
     },
     {
       "id": "tar-archive",
-      "command": "tar",
+      "match": { "program": "tar" },
       "description": "Archiving data — collection prior to exfiltration",
       "techniques": [{ "id": "T1560.001", "name": "Archive Collected Data: Archive via Utility" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/tar"],
@@ -575,7 +559,7 @@
     },
     {
       "id": "ditto-archive",
-      "command": "ditto",
+      "match": { "program": "ditto" },
       "description": "Archiving data via ditto — collection prior to exfiltration",
       "techniques": [{ "id": "T1560.001", "name": "Archive Collected Data: Archive via Utility" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/ditto"],
@@ -584,7 +568,7 @@
     },
     {
       "id": "scp-exfil",
-      "command": "scp",
+      "match": { "program": "scp" },
       "description": "File transfer over SSH — ingress or exfiltration",
       "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }, { "id": "T1048", "name": "Exfiltration Over Alternative Protocol" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/scp", "outbound SSH connection to a remote host"],
@@ -593,7 +577,7 @@
     },
     {
       "id": "ssh-lateral",
-      "command": "ssh",
+      "match": { "program": "ssh" },
       "description": "Interactive SSH — potential lateral movement",
       "techniques": [{ "id": "T1021.004", "name": "Remote Services: SSH" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/ssh", "outbound connection to a remote host on tcp/22"],
@@ -602,7 +586,7 @@
     },
     {
       "id": "ard-kickstart",
-      "raw_contains": "kickstart -activate",
+      "match": { "line": { "contains": "kickstart -activate" } },
       "description": "Enabling Apple Remote Desktop via kickstart — remote-management foothold",
       "techniques": [{ "id": "T1021.005", "name": "Remote Services: VNC" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of the ARDAgent kickstart helper with -activate"],
@@ -611,7 +595,7 @@
     },
     {
       "id": "screensharing-enable",
-      "raw_contains": "com.apple.screensharing",
+      "match": { "line": { "contains": "com.apple.screensharing" } },
       "description": "Enabling the Screen Sharing (VNC) service — remote-access foothold",
       "techniques": [{ "id": "T1021.005", "name": "Remote Services: VNC" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /bin/launchctl loading com.apple.screensharing"],
