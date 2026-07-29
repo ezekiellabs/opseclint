@@ -4,7 +4,7 @@
   "entries": [
     {
       "id": "whoami",
-      "command": "whoami",
+      "match": { "program": "whoami" },
       "description": "System owner / current user discovery",
       "techniques": [{ "id": "T1033", "name": "System Owner/User Discovery" }],
       "telemetry": ["execve() of /usr/bin/whoami — auditd type=EXECVE/SYSCALL", "process creation event with parent shell"],
@@ -13,7 +13,7 @@
     },
     {
       "id": "id",
-      "command": "id",
+      "match": { "program": "id" },
       "description": "User and group identity discovery",
       "techniques": [{ "id": "T1033", "name": "System Owner/User Discovery" }],
       "telemetry": ["execve() of /usr/bin/id", "process creation event"],
@@ -22,7 +22,7 @@
     },
     {
       "id": "hostname",
-      "command": "hostname",
+      "match": { "program": "hostname" },
       "description": "Host name discovery",
       "techniques": [{ "id": "T1082", "name": "System Information Discovery" }],
       "telemetry": ["execve() of /usr/bin/hostname"],
@@ -31,7 +31,7 @@
     },
     {
       "id": "uname",
-      "command": "uname",
+      "match": { "program": "uname" },
       "description": "Kernel / OS version discovery",
       "techniques": [{ "id": "T1082", "name": "System Information Discovery" }],
       "telemetry": ["execve() of /usr/bin/uname"],
@@ -40,7 +40,7 @@
     },
     {
       "id": "os-release",
-      "raw_contains": "/etc/os-release",
+      "match": { "line": { "contains": "/etc/os-release" } },
       "description": "OS distribution/version fingerprinting via release files",
       "techniques": [{ "id": "T1082", "name": "System Information Discovery" }],
       "telemetry": ["openat()/read() of /etc/os-release — auditd file watch (if configured)"],
@@ -49,8 +49,7 @@
     },
     {
       "id": "passwd-read",
-      "command": "cat",
-      "args_contains": "/etc/passwd",
+      "match": { "program": "cat", "args": { "contains": "/etc/passwd" } },
       "description": "Enumeration of local accounts via /etc/passwd",
       "techniques": [
         { "id": "T1087.001", "name": "Account Discovery: Local Account" },
@@ -62,7 +61,7 @@
     },
     {
       "id": "shadow-read",
-      "raw_contains": "/etc/shadow",
+      "match": { "line": { "contains": "/etc/shadow" } },
       "description": "Access to /etc/shadow — password hash exposure",
       "techniques": [{ "id": "T1003.008", "name": "OS Credential Dumping: /etc/passwd and /etc/shadow" }],
       "telemetry": ["openat() of /etc/shadow — high-signal auditd file watch", "read by process not running as auth stack"],
@@ -71,7 +70,7 @@
     },
     {
       "id": "ps",
-      "command": "ps",
+      "match": { "program": "ps" },
       "description": "Running process discovery",
       "techniques": [{ "id": "T1057", "name": "Process Discovery" }],
       "telemetry": ["execve() of /usr/bin/ps", "reads under /proc/*/stat,cmdline"],
@@ -80,7 +79,7 @@
     },
     {
       "id": "netstat",
-      "command": "netstat",
+      "match": { "program": "netstat" },
       "description": "Network connection discovery",
       "techniques": [{ "id": "T1049", "name": "System Network Connections Discovery" }],
       "telemetry": ["execve() of netstat", "reads of /proc/net/*"],
@@ -89,7 +88,7 @@
     },
     {
       "id": "ss",
-      "command": "ss",
+      "match": { "program": "ss" },
       "description": "Socket / network connection discovery",
       "techniques": [{ "id": "T1049", "name": "System Network Connections Discovery" }],
       "telemetry": ["execve() of ss", "netlink socket enumeration"],
@@ -98,8 +97,7 @@
     },
     {
       "id": "ip-addr",
-      "command": "ip",
-      "args_contains": "addr",
+      "match": { "program": "ip", "args": { "contains": "addr" } },
       "description": "Network interface configuration discovery",
       "techniques": [{ "id": "T1016", "name": "System Network Configuration Discovery" }],
       "telemetry": ["execve() of ip", "netlink RTM_GETADDR"],
@@ -108,7 +106,7 @@
     },
     {
       "id": "ifconfig",
-      "command": "ifconfig",
+      "match": { "program": "ifconfig" },
       "description": "Network interface configuration discovery",
       "techniques": [{ "id": "T1016", "name": "System Network Configuration Discovery" }],
       "telemetry": ["execve() of ifconfig"],
@@ -117,7 +115,7 @@
     },
     {
       "id": "arp",
-      "command": "arp",
+      "match": { "program": "arp" },
       "description": "ARP cache enumeration — adjacent host discovery",
       "techniques": [{ "id": "T1018", "name": "Remote System Discovery" }],
       "telemetry": ["execve() of arp", "reads of /proc/net/arp"],
@@ -135,8 +133,7 @@
     },
     {
       "id": "crontab-l",
-      "command": "crontab",
-      "args_contains": "-l",
+      "match": { "program": "crontab", "args": { "contains": "-l" } },
       "description": "Scheduled task (cron) discovery",
       "techniques": [{ "id": "T1053.003", "name": "Scheduled Task/Job: Cron" }],
       "telemetry": ["execve() of crontab", "reads under /var/spool/cron"],
@@ -145,8 +142,7 @@
     },
     {
       "id": "find-suid",
-      "command": "find",
-      "args_contains": "-perm",
+      "match": { "program": "find", "args": { "contains": "-perm" } },
       "description": "SUID/SGID binary hunting — privilege-escalation recon",
       "techniques": [
         { "id": "T1083", "name": "File and Directory Discovery" },
@@ -158,7 +154,7 @@
     },
     {
       "id": "find-generic",
-      "command": "find",
+      "match": { "program": "find" },
       "description": "File and directory discovery",
       "techniques": [{ "id": "T1083", "name": "File and Directory Discovery" }],
       "telemetry": ["execve() of find", "burst of stat()/openat() syscalls"],
@@ -167,7 +163,7 @@
     },
     {
       "id": "wget",
-      "command": "wget",
+      "match": { "program": "wget" },
       "description": "Remote file download — tool ingress",
       "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }],
       "telemetry": ["execve() of wget", "outbound connect() to remote host", "file create() in cwd/tmp"],
@@ -176,7 +172,7 @@
     },
     {
       "id": "curl",
-      "command": "curl",
+      "match": { "program": "curl" },
       "description": "Remote file transfer / HTTP client — tool ingress or exfil",
       "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }],
       "telemetry": ["execve() of curl", "outbound connect() to remote host"],
@@ -185,7 +181,7 @@
     },
     {
       "id": "pipe-to-shell",
-      "raw_contains": "| bash",
+      "match": { "line": { "word": "| bash" } },
       "description": "Piping downloaded content directly into a shell interpreter",
       "techniques": [
         { "id": "T1059.004", "name": "Command and Scripting Interpreter: Unix Shell" },
@@ -197,7 +193,7 @@
     },
     {
       "id": "pipe-to-sh",
-      "raw_contains": "| sh",
+      "match": { "line": { "word": "| sh" } },
       "description": "Piping downloaded content directly into a shell interpreter",
       "techniques": [
         { "id": "T1059.004", "name": "Command and Scripting Interpreter: Unix Shell" },
@@ -209,7 +205,7 @@
     },
     {
       "id": "netcat",
-      "command": "nc",
+      "match": { "program": "nc" },
       "description": "Raw TCP/UDP connection — potential C2 or exfil channel",
       "techniques": [
         { "id": "T1095", "name": "Non-Application Layer Protocol" },
@@ -221,7 +217,7 @@
     },
     {
       "id": "reverse-shell-devtcp",
-      "raw_contains": "/dev/tcp",
+      "match": { "line": { "contains": "/dev/tcp" } },
       "description": "Bash /dev/tcp reverse shell — interactive C2 channel",
       "techniques": [
         { "id": "T1059.004", "name": "Command and Scripting Interpreter: Unix Shell" },
@@ -233,8 +229,7 @@
     },
     {
       "id": "python-c",
-      "command": "python3",
-      "args_contains": "-c",
+      "match": { "program": "python3", "args": { "contains": "-c" } },
       "description": "Inline Python execution — common for one-liner payloads",
       "techniques": [{ "id": "T1059.006", "name": "Command and Scripting Interpreter: Python" }],
       "telemetry": ["execve() of python with -c", "child sockets/processes spawned from interpreter"],
@@ -243,7 +238,7 @@
     },
     {
       "id": "history-clear",
-      "raw_contains": "history -c",
+      "match": { "line": { "contains": "history -c" } },
       "description": "Shell command-history clearing — anti-forensics",
       "techniques": [{ "id": "T1070.003", "name": "Indicator Removal: Clear Command History" }],
       "telemetry": ["history builtin (no execve)", "truncate()/write() of ~/.bash_history if flushed"],
@@ -252,7 +247,7 @@
     },
     {
       "id": "bash-history-tamper",
-      "raw_contains": ".bash_history",
+      "match": { "line": { "contains": ".bash_history" } },
       "description": "Direct manipulation/removal of shell history file — anti-forensics",
       "techniques": [{ "id": "T1070.003", "name": "Indicator Removal: Clear Command History" }],
       "telemetry": ["unlink()/truncate() of ~/.bash_history — auditd file watch", "redirection of history to /dev/null"],
@@ -261,7 +256,7 @@
     },
     {
       "id": "authorized-keys",
-      "raw_contains": "authorized_keys",
+      "match": { "line": { "contains": "authorized_keys" } },
       "description": "Modification of SSH authorized_keys — persistence / account manipulation",
       "techniques": [
         { "id": "T1098.004", "name": "Account Manipulation: SSH Authorized Keys" },
@@ -273,7 +268,7 @@
     },
     {
       "id": "useradd",
-      "command": "useradd",
+      "match": { "program": "useradd" },
       "description": "Local account creation — persistence",
       "techniques": [{ "id": "T1136.001", "name": "Create Account: Local Account" }],
       "telemetry": ["execve() of useradd/adduser", "writes to /etc/passwd,/etc/shadow — auditd file watch"],
@@ -282,8 +277,7 @@
     },
     {
       "id": "systemd-persistence",
-      "command": "systemctl",
-      "args_contains": "enable",
+      "match": { "program": "systemctl", "args": { "contains": "enable" } },
       "description": "Enabling a systemd unit — service persistence",
       "techniques": [{ "id": "T1543.002", "name": "Create or Modify System Process: Systemd Service" }],
       "telemetry": ["execve() of systemctl enable", "create()/symlink of unit under /etc/systemd/system"],
@@ -292,7 +286,7 @@
     },
     {
       "id": "selinux-disable",
-      "raw_contains": "setenforce 0",
+      "match": { "line": { "contains": "setenforce 0" } },
       "description": "Disabling SELinux enforcement — defense impairment",
       "techniques": [{ "id": "T1562.001", "name": "Impair Defenses: Disable or Modify Tools" }],
       "telemetry": ["execve() of setenforce", "write to /sys/fs/selinux/enforce"],
@@ -301,8 +295,7 @@
     },
     {
       "id": "iptables-flush",
-      "command": "iptables",
-      "args_contains": "-F",
+      "match": { "program": "iptables", "args": { "contains": "-F" } },
       "description": "Flushing firewall rules — defense impairment",
       "techniques": [{ "id": "T1562.004", "name": "Impair Defenses: Disable or Modify System Firewall" }],
       "telemetry": ["execve() of iptables -F", "netfilter table changes"],
@@ -311,7 +304,7 @@
     },
     {
       "id": "chattr-immutable",
-      "command": "chattr",
+      "match": { "program": "chattr" },
       "description": "Setting file attributes (e.g. immutable) — hide artifacts / resist removal",
       "techniques": [
         { "id": "T1222.002", "name": "File and Directory Permissions Modification: Linux and Mac" },
@@ -323,8 +316,7 @@
     },
     {
       "id": "chmod-exec",
-      "command": "chmod",
-      "args_contains": "+x",
+      "match": { "program": "chmod", "args": { "contains": "+x" } },
       "description": "Making a file executable — staging a dropped payload",
       "techniques": [{ "id": "T1222.002", "name": "File and Directory Permissions Modification: Linux and Mac" }],
       "telemetry": ["execve() of chmod", "chmod() syscall setting execute bit"],
@@ -333,7 +325,7 @@
     },
     {
       "id": "shred",
-      "command": "shred",
+      "match": { "program": "shred" },
       "description": "Secure file deletion — anti-forensics",
       "techniques": [{ "id": "T1070.004", "name": "Indicator Removal: File Deletion" }],
       "telemetry": ["execve() of shred", "repeated overwrite write() + unlink()"],
@@ -342,7 +334,7 @@
     },
     {
       "id": "tar-archive",
-      "command": "tar",
+      "match": { "program": "tar" },
       "description": "Archiving data — collection prior to exfiltration",
       "techniques": [{ "id": "T1560.001", "name": "Archive Collected Data: Archive via Utility" }],
       "telemetry": ["execve() of tar", "sequential read() across many files"],
@@ -351,8 +343,7 @@
     },
     {
       "id": "base64-decode",
-      "command": "base64",
-      "args_contains": "-d",
+      "match": { "program": "base64", "args": { "contains": "-d" } },
       "description": "Base64 decoding — deobfuscation of payloads",
       "techniques": [{ "id": "T1140", "name": "Deobfuscate/Decode Files or Information" }],
       "telemetry": ["execve() of base64 with -d", "often chained into a shell interpreter"],
@@ -361,7 +352,7 @@
     },
     {
       "id": "scp",
-      "command": "scp",
+      "match": { "program": "scp" },
       "description": "File transfer over SSH — ingress or exfiltration",
       "techniques": [
         { "id": "T1105", "name": "Ingress Tool Transfer" },
@@ -373,7 +364,7 @@
     },
     {
       "id": "ssh-lateral",
-      "command": "ssh",
+      "match": { "program": "ssh" },
       "description": "Interactive SSH — potential lateral movement",
       "techniques": [{ "id": "T1021.004", "name": "Remote Services: SSH" }],
       "telemetry": ["execve() of ssh", "outbound connect() :22", "auth event on the destination host"],
@@ -382,7 +373,7 @@
     },
     {
       "id": "private-key-rsa",
-      "raw_contains": "id_rsa",
+      "match": { "line": { "all": [{ "word": "id_rsa" }, { "not": { "contains": "id_rsa.pub" } }] } },
       "description": "Access to an SSH RSA private key — unsecured credential theft",
       "techniques": [{ "id": "T1552.004", "name": "Unsecured Credentials: Private Keys" }],
       "telemetry": ["openat() of ~/.ssh/id_rsa — auditd file watch", "read by non-ssh process"],
@@ -391,7 +382,7 @@
     },
     {
       "id": "private-key-ed25519",
-      "raw_contains": "id_ed25519",
+      "match": { "line": { "all": [{ "word": "id_ed25519" }, { "not": { "contains": "id_ed25519.pub" } }] } },
       "description": "Access to an SSH Ed25519 private key — unsecured credential theft",
       "techniques": [{ "id": "T1552.004", "name": "Unsecured Credentials: Private Keys" }],
       "telemetry": ["openat() of ~/.ssh/id_ed25519 — auditd file watch", "read by non-ssh process"],
@@ -400,8 +391,7 @@
     },
     {
       "id": "creds-in-files",
-      "command": "grep",
-      "args_contains": "password",
+      "match": { "program": "grep", "args": { "contains": "password" } },
       "description": "Grepping the filesystem for passwords — credentials in files",
       "techniques": [{ "id": "T1552.001", "name": "Unsecured Credentials: Credentials In Files" }],
       "telemetry": ["execve() of grep with a credential keyword", "recursive read() across many files"],
@@ -410,8 +400,7 @@
     },
     {
       "id": "group-discovery",
-      "command": "cat",
-      "args_contains": "/etc/group",
+      "match": { "program": "cat", "args": { "contains": "/etc/group" } },
       "description": "Enumeration of local groups via /etc/group",
       "techniques": [{ "id": "T1069.001", "name": "Permission Groups Discovery: Local Groups" }],
       "telemetry": ["openat() of /etc/group"],
@@ -420,7 +409,7 @@
     },
     {
       "id": "sudoers-tamper",
-      "raw_contains": "/etc/sudoers",
+      "match": { "line": { "contains": "/etc/sudoers" } },
       "description": "Reading or modifying /etc/sudoers — privilege escalation / persistence",
       "techniques": [{ "id": "T1548.003", "name": "Abuse Elevation Control Mechanism: Sudo and Sudo Caching" }],
       "telemetry": ["openat()/write() of /etc/sudoers or /etc/sudoers.d/* — high-signal auditd file watch"],
@@ -429,7 +418,7 @@
     },
     {
       "id": "nmap",
-      "command": "nmap",
+      "match": { "program": "nmap" },
       "description": "Active network service scanning",
       "techniques": [{ "id": "T1046", "name": "Network Service Discovery" }],
       "telemetry": ["execve() of nmap", "burst of outbound connect() across many hosts/ports"],
@@ -438,7 +427,7 @@
     },
     {
       "id": "masscan",
-      "command": "masscan",
+      "match": { "program": "masscan" },
       "description": "High-rate network port scanning",
       "techniques": [{ "id": "T1046", "name": "Network Service Discovery" }],
       "telemetry": ["execve() of masscan", "very high rate of outbound SYN packets"],
@@ -447,7 +436,7 @@
     },
     {
       "id": "tcpdump",
-      "command": "tcpdump",
+      "match": { "program": "tcpdump" },
       "description": "Packet capture — network sniffing",
       "techniques": [{ "id": "T1040", "name": "Network Sniffing" }],
       "telemetry": ["execve() of tcpdump", "creation of an AF_PACKET raw socket (needs CAP_NET_RAW)"],
@@ -456,7 +445,7 @@
     },
     {
       "id": "socat",
-      "command": "socat",
+      "match": { "program": "socat" },
       "description": "Bidirectional relay — potential C2 or reverse shell channel",
       "techniques": [
         { "id": "T1095", "name": "Non-Application Layer Protocol" },
@@ -468,8 +457,7 @@
     },
     {
       "id": "python-http-server",
-      "command": "python3",
-      "args_contains": "http.server",
+      "match": { "program": "python3", "args": { "contains": "http.server" } },
       "description": "Ad-hoc HTTP server — data staging / exfiltration channel",
       "techniques": [
         { "id": "T1105", "name": "Ingress Tool Transfer" },
@@ -481,7 +469,7 @@
     },
     {
       "id": "kernel-module-insmod",
-      "command": "insmod",
+      "match": { "program": "insmod" },
       "description": "Loading a kernel module — potential rootkit / persistence",
       "techniques": [{ "id": "T1547.006", "name": "Boot or Logon Autostart Execution: Kernel Modules and Extensions" }],
       "telemetry": ["execve() of insmod", "init_module()/finit_module() syscall — high-signal auditd event"],
@@ -490,7 +478,7 @@
     },
     {
       "id": "kernel-module-modprobe",
-      "command": "modprobe",
+      "match": { "program": "modprobe" },
       "description": "Loading a kernel module by name — potential rootkit / persistence",
       "techniques": [{ "id": "T1547.006", "name": "Boot or Logon Autostart Execution: Kernel Modules and Extensions" }],
       "telemetry": ["execve() of modprobe", "finit_module() syscall"],
@@ -499,7 +487,7 @@
     },
     {
       "id": "ld-preload",
-      "raw_contains": "ld.so.preload",
+      "match": { "line": { "contains": "ld.so.preload" } },
       "description": "Writing /etc/ld.so.preload — dynamic linker hijacking (userland rootkit)",
       "techniques": [{ "id": "T1574.006", "name": "Hijack Execution Flow: Dynamic Linker Hijacking" }],
       "telemetry": ["create()/write() of /etc/ld.so.preload — high-signal auditd file watch"],
@@ -508,7 +496,7 @@
     },
     {
       "id": "shell-profile-persist",
-      "raw_contains": ".bashrc",
+      "match": { "line": { "contains": ".bashrc" } },
       "description": "Modifying a shell rc file (.bashrc) — logon persistence",
       "techniques": [{ "id": "T1546.004", "name": "Event Triggered Execution: Unix Shell Configuration Modification" }],
       "telemetry": ["write()/append to ~/.bashrc — auditd file watch"],
@@ -517,7 +505,7 @@
     },
     {
       "id": "cron-persist",
-      "raw_contains": "/etc/cron",
+      "match": { "line": { "contains": "/etc/cron" } },
       "description": "Writing to system cron locations — scheduled-task persistence",
       "techniques": [{ "id": "T1053.003", "name": "Scheduled Task/Job: Cron" }],
       "telemetry": ["create()/write() under /etc/cron.d, /etc/crontab, /etc/cron.* — auditd file watch"],
@@ -526,7 +514,7 @@
     },
     {
       "id": "at-job",
-      "command": "at",
+      "match": { "program": "at" },
       "description": "One-off scheduled job via at — execution / persistence",
       "techniques": [{ "id": "T1053.002", "name": "Scheduled Task/Job: At" }],
       "telemetry": ["execve() of at", "spool file created under /var/spool/at|cron/atjobs"],
@@ -535,7 +523,7 @@
     },
     {
       "id": "disable-audit",
-      "raw_contains": "auditctl",
+      "match": { "line": { "contains": "auditctl" } },
       "description": "Manipulating the Linux audit subsystem — defense/telemetry impairment",
       "techniques": [{ "id": "T1562.012", "name": "Impair Defenses: Disable or Modify Linux Audit System" }],
       "telemetry": ["execve() of auditctl", "changes to audit rules / auditd state"],
@@ -544,8 +532,7 @@
     },
     {
       "id": "clear-syslog-rm",
-      "command": "rm",
-      "args_contains": "/var/log",
+      "match": { "program": "rm", "args": { "path_under": "/var/log" } },
       "description": "Deleting system logs under /var/log — log clearing (anti-forensics)",
       "techniques": [{ "id": "T1070.002", "name": "Indicator Removal: Clear Linux or Mac System Logs" }],
       "telemetry": ["unlink() under /var/log — auditd file watch"],
@@ -554,8 +541,7 @@
     },
     {
       "id": "clear-syslog-truncate",
-      "command": "truncate",
-      "args_contains": "/var/log",
+      "match": { "program": "truncate", "args": { "path_under": "/var/log" } },
       "description": "Truncating system logs under /var/log — log clearing (anti-forensics)",
       "techniques": [{ "id": "T1070.002", "name": "Indicator Removal: Clear Linux or Mac System Logs" }],
       "telemetry": ["truncate() under /var/log — auditd file watch"],
@@ -564,8 +550,7 @@
     },
     {
       "id": "clear-syslog-shred",
-      "command": "shred",
-      "args_contains": "/var/log",
+      "match": { "program": "shred", "args": { "path_under": "/var/log" } },
       "description": "Shredding system logs under /var/log — log clearing (anti-forensics)",
       "techniques": [{ "id": "T1070.002", "name": "Indicator Removal: Clear Linux or Mac System Logs" }],
       "telemetry": ["write()/unlink() under /var/log — auditd file watch"],
@@ -574,7 +559,7 @@
     },
     {
       "id": "journal-vacuum",
-      "raw_contains": "--vacuum",
+      "match": { "line": { "contains": "--vacuum" } },
       "description": "journalctl --vacuum — deleting systemd journal logs (anti-forensics)",
       "techniques": [{ "id": "T1070.002", "name": "Indicator Removal: Clear Linux or Mac System Logs" }],
       "telemetry": ["execve() of journalctl --vacuum-*", "unlink() of journal files under /var/log/journal"],
@@ -583,7 +568,7 @@
     },
     {
       "id": "docker-sock",
-      "raw_contains": "docker.sock",
+      "match": { "line": { "contains": "docker.sock" } },
       "description": "Interacting with the Docker socket — container-to-host escape vector",
       "techniques": [{ "id": "T1611", "name": "Escape to Host" }],
       "telemetry": ["connect() to /var/run/docker.sock", "container spawning a privileged sibling"],
@@ -592,7 +577,7 @@
     },
     {
       "id": "privileged-container",
-      "raw_contains": "--privileged",
+      "match": { "line": { "contains": "--privileged" } },
       "description": "Launching a privileged container — container escape vector",
       "techniques": [{ "id": "T1611", "name": "Escape to Host" }],
       "telemetry": ["execve() of a container runtime with --privileged", "container with full host capabilities"],
@@ -601,7 +586,7 @@
     },
     {
       "id": "login-discovery",
-      "command": "last",
+      "match": { "program": "last" },
       "description": "Login history enumeration",
       "techniques": [{ "id": "T1087.001", "name": "Account Discovery: Local Account" }],
       "telemetry": ["execve() of last", "read of /var/log/wtmp"],
@@ -610,7 +595,7 @@
     },
     {
       "id": "capabilities-enum",
-      "command": "getcap",
+      "match": { "program": "getcap" },
       "description": "Enumerating file capabilities — privilege-escalation recon",
       "techniques": [
         { "id": "T1083", "name": "File and Directory Discovery" },
@@ -622,7 +607,7 @@
     },
     {
       "id": "usermod-group",
-      "command": "usermod",
+      "match": { "program": "usermod" },
       "description": "Modifying user group membership — privilege escalation / account manipulation",
       "techniques": [{ "id": "T1098", "name": "Account Manipulation" }],
       "telemetry": ["execve() of usermod", "writes to /etc/group,/etc/passwd — auditd file watch"],
@@ -631,7 +616,7 @@
     },
     {
       "id": "cloud-imds",
-      "raw_contains": "169.254.169.254",
+      "match": { "line": { "contains": "169.254.169.254" } },
       "description": "Querying the cloud instance metadata endpoint — credential theft",
       "techniques": [{ "id": "T1552.005", "name": "Unsecured Credentials: Cloud Instance Metadata API" }],
       "telemetry": ["connect() to the link-local metadata endpoint 169.254.169.254:80 from a shell/utility", "outbound HTTP GET to /latest/meta-data/iam/security-credentials/"],
@@ -640,7 +625,7 @@
     },
     {
       "id": "k8s-sa-token",
-      "raw_contains": "serviceaccount/token",
+      "match": { "line": { "contains": "serviceaccount/token" } },
       "description": "Reading the Kubernetes service-account token — credential theft",
       "techniques": [{ "id": "T1552.007", "name": "Unsecured Credentials: Container API" }],
       "telemetry": ["openat()/read() of /var/run/secrets/kubernetes.io/serviceaccount/token"],
@@ -649,8 +634,7 @@
     },
     {
       "id": "kubectl-exec",
-      "command": "kubectl",
-      "args_contains": "exec",
+      "match": { "program": "kubectl", "args": { "contains": "exec" } },
       "description": "Command execution inside a pod via kubectl exec",
       "techniques": [{ "id": "T1609", "name": "Container Administration Command" }],
       "telemetry": ["execve() of kubectl exec — running a command inside a container/pod"],
@@ -659,8 +643,7 @@
     },
     {
       "id": "kubectl-get",
-      "command": "kubectl",
-      "args_contains": "get",
+      "match": { "program": "kubectl", "args": { "contains": "get" } },
       "description": "Enumerating cluster resources via kubectl get",
       "techniques": [{ "id": "T1613", "name": "Container and Resource Discovery" }],
       "telemetry": ["execve() of kubectl get — enumerating pods, secrets, or nodes"],
@@ -669,7 +652,7 @@
     },
     {
       "id": "nsenter-escape",
-      "command": "nsenter",
+      "match": { "program": "nsenter" },
       "description": "Entering host namespaces via nsenter — container escape",
       "techniques": [{ "id": "T1611", "name": "Escape to Host" }],
       "telemetry": ["execve() of nsenter joining host namespaces (often --target 1 --mount)", "container process attaching to PID 1 namespaces"],
@@ -678,7 +661,7 @@
     },
     {
       "id": "proc-root-escape",
-      "raw_contains": "/proc/1/root",
+      "match": { "line": { "contains": "/proc/1/root" } },
       "description": "Accessing the host filesystem via /proc/1/root — container escape",
       "techniques": [{ "id": "T1611", "name": "Escape to Host" }],
       "telemetry": ["openat() under /proc/1/root — reaching the host root filesystem from a container"],
@@ -687,8 +670,7 @@
     },
     {
       "id": "ptrace-gdb",
-      "command": "gdb",
-      "args_contains": "-p",
+      "match": { "program": "gdb", "args": { "contains": "-p" } },
       "description": "Attaching to a live process with gdb — process injection / inspection",
       "techniques": [{ "id": "T1055.008", "name": "Process Injection: Ptrace System Calls" }],
       "telemetry": ["execve() of gdb attaching to a running PID (ptrace PTRACE_ATTACH)", "ptrace() syscall against another process"],
@@ -697,8 +679,7 @@
     },
     {
       "id": "timestomp-touch",
-      "command": "touch",
-      "args_contains": "-r",
+      "match": { "program": "touch", "args": { "contains": "-r" } },
       "description": "Copying a reference file's timestamps with touch — timestomping",
       "techniques": [{ "id": "T1070.006", "name": "Indicator Removal: Timestomp" }],
       "telemetry": ["utimensat()/utimes() setting a file's times to match a reference", "execve() of touch with -r"],
@@ -707,7 +688,7 @@
     },
     {
       "id": "rc-local-persist",
-      "raw_contains": "rc.local",
+      "match": { "line": { "contains": "rc.local" } },
       "description": "Writing to /etc/rc.local — boot persistence",
       "techniques": [{ "id": "T1037.004", "name": "Boot or Logon Initialization Scripts: RC Scripts" }],
       "telemetry": ["write()/create() to /etc/rc.local", "auditd file watch on /etc/rc.local"],
@@ -716,7 +697,7 @@
     },
     {
       "id": "systemd-timer-persist",
-      "raw_contains": ".timer",
+      "match": { "line": { "contains": ".timer" } },
       "description": "Installing a systemd .timer unit — scheduled-task persistence",
       "techniques": [{ "id": "T1053.006", "name": "Scheduled Task/Job: Systemd Timers" }],
       "telemetry": ["write()/create() of a .timer unit under /etc/systemd/system or ~/.config/systemd/user", "systemctl enabling a timer unit"],
@@ -725,7 +706,7 @@
     },
     {
       "id": "proxychains",
-      "raw_contains": "proxychains",
+      "match": { "line": { "contains": "proxychains" } },
       "description": "Wrapping a tool with proxychains — multi-hop proxying",
       "techniques": [{ "id": "T1090.003", "name": "Proxy: Multi-hop Proxy" }],
       "telemetry": ["execve() of proxychains/proxychains4 wrapping another program", "child-process traffic relayed through a proxy chain"],
@@ -743,7 +724,7 @@
     },
     {
       "id": "dnscat",
-      "raw_contains": "dnscat",
+      "match": { "line": { "contains": "dnscat" } },
       "description": "DNS-tunneled C2 via dnscat",
       "techniques": [{ "id": "T1071.004", "name": "Application Layer Protocol: DNS" }],
       "telemetry": ["execve() of dnscat/dnscat2", "burst of TXT/NULL DNS queries to a single authoritative name server"],
@@ -752,7 +733,7 @@
     },
     {
       "id": "rclone-exfil",
-      "command": "rclone",
+      "match": { "program": "rclone" },
       "description": "Copying data to a remote/cloud backend via rclone — exfiltration",
       "techniques": [{ "id": "T1567.002", "name": "Exfiltration Over Web Service: Exfiltration to Cloud Storage" }],
       "telemetry": ["execve() of rclone copying to a remote backend", "sustained outbound TLS to a cloud storage provider"],
@@ -761,8 +742,7 @@
     },
     {
       "id": "aws-s3-exfil",
-      "command": "aws",
-      "args_contains": "s3",
+      "match": { "program": "aws", "args": { "contains": "s3" } },
       "description": "Transferring data via the aws CLI (s3 cp/sync) — exfiltration",
       "techniques": [{ "id": "T1567.002", "name": "Exfiltration Over Web Service: Exfiltration to Cloud Storage" }],
       "telemetry": ["execve() of the aws CLI performing an s3 cp/sync", "outbound TLS to *.amazonaws.com carrying object data"],
@@ -771,7 +751,7 @@
     },
     {
       "id": "histfile-tamper",
-      "raw_contains": "histfile",
+      "match": { "line": { "contains": "histfile" } },
       "description": "Disabling shell history (HISTFILE) — impairing command logging",
       "techniques": [{ "id": "T1562.003", "name": "Impair Defenses: Impair Command History Logging" }],
       "telemetry": ["shell setting HISTFILE=/dev/null or unsetting HISTFILE (no execve)", "command-history logging disabled for the session"],
@@ -780,7 +760,7 @@
     },
     {
       "id": "find-exec-shell",
-      "raw_contains": "-exec /bin",
+      "match": { "line": { "contains": "-exec /bin" } },
       "description": "Spawning a shell via find -exec — SUID/restricted-shell escape (GTFOBins)",
       "techniques": [{ "id": "T1548.001", "name": "Abuse Elevation Control Mechanism: Setuid and Setgid" }, { "id": "T1059.004", "name": "Command and Scripting Interpreter: Unix Shell" }],
       "telemetry": ["execve() of find spawning a shell through -exec", "child /bin/sh inheriting the parent's (possibly SUID) privileges"],
@@ -789,7 +769,7 @@
     },
     {
       "id": "awk-system-exec",
-      "raw_contains": "begin{system",
+      "match": { "line": { "contains": "begin{system" } },
       "description": "Command execution via awk system() (GTFOBins)",
       "techniques": [{ "id": "T1059.004", "name": "Command and Scripting Interpreter: Unix Shell" }],
       "telemetry": ["execve() of awk invoking system() to run a command"],
@@ -798,8 +778,7 @@
     },
     {
       "id": "dd-wipe",
-      "command": "dd",
-      "args_contains": "of=/dev/",
+      "match": { "program": "dd", "args": { "contains": "of=/dev/" } },
       "description": "Overwriting a block device with dd — data destruction",
       "techniques": [{ "id": "T1485", "name": "Data Destruction" }],
       "telemetry": ["execve() of dd writing to a raw block device (e.g. of=/dev/sda)", "large write() burst to a disk device"],
