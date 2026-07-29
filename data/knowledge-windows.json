@@ -4,7 +4,7 @@
   "entries": [
     {
       "id": "whoami",
-      "match": { "program": "whoami" },
+      "command": "whoami",
       "description": "Current user discovery",
       "techniques": [{ "id": "T1033", "name": "System Owner/User Discovery" }],
       "telemetry": ["Sysmon EID 1 (Process Create): whoami.exe", "Security 4688 with command line"],
@@ -13,7 +13,8 @@
     },
     {
       "id": "whoami-priv",
-      "match": { "program": "whoami", "args": { "contains": "/priv" } },
+      "command": "whoami",
+      "args_contains": "/priv",
       "description": "Privilege enumeration via whoami /priv",
       "techniques": [{ "id": "T1033", "name": "System Owner/User Discovery" }],
       "telemetry": ["Sysmon EID 1: whoami.exe /priv"],
@@ -22,7 +23,7 @@
     },
     {
       "id": "systeminfo",
-      "match": { "program": "systeminfo" },
+      "command": "systeminfo",
       "description": "System information / patch-level discovery",
       "techniques": [{ "id": "T1082", "name": "System Information Discovery" }],
       "telemetry": ["Sysmon EID 1: systeminfo.exe"],
@@ -31,7 +32,7 @@
     },
     {
       "id": "ipconfig",
-      "match": { "program": "ipconfig" },
+      "command": "ipconfig",
       "description": "Network configuration discovery",
       "techniques": [{ "id": "T1016", "name": "System Network Configuration Discovery" }],
       "telemetry": ["Sysmon EID 1: ipconfig.exe"],
@@ -40,7 +41,7 @@
     },
     {
       "id": "netstat",
-      "match": { "program": "netstat" },
+      "command": "netstat",
       "description": "Network connection discovery",
       "techniques": [{ "id": "T1049", "name": "System Network Connections Discovery" }],
       "telemetry": ["Sysmon EID 1: netstat.exe -ano"],
@@ -49,7 +50,7 @@
     },
     {
       "id": "arp",
-      "match": { "program": "arp" },
+      "command": "arp",
       "description": "ARP cache enumeration — adjacent host discovery",
       "techniques": [{ "id": "T1018", "name": "Remote System Discovery" }],
       "telemetry": ["Sysmon EID 1: arp.exe -a"],
@@ -58,7 +59,7 @@
     },
     {
       "id": "tasklist",
-      "match": { "program": "tasklist" },
+      "command": "tasklist",
       "description": "Running process discovery",
       "techniques": [{ "id": "T1057", "name": "Process Discovery" }],
       "telemetry": ["Sysmon EID 1: tasklist.exe"],
@@ -67,7 +68,8 @@
     },
     {
       "id": "net-user",
-      "match": { "program": "net", "args": { "contains": "user" } },
+      "command": "net",
+      "args_contains": "user",
       "description": "Local/domain account enumeration via net user",
       "techniques": [{ "id": "T1087.001", "name": "Account Discovery: Local Account" }],
       "telemetry": ["Sysmon EID 1: net.exe user (often via net1.exe child)"],
@@ -76,7 +78,7 @@
     },
     {
       "id": "net-account-create",
-      "match": { "line": { "contains": "user /add" } },
+      "raw_contains": "user /add",
       "description": "Local account creation via net user /add — persistence",
       "techniques": [{ "id": "T1136.001", "name": "Create Account: Local Account" }],
       "telemetry": ["Sysmon EID 1: net.exe user /add", "Security 4720 (user account created)"],
@@ -85,7 +87,7 @@
     },
     {
       "id": "net-localgroup-admin",
-      "match": { "line": { "contains": "localgroup administrators" } },
+      "raw_contains": "localgroup administrators",
       "description": "Adding a user to the local Administrators group — privilege escalation",
       "techniques": [{ "id": "T1098", "name": "Account Manipulation" }],
       "telemetry": ["Sysmon EID 1: net.exe localgroup administrators ... /add", "Security 4732 (member added to security-enabled local group)"],
@@ -94,7 +96,7 @@
     },
     {
       "id": "domain-discovery",
-      "match": { "line": { "contains": "/domain" } },
+      "raw_contains": "/domain",
       "description": "Domain account/group enumeration (net group /domain, etc.)",
       "techniques": [{ "id": "T1087.002", "name": "Account Discovery: Domain Account" }],
       "telemetry": ["Sysmon EID 1 with /domain argument", "LDAP queries to a domain controller"],
@@ -103,7 +105,7 @@
     },
     {
       "id": "nltest-trusts",
-      "match": { "line": { "contains": "/domain_trusts" } },
+      "raw_contains": "/domain_trusts",
       "description": "Domain trust enumeration via nltest",
       "techniques": [{ "id": "T1482", "name": "Domain Trust Discovery" }],
       "telemetry": ["Sysmon EID 1: nltest.exe /domain_trusts"],
@@ -112,7 +114,7 @@
     },
     {
       "id": "net-share",
-      "match": { "line": { "contains": "net share" } },
+      "raw_contains": "net share",
       "description": "Network share discovery",
       "techniques": [{ "id": "T1135", "name": "Network Share Discovery" }],
       "telemetry": ["Sysmon EID 1: net.exe share"],
@@ -121,7 +123,8 @@
     },
     {
       "id": "reg-query",
-      "match": { "program": "reg", "args": { "contains": "query" } },
+      "command": "reg",
+      "args_contains": "query",
       "description": "Registry query — configuration / autostart discovery",
       "techniques": [{ "id": "T1012", "name": "Query Registry" }],
       "telemetry": ["Sysmon EID 1: reg.exe query"],
@@ -130,7 +133,7 @@
     },
     {
       "id": "run-key-persist",
-      "match": { "line": { "contains": "currentversion\\run" } },
+      "raw_contains": "currentversion\\run",
       "description": "Writing a Run key — registry autostart persistence",
       "techniques": [{ "id": "T1547.001", "name": "Boot or Logon Autostart Execution: Registry Run Keys / Startup Folder" }],
       "telemetry": ["Sysmon EID 13 (Registry Set) under ...\\CurrentVersion\\Run"],
@@ -139,7 +142,8 @@
     },
     {
       "id": "schtasks-create",
-      "match": { "program": "schtasks", "args": { "contains": "/create" } },
+      "command": "schtasks",
+      "args_contains": "/create",
       "description": "Scheduled task creation — execution / persistence",
       "techniques": [{ "id": "T1053.005", "name": "Scheduled Task/Job: Scheduled Task" }],
       "telemetry": ["Sysmon EID 1: schtasks.exe /create", "Security 4698 (scheduled task created)"],
@@ -148,7 +152,8 @@
     },
     {
       "id": "service-create",
-      "match": { "program": "sc", "args": { "contains": "create" } },
+      "command": "sc",
+      "args_contains": "create",
       "description": "Windows service creation — persistence / privilege",
       "techniques": [{ "id": "T1543.003", "name": "Create or Modify System Process: Windows Service" }],
       "telemetry": ["Sysmon EID 1: sc.exe create", "Security 7045 (service installed)"],
@@ -157,7 +162,8 @@
     },
     {
       "id": "powershell-encoded",
-      "match": { "program": "powershell", "args": { "contains": "-enc" } },
+      "command": "powershell",
+      "args_contains": "-enc",
       "description": "Encoded PowerShell command — obfuscated execution",
       "techniques": [
         { "id": "T1059.001", "name": "Command and Scripting Interpreter: PowerShell" },
@@ -169,7 +175,7 @@
     },
     {
       "id": "powershell-hidden",
-      "match": { "line": { "contains": "hidden" } },
+      "raw_contains": "hidden",
       "description": "Hidden-window PowerShell — defense evasion",
       "techniques": [
         { "id": "T1564.003", "name": "Hide Artifacts: Hidden Window" },
@@ -181,7 +187,7 @@
     },
     {
       "id": "download-cradle",
-      "match": { "line": { "contains": "downloadstring" } },
+      "raw_contains": "downloadstring",
       "description": "PowerShell download cradle (Net.WebClient.DownloadString) — in-memory tool ingress",
       "techniques": [
         { "id": "T1059.001", "name": "Command and Scripting Interpreter: PowerShell" },
@@ -193,7 +199,7 @@
     },
     {
       "id": "download-file",
-      "match": { "line": { "contains": "downloadfile" } },
+      "raw_contains": "downloadfile",
       "description": "PowerShell DownloadFile — tool ingress to disk",
       "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }],
       "telemetry": ["Sysmon EID 1 + EID 3 from powershell.exe", "Sysmon EID 11 (File Create) of the downloaded payload"],
@@ -202,7 +208,7 @@
     },
     {
       "id": "invoke-expression",
-      "match": { "line": { "contains": "invoke-expression" } },
+      "raw_contains": "invoke-expression",
       "description": "Invoke-Expression (IEX) — dynamic code execution",
       "techniques": [{ "id": "T1059.001", "name": "Command and Scripting Interpreter: PowerShell" }],
       "telemetry": ["PowerShell 4104 scriptblock containing Invoke-Expression"],
@@ -211,7 +217,8 @@
     },
     {
       "id": "certutil-download",
-      "match": { "program": "certutil", "args": { "contains": "urlcache" } },
+      "command": "certutil",
+      "args_contains": "urlcache",
       "description": "certutil used to download a file — LOLBin tool ingress",
       "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }],
       "telemetry": ["Sysmon EID 1: certutil.exe -urlcache -f", "Sysmon EID 3 (network) from certutil.exe"],
@@ -220,7 +227,8 @@
     },
     {
       "id": "certutil-decode",
-      "match": { "program": "certutil", "args": { "contains": "decode" } },
+      "command": "certutil",
+      "args_contains": "decode",
       "description": "certutil used to decode a payload — LOLBin deobfuscation",
       "techniques": [
         { "id": "T1140", "name": "Deobfuscate/Decode Files or Information" },
@@ -232,7 +240,8 @@
     },
     {
       "id": "bitsadmin-transfer",
-      "match": { "program": "bitsadmin", "args": { "contains": "/transfer" } },
+      "command": "bitsadmin",
+      "args_contains": "/transfer",
       "description": "BITS job for file transfer — stealthy tool ingress",
       "techniques": [{ "id": "T1197", "name": "BITS Jobs" }],
       "telemetry": ["Sysmon EID 1: bitsadmin.exe /transfer", "BITS-Client operational log"],
@@ -241,7 +250,8 @@
     },
     {
       "id": "mshta-http",
-      "match": { "program": "mshta", "args": { "contains": "http" } },
+      "command": "mshta",
+      "args_contains": "http",
       "description": "mshta executing remote content — LOLBin proxy execution",
       "techniques": [{ "id": "T1218.005", "name": "System Binary Proxy Execution: Mshta" }],
       "telemetry": ["Sysmon EID 1: mshta.exe with a URL", "Sysmon EID 3 (network) from mshta.exe"],
@@ -250,7 +260,7 @@
     },
     {
       "id": "regsvr32-squiblydoo",
-      "match": { "line": { "contains": "scrobj.dll" } },
+      "raw_contains": "scrobj.dll",
       "description": "regsvr32 scrobj.dll (Squiblydoo) — LOLBin proxy execution",
       "techniques": [{ "id": "T1218.010", "name": "System Binary Proxy Execution: Regsvr32" }],
       "telemetry": ["Sysmon EID 1: regsvr32.exe /i:<url> scrobj.dll", "Sysmon EID 7 (Image Loaded) scrobj.dll"],
@@ -259,7 +269,8 @@
     },
     {
       "id": "wmic-process-create",
-      "match": { "program": "wmic", "args": { "joined": { "contains": "process call create" } } },
+      "command": "wmic",
+      "args_contains": "process call create",
       "description": "Process creation via WMI",
       "techniques": [{ "id": "T1047", "name": "Windows Management Instrumentation" }],
       "telemetry": ["Sysmon EID 1: wmic.exe process call create", "WMI-Activity operational log"],
@@ -268,7 +279,7 @@
     },
     {
       "id": "sam-hive-dump",
-      "match": { "line": { "contains": "hklm\\sam" } },
+      "raw_contains": "hklm\\sam",
       "description": "Dumping the SAM registry hive — credential access",
       "techniques": [{ "id": "T1003.002", "name": "OS Credential Dumping: Security Account Manager" }],
       "telemetry": ["Sysmon EID 1: reg.exe save HKLM\\SAM", "Sysmon EID 11 (File Create) of the exported hive"],
@@ -277,7 +288,7 @@
     },
     {
       "id": "ntds-dump",
-      "match": { "line": { "contains": "ntds.dit" } },
+      "raw_contains": "ntds.dit",
       "description": "Access to NTDS.dit — domain credential database dumping",
       "techniques": [{ "id": "T1003.003", "name": "OS Credential Dumping: NTDS" }],
       "telemetry": ["Sysmon EID 1 referencing ntds.dit", "ntdsutil / vssadmin activity"],
@@ -286,7 +297,7 @@
     },
     {
       "id": "lsass-comsvcs",
-      "match": { "line": { "contains": "comsvcs.dll" } },
+      "raw_contains": "comsvcs.dll",
       "description": "LSASS memory dump via comsvcs.dll MiniDump — credential access",
       "techniques": [{ "id": "T1003.001", "name": "OS Credential Dumping: LSASS Memory" }],
       "telemetry": ["Sysmon EID 10 (Process Access) targeting lsass.exe", "Sysmon EID 1: rundll32 comsvcs.dll, MiniDump"],
@@ -295,7 +306,7 @@
     },
     {
       "id": "mimikatz",
-      "match": { "line": { "contains": "sekurlsa" } },
+      "raw_contains": "sekurlsa",
       "description": "Mimikatz sekurlsa — credential material extraction",
       "techniques": [{ "id": "T1003.001", "name": "OS Credential Dumping: LSASS Memory" }],
       "telemetry": ["Sysmon EID 10 (Process Access) to lsass.exe with suspicious access mask"],
@@ -304,7 +315,8 @@
     },
     {
       "id": "procdump-lsass",
-      "match": { "program": "procdump", "args": { "contains": "lsass" } },
+      "command": "procdump",
+      "args_contains": "lsass",
       "description": "procdump against lsass — credential access",
       "techniques": [{ "id": "T1003.001", "name": "OS Credential Dumping: LSASS Memory" }],
       "telemetry": ["Sysmon EID 10 (Process Access) to lsass.exe", "Sysmon EID 11 (File Create) of the .dmp file"],
@@ -313,7 +325,7 @@
     },
     {
       "id": "defender-disable",
-      "match": { "line": { "contains": "disablerealtimemonitoring" } },
+      "raw_contains": "disablerealtimemonitoring",
       "description": "Disabling Defender real-time monitoring — defense impairment",
       "techniques": [{ "id": "T1562.001", "name": "Impair Defenses: Disable or Modify Tools" }],
       "telemetry": ["PowerShell 4104: Set-MpPreference -DisableRealtimeMonitoring $true"],
@@ -322,7 +334,7 @@
     },
     {
       "id": "defender-exclusion",
-      "match": { "line": { "contains": "-exclusionpath" } },
+      "raw_contains": "-exclusionpath",
       "description": "Adding a Defender exclusion path — defense impairment",
       "techniques": [{ "id": "T1562.001", "name": "Impair Defenses: Disable or Modify Tools" }],
       "telemetry": ["PowerShell 4104: Add-MpPreference -ExclusionPath"],
@@ -331,7 +343,7 @@
     },
     {
       "id": "netsh-firewall",
-      "match": { "line": { "contains": "advfirewall set" } },
+      "raw_contains": "advfirewall set",
       "description": "Modifying the Windows firewall via netsh — defense impairment",
       "techniques": [{ "id": "T1562.004", "name": "Impair Defenses: Disable or Modify System Firewall" }],
       "telemetry": ["Sysmon EID 1: netsh.exe advfirewall set ... state off"],
@@ -340,7 +352,8 @@
     },
     {
       "id": "clear-eventlog",
-      "match": { "program": "wevtutil", "args": { "contains": "cl" } },
+      "command": "wevtutil",
+      "args_contains": "cl",
       "description": "Clearing a Windows event log — anti-forensics",
       "techniques": [{ "id": "T1070.001", "name": "Indicator Removal: Clear Windows Event Logs" }],
       "telemetry": ["Sysmon EID 1: wevtutil.exe cl", "Security 1102 (audit log cleared)"],
@@ -349,7 +362,7 @@
     },
     {
       "id": "clear-eventlog-ps",
-      "match": { "line": { "contains": "clear-eventlog" } },
+      "raw_contains": "clear-eventlog",
       "description": "Clearing event logs via PowerShell — anti-forensics",
       "techniques": [{ "id": "T1070.001", "name": "Indicator Removal: Clear Windows Event Logs" }],
       "telemetry": ["PowerShell 4104: Clear-EventLog", "Security 1102 (audit log cleared)"],
@@ -358,7 +371,8 @@
     },
     {
       "id": "vssadmin-delete",
-      "match": { "program": "vssadmin", "args": { "joined": { "contains": "delete shadows" } } },
+      "command": "vssadmin",
+      "args_contains": "delete shadows",
       "description": "Deleting volume shadow copies — inhibit system recovery",
       "techniques": [{ "id": "T1490", "name": "Inhibit System Recovery" }],
       "telemetry": ["Sysmon EID 1: vssadmin.exe delete shadows"],
@@ -367,7 +381,7 @@
     },
     {
       "id": "bcdedit-recovery",
-      "match": { "program": "bcdedit" },
+      "command": "bcdedit",
       "description": "Modifying boot configuration — inhibit system recovery",
       "techniques": [{ "id": "T1490", "name": "Inhibit System Recovery" }],
       "telemetry": ["Sysmon EID 1: bcdedit.exe /set ... recoveryenabled no"],
@@ -376,7 +390,8 @@
     },
     {
       "id": "attrib-hidden",
-      "match": { "program": "attrib", "args": { "contains": "+h" } },
+      "command": "attrib",
+      "args_contains": "+h",
       "description": "Setting the hidden attribute — hide artifacts",
       "techniques": [{ "id": "T1564.001", "name": "Hide Artifacts: Hidden Files and Directories" }],
       "telemetry": ["Sysmon EID 1: attrib.exe +h"],
@@ -385,7 +400,7 @@
     },
     {
       "id": "rundll32",
-      "match": { "program": "rundll32" },
+      "command": "rundll32",
       "description": "rundll32 execution — common proxy-execution LOLBin",
       "techniques": [{ "id": "T1218.011", "name": "System Binary Proxy Execution: Rundll32" }],
       "telemetry": ["Sysmon EID 1: rundll32.exe", "Sysmon EID 7 (Image Loaded) of the target DLL"],
@@ -394,7 +409,8 @@
     },
     {
       "id": "setspn-kerberoast",
-      "match": { "program": "setspn", "args": { "contains": "-q" } },
+      "command": "setspn",
+      "args_contains": "-q",
       "description": "SPN enumeration via setspn — Kerberoasting reconnaissance",
       "techniques": [{ "id": "T1558.003", "name": "Steal or Forge Kerberos Tickets: Kerberoasting" }],
       "telemetry": ["Sysmon EID 1: setspn.exe -q", "LDAP query for servicePrincipalName to a DC"],
@@ -403,7 +419,7 @@
     },
     {
       "id": "kerberoast-getuserspns",
-      "match": { "line": { "contains": "getuserspns" } },
+      "raw_contains": "getuserspns",
       "description": "Kerberoasting via GetUserSPNs (Impacket / PowerView)",
       "techniques": [{ "id": "T1558.003", "name": "Steal or Forge Kerberos Tickets: Kerberoasting" }],
       "telemetry": ["Kerberos TGS-REQ for service accounts with RC4 encryption", "Security 4769 (Kerberos service ticket requested)"],
@@ -412,7 +428,7 @@
     },
     {
       "id": "kerberoast-invoke",
-      "match": { "line": { "contains": "invoke-kerberoast" } },
+      "raw_contains": "invoke-kerberoast",
       "description": "Kerberoasting via Invoke-Kerberoast",
       "techniques": [{ "id": "T1558.003", "name": "Steal or Forge Kerberos Tickets: Kerberoasting" }],
       "telemetry": ["PowerShell 4104: Invoke-Kerberoast", "Security 4769 with RC4 ticket encryption"],
@@ -421,7 +437,7 @@
     },
     {
       "id": "rubeus",
-      "match": { "line": { "contains": "rubeus" } },
+      "raw_contains": "rubeus",
       "description": "Rubeus — Kerberos ticket abuse (roasting, ptt, harvesting)",
       "techniques": [{ "id": "T1558.003", "name": "Steal or Forge Kerberos Tickets: Kerberoasting" }],
       "telemetry": ["Sysmon EID 1 / EID 10; anomalous Kerberos ticket requests (4769/4768)"],
@@ -430,7 +446,7 @@
     },
     {
       "id": "asreproast",
-      "match": { "line": { "contains": "getnpusers" } },
+      "raw_contains": "getnpusers",
       "description": "AS-REP roasting via GetNPUsers (Impacket)",
       "techniques": [{ "id": "T1558.004", "name": "Steal or Forge Kerberos Tickets: AS-REP Roasting" }],
       "telemetry": ["Kerberos AS-REQ for accounts without pre-auth", "Security 4768 (TGT requested)"],
@@ -439,7 +455,7 @@
     },
     {
       "id": "dcsync",
-      "match": { "line": { "contains": "dcsync" } },
+      "raw_contains": "dcsync",
       "description": "DCSync — replicating directory secrets from a domain controller",
       "techniques": [{ "id": "T1003.006", "name": "OS Credential Dumping: DCSync" }],
       "telemetry": ["Security 4662 with DS-Replication-Get-Changes access from a non-DC", "replication (DRSUAPI) from an unexpected host"],
@@ -448,7 +464,7 @@
     },
     {
       "id": "golden-ticket",
-      "match": { "line": { "contains": "kerberos::golden" } },
+      "raw_contains": "kerberos::golden",
       "description": "Golden/forged Kerberos ticket via mimikatz kerberos::golden",
       "techniques": [{ "id": "T1558.001", "name": "Steal or Forge Kerberos Tickets: Golden Ticket" }],
       "telemetry": ["TGTs with anomalous lifetime; 4768/4769 mismatches"],
@@ -457,7 +473,7 @@
     },
     {
       "id": "pass-the-hash",
-      "match": { "line": { "contains": "sekurlsa::pth" } },
+      "raw_contains": "sekurlsa::pth",
       "description": "Pass-the-Hash via mimikatz sekurlsa::pth",
       "techniques": [{ "id": "T1550.002", "name": "Use Alternate Authentication Material: Pass the Hash" }],
       "telemetry": ["Security 4624 type 9 (NewCredentials) logon", "Sysmon EID 10 access to lsass.exe"],
@@ -466,7 +482,7 @@
     },
     {
       "id": "lsadump",
-      "match": { "line": { "contains": "lsadump" } },
+      "raw_contains": "lsadump",
       "description": "mimikatz lsadump — SAM / LSA secrets extraction",
       "techniques": [{ "id": "T1003.004", "name": "OS Credential Dumping: LSA Secrets" }],
       "telemetry": ["Registry access to SECURITY\\Policy\\Secrets", "Sysmon EID 10 to lsass.exe"],
@@ -475,7 +491,7 @@
     },
     {
       "id": "sharphound",
-      "match": { "line": { "contains": "sharphound" } },
+      "raw_contains": "sharphound",
       "description": "BloodHound collection via SharpHound — AD relationship mapping",
       "techniques": [
         { "id": "T1087.002", "name": "Account Discovery: Domain Account" },
@@ -487,7 +503,7 @@
     },
     {
       "id": "powerview",
-      "match": { "line": { "contains": "get-net" } },
+      "raw_contains": "get-net",
       "description": "PowerView domain enumeration (Get-Net* / Get-Domain*)",
       "techniques": [
         { "id": "T1087.002", "name": "Account Discovery: Domain Account" },
@@ -499,7 +515,7 @@
     },
     {
       "id": "adfind",
-      "match": { "program": "adfind" },
+      "command": "adfind",
       "description": "AdFind — Active Directory enumeration",
       "techniques": [
         { "id": "T1087.002", "name": "Account Discovery: Domain Account" },
@@ -511,7 +527,7 @@
     },
     {
       "id": "dsquery",
-      "match": { "program": "dsquery" },
+      "command": "dsquery",
       "description": "dsquery — directory object enumeration",
       "techniques": [{ "id": "T1087.002", "name": "Account Discovery: Domain Account" }],
       "telemetry": ["Sysmon EID 1: dsquery.exe", "LDAP queries to a DC"],
@@ -520,7 +536,7 @@
     },
     {
       "id": "domain-admins-enum",
-      "match": { "line": { "contains": "domain admins" } },
+      "raw_contains": "domain admins",
       "description": "Enumerating the Domain Admins group — high-value target discovery",
       "techniques": [{ "id": "T1069.002", "name": "Permission Groups Discovery: Domain Groups" }],
       "telemetry": ["Sysmon EID 1: net group \"Domain Admins\" /domain", "LDAP query for the group's members"],
@@ -529,7 +545,7 @@
     },
     {
       "id": "klist",
-      "match": { "program": "klist" },
+      "command": "klist",
       "description": "Kerberos ticket cache listing",
       "techniques": [{ "id": "T1550.003", "name": "Use Alternate Authentication Material: Pass the Ticket" }],
       "telemetry": ["Sysmon EID 1: klist.exe"],
@@ -538,7 +554,7 @@
     },
     {
       "id": "psexec",
-      "match": { "program": "psexec" },
+      "command": "psexec",
       "description": "PsExec — remote execution over SMB admin shares",
       "techniques": [
         { "id": "T1021.002", "name": "Remote Services: SMB/Windows Admin Shares" },
@@ -550,7 +566,7 @@
     },
     {
       "id": "impacket-exec",
-      "match": { "line": { "contains": "wmiexec" } },
+      "raw_contains": "wmiexec",
       "description": "Impacket wmiexec/smbexec-style remote execution",
       "techniques": [
         { "id": "T1021.002", "name": "Remote Services: SMB/Windows Admin Shares" },
@@ -562,7 +578,7 @@
     },
     {
       "id": "winrm-remoting",
-      "match": { "line": { "contains": "invoke-command" } },
+      "raw_contains": "invoke-command",
       "description": "PowerShell remoting (Invoke-Command / Enter-PSSession) — lateral movement",
       "techniques": [{ "id": "T1021.006", "name": "Remote Services: Windows Remote Management" }],
       "telemetry": ["wsmprovhost.exe on the target", "Sysmon EID 3 to WinRM (5985/5986)"],
@@ -571,7 +587,7 @@
     },
     {
       "id": "gpp-cpassword",
-      "match": { "line": { "contains": "cpassword" } },
+      "raw_contains": "cpassword",
       "description": "Reading Group Policy Preferences cPassword — credentials in SYSVOL",
       "techniques": [{ "id": "T1552.006", "name": "Unsecured Credentials: Group Policy Preferences" }],
       "telemetry": ["read of Groups.xml under \\\\<domain>\\SYSVOL", "cPassword field access"],
@@ -580,7 +596,7 @@
     },
     {
       "id": "runas-netonly",
-      "match": { "line": { "contains": "/netonly" } },
+      "raw_contains": "/netonly",
       "description": "runas /netonly — using alternate credentials for network auth",
       "techniques": [{ "id": "T1078", "name": "Valid Accounts" }],
       "telemetry": ["Sysmon EID 1: runas.exe /netonly", "Security 4648 (explicit credential logon)"],
@@ -589,7 +605,7 @@
     },
     {
       "id": "uac-bypass-fodhelper",
-      "match": { "line": { "contains": "fodhelper" } },
+      "raw_contains": "fodhelper",
       "description": "UAC bypass via fodhelper.exe auto-elevation",
       "techniques": [{ "id": "T1548.002", "name": "Abuse Elevation Control Mechanism: Bypass User Account Control" }],
       "telemetry": ["Sysmon EID 1: fodhelper.exe spawning an auto-elevated child", "Sysmon EID 13 (Registry Set) under HKCU\\Software\\Classes\\ms-settings\\shell\\open\\command"],
@@ -598,7 +614,7 @@
     },
     {
       "id": "amsi-bypass",
-      "match": { "line": { "contains": "amsiinitfailed" } },
+      "raw_contains": "amsiinitfailed",
       "description": "In-memory AMSI bypass via amsiInitFailed — defense impairment",
       "techniques": [{ "id": "T1562.001", "name": "Impair Defenses: Disable or Modify Tools" }],
       "telemetry": ["PowerShell 4104: reflection patching AmsiUtils amsiInitFailed", "AMSI bypass performed before script execution"],
@@ -607,7 +623,8 @@
     },
     {
       "id": "msiexec-remote",
-      "match": { "program": "msiexec", "args": { "contains": "http" } },
+      "command": "msiexec",
+      "args_contains": "http",
       "description": "Installing an MSI from a URL via msiexec — LOLBin proxy execution",
       "techniques": [{ "id": "T1218.007", "name": "System Binary Proxy Execution: Msiexec" }],
       "telemetry": ["Sysmon EID 1: msiexec.exe installing a package from a URL", "Sysmon EID 3 (network): msiexec.exe outbound to a remote host"],
@@ -616,7 +633,7 @@
     },
     {
       "id": "installutil",
-      "match": { "program": "installutil" },
+      "command": "installutil",
       "description": "Executing a .NET assembly via InstallUtil — LOLBin proxy execution",
       "techniques": [{ "id": "T1218.004", "name": "System Binary Proxy Execution: InstallUtil" }],
       "telemetry": ["Sysmon EID 1: installutil.exe running an assembly's install hook"],
@@ -625,7 +642,7 @@
     },
     {
       "id": "cmstp",
-      "match": { "program": "cmstp" },
+      "command": "cmstp",
       "description": "Executing an attacker INF via CMSTP — LOLBin proxy execution",
       "techniques": [{ "id": "T1218.003", "name": "System Binary Proxy Execution: CMSTP" }],
       "telemetry": ["Sysmon EID 1: cmstp.exe processing an INF (often with a remote scriptlet)"],
@@ -634,7 +651,7 @@
     },
     {
       "id": "msbuild-inline",
-      "match": { "program": "msbuild" },
+      "command": "msbuild",
       "description": "Running an inline C# task via MSBuild — trusted-utility proxy execution",
       "techniques": [{ "id": "T1127.001", "name": "Trusted Developer Utilities Proxy Execution: MSBuild" }],
       "telemetry": ["Sysmon EID 1: msbuild.exe compiling/running an inline task from a project file"],
@@ -643,7 +660,7 @@
     },
     {
       "id": "wscript-vbs",
-      "match": { "program": "wscript" },
+      "command": "wscript",
       "description": "Script-host execution via wscript (WSH) — VBScript/JScript",
       "techniques": [{ "id": "T1059.005", "name": "Command and Scripting Interpreter: Visual Basic" }],
       "telemetry": ["Sysmon EID 1: wscript.exe executing a script (.vbs/.js/.wsf)"],
@@ -652,7 +669,7 @@
     },
     {
       "id": "cscript-vbs",
-      "match": { "program": "cscript" },
+      "command": "cscript",
       "description": "Script-host execution via cscript (WSH) — VBScript/JScript",
       "techniques": [{ "id": "T1059.005", "name": "Command and Scripting Interpreter: Visual Basic" }],
       "telemetry": ["Sysmon EID 1: cscript.exe executing a script (.vbs/.js/.wsf)"],
@@ -661,7 +678,7 @@
     },
     {
       "id": "wmi-event-persist",
-      "match": { "line": { "contains": "eventconsumer" } },
+      "raw_contains": "eventconsumer",
       "description": "WMI event subscription (EventFilter/Consumer) — persistence",
       "techniques": [{ "id": "T1546.003", "name": "Event Triggered Execution: Windows Management Instrumentation Event Subscription" }],
       "telemetry": ["WMI __EventFilter to CommandLineEventConsumer binding created", "Sysmon EID 20/21 (WMI event consumer/binding)"],
@@ -670,7 +687,7 @@
     },
     {
       "id": "accessibility-sethc",
-      "match": { "line": { "contains": "sethc.exe" } },
+      "raw_contains": "sethc.exe",
       "description": "Accessibility feature hijack (sticky keys / utilman) — persistence / backdoor",
       "techniques": [{ "id": "T1546.008", "name": "Event Triggered Execution: Accessibility Features" }],
       "telemetry": ["Sysmon EID 13 (Registry Set): IFEO Debugger for sethc.exe/utilman.exe", "Sysmon EID 11 (File Create): replacement of sethc.exe"],
@@ -679,7 +696,7 @@
     },
     {
       "id": "ifeo-debugger",
-      "match": { "line": { "contains": "image file execution options" } },
+      "raw_contains": "image file execution options",
       "description": "Image File Execution Options Debugger — persistence / hijack",
       "techniques": [{ "id": "T1546.012", "name": "Event Triggered Execution: Image File Execution Options Injection" }],
       "telemetry": ["Sysmon EID 13 (Registry Set): Debugger value under Image File Execution Options"],
@@ -688,7 +705,7 @@
     },
     {
       "id": "winlogon-persist",
-      "match": { "line": { "contains": "\\winlogon" } },
+      "raw_contains": "\\winlogon",
       "description": "Modifying Winlogon Shell/Userinit — logon persistence",
       "techniques": [{ "id": "T1547.004", "name": "Boot or Logon Autostart Execution: Winlogon Helper DLL" }],
       "telemetry": ["Sysmon EID 13 (Registry Set): Winlogon Shell or Userinit value modified"],
@@ -697,7 +714,8 @@
     },
     {
       "id": "cmdkey-creds",
-      "match": { "program": "cmdkey", "args": { "contains": "/list" } },
+      "command": "cmdkey",
+      "args_contains": "/list",
       "description": "Enumerating stored credentials via cmdkey — Credential Manager access",
       "techniques": [{ "id": "T1555.004", "name": "Credentials from Password Stores: Windows Credential Manager" }],
       "telemetry": ["Sysmon EID 1: cmdkey.exe /list enumerating saved credentials"],
@@ -706,7 +724,8 @@
     },
     {
       "id": "findstr-creds",
-      "match": { "program": "findstr", "args": { "contains": "password" } },
+      "command": "findstr",
+      "args_contains": "password",
       "description": "Searching files for passwords via findstr — credential hunting",
       "techniques": [{ "id": "T1552.001", "name": "Unsecured Credentials: Credentials In Files" }],
       "telemetry": ["Sysmon EID 1: findstr scanning files for password strings"],
@@ -715,7 +734,7 @@
     },
     {
       "id": "av-discovery",
-      "match": { "line": { "contains": "antivirusproduct" } },
+      "raw_contains": "antivirusproduct",
       "description": "Enumerating installed AV via the AntiVirusProduct WMI class — security-software discovery",
       "techniques": [{ "id": "T1518.001", "name": "Software Discovery: Security Software Discovery" }],
       "telemetry": ["Sysmon EID 1: wmic querying AntiVirusProduct in root\\SecurityCenter2"],
@@ -724,7 +743,7 @@
     },
     {
       "id": "rdp-enable",
-      "match": { "line": { "contains": "fdenytsconnections" } },
+      "raw_contains": "fdenytsconnections",
       "description": "Enabling RDP via the fDenyTSConnections registry value — remote access",
       "techniques": [{ "id": "T1021.001", "name": "Remote Services: Remote Desktop Protocol" }],
       "telemetry": ["Sysmon EID 13 (Registry Set): fDenyTSConnections set to 0"],
@@ -733,7 +752,7 @@
     },
     {
       "id": "netsh-portproxy",
-      "match": { "line": { "contains": "portproxy" } },
+      "raw_contains": "portproxy",
       "description": "Local port forwarding via netsh portproxy — tunneling / pivot",
       "techniques": [{ "id": "T1090.001", "name": "Proxy: Internal Proxy" }],
       "telemetry": ["Sysmon EID 1: netsh interface portproxy add", "Sysmon EID 13 (Registry Set): portproxy configuration under Tcpip parameters"],
@@ -742,7 +761,7 @@
     },
     {
       "id": "wmic-shadow-delete",
-      "match": { "line": { "contains": "shadowcopy delete" } },
+      "raw_contains": "shadowcopy delete",
       "description": "Deleting volume shadow copies via wmic — inhibit system recovery",
       "techniques": [{ "id": "T1490", "name": "Inhibit System Recovery" }],
       "telemetry": ["Sysmon EID 1: wmic shadowcopy delete"],
@@ -751,7 +770,8 @@
     },
     {
       "id": "wbadmin-delete",
-      "match": { "program": "wbadmin", "args": { "contains": "delete" } },
+      "command": "wbadmin",
+      "args_contains": "delete",
       "description": "Deleting backups/catalog via wbadmin — inhibit system recovery",
       "techniques": [{ "id": "T1490", "name": "Inhibit System Recovery" }],
       "telemetry": ["Sysmon EID 1: wbadmin delete catalog/backup"],
@@ -760,7 +780,7 @@
     },
     {
       "id": "timestomp-ps",
-      "match": { "line": { "contains": "lastwritetime" } },
+      "raw_contains": "lastwritetime",
       "description": "Backdating a file's timestamps via PowerShell — timestomping",
       "techniques": [{ "id": "T1070.006", "name": "Indicator Removal: Timestomp" }],
       "telemetry": ["PowerShell 4104: setting a file's LastWriteTime/CreationTime"],
@@ -769,7 +789,7 @@
     },
     {
       "id": "token-impersonation",
-      "match": { "line": { "contains": "invoke-tokenmanipulation" } },
+      "raw_contains": "invoke-tokenmanipulation",
       "description": "Impersonating another process token via Invoke-TokenManipulation",
       "techniques": [{ "id": "T1134.001", "name": "Access Token Manipulation: Token Impersonation/Theft" }],
       "telemetry": ["PowerShell 4104: Invoke-TokenManipulation impersonating a process token"],
