@@ -604,4 +604,33 @@ mod tests {
             "vssadmin-delete"
         ));
     }
+
+    // ---- Increment D: macOS KB migrated to structured `match` ---------------
+
+    /// macOS multi-word `args` (e.g. `list /users`, `setglobalstate off`) migrate
+    /// to the `joined` leaf and must still fire on realistic commands.
+    #[test]
+    fn macos_multiword_args_match_via_joined() {
+        let kb = mac_kb();
+        let fires =
+            |cmd: &str, rule: &str| analyze(cmd, &kb).findings.iter().any(|f| f.rule_id == rule);
+        assert!(fires("sudo dscl . list /Users", "dscl-list-users"));
+        assert!(fires("dscl . list /Groups", "dscl-groups"));
+        assert!(fires(
+            "/usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate off",
+            "firewall-disable"
+        ));
+    }
+
+    /// The private-key entries carry the same representative-preserving `word` +
+    /// `not .pub` tightening as the Linux KB.
+    #[test]
+    fn macos_private_key_tightening() {
+        let kb = mac_kb();
+        let fires =
+            |cmd: &str, rule: &str| analyze(cmd, &kb).findings.iter().any(|f| f.rule_id == rule);
+        assert!(!fires("vim id_rsa_backup_notes.txt", "private-key-ssh"));
+        assert!(!fires("cp id_rsa.pub /tmp/authorized", "private-key-ssh"));
+        assert!(fires("cp ~/.ssh/id_rsa /tmp/k", "private-key-ssh"));
+    }
 }
