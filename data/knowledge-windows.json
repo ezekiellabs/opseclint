@@ -75,6 +75,15 @@
       "noise": 45
     },
     {
+      "id": "net-localgroup",
+      "match": { "program": { "any": ["net", "net1"] }, "args": { "at": { "index": 0, "value": { "eq": "localgroup" } } } },
+      "description": "Local group enumeration via net localgroup — group discovery",
+      "techniques": [{ "id": "T1069.001", "name": "Permission Groups Discovery: Local Groups" }],
+      "telemetry": ["Sysmon EID 1: net.exe localgroup (often via net1.exe child)"],
+      "detections": [{ "source": "Sigma", "rule": "Local group discovery via net (proc_creation_win)", "confidence": "medium" }],
+      "noise": 42
+    },
+    {
       "id": "net-account-create",
       "match": { "line": { "contains": "user /add" } },
       "description": "Local account creation via net user /add — persistence",

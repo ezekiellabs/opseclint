@@ -491,6 +491,17 @@
       "status": "indeterminate"
     },
     {
+      "id": "net-localgroup",
+      "description": "Local group enumeration via net localgroup — group discovery",
+      "techniques": [
+        "T1069.001"
+      ],
+      "claimed": [
+        "Local group discovery via net (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
       "id": "net-localgroup-admin",
       "description": "Adding a user to the local Administrators group — privilege escalation",
       "techniques": [
