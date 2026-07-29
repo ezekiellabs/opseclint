@@ -54,11 +54,41 @@ Leaves:
 | `path_under` | is a path equal to / nested under this dir (segment-aware) | `{ "path_under": "/var/log" }` |
 | `at` | the argument at a fixed index satisfies a leaf | `{ "at": { "index": 0, "value": { "prefix": "if=/dev/" } } }` |
 | `joined` | a leaf holds against all args joined by spaces (for a phrase spanning tokens) | `{ "joined": { "contains": "process call create" } }` |
+| `regex` | matches this regular expression | `{ "regex": "^if=/dev/sd[a-z]$" }` |
 
 ## `line` — a predicate over the raw line
 
 Combinators `all` / `any` / `not`, and the leaves `contains`, `word`, `prefix`,
-`suffix`.
+`suffix`, `regex`.
+
+## `regex` and the `example` field
+
+Reach for `regex` only when the fixed leaves can't express the shape — an
+abbreviation family, an alternation of shells, a structured token. Patterns are
+**compiled at knowledge-base load** (an invalid pattern is a load error, not a
+silent no-match) and matched **case-insensitively**, like the other leaves.
+
+Because a pattern can't be reversed into a concrete command, **any entry whose
+`match` uses a `regex` leaf must also carry a top-level `example`** — a
+representative command line the entry should match. It drives the
+self-consistency guard, the `--verify-detections` synthetic event, and the
+`--scaffold` output; load-time validation rejects a regex entry that lacks one.
+(`example` is also accepted on non-regex entries, where it overrides the
+literal-derived representative.)
+
+```jsonc
+{
+  "id": "powershell-hidden",
+  "match": { "line": { "all": [
+    { "any": [{ "contains": "powershell" }, { "contains": "pwsh" }] },
+    { "regex": "-w(?:indowstyle|indowsty|indow|ind|in|i)?\\s+(?:hidden|1)\\b" }
+  ] } },
+  "example": "powershell -w hidden -enc ZQBjAGgAbwA=",
+  "…": "…"
+}
+```
+
+`--scaffold` lowers a `regex` leaf to a Sigma `CommandLine|re:` selection.
 
 ## Why `word` and `path_under` exist
 
@@ -98,7 +128,8 @@ knowledge bases avoid false positives:
 ## Self-consistency invariant
 
 A test (`every_entry_matches_its_own_representative` in `src/analyzer.rs`)
-derives an example command from each entry's `match` and asserts the entry fires
-on it. If you write a matcher whose own example can't match it, that test fails —
-which is the usual sign of a typo (e.g. a per-arg `contains` for a phrase that
-should be `joined`).
+derives a representative command from each entry — its `example` if present, else
+one built from the `match` literals — and asserts the entry fires on it. If you
+write a matcher whose own representative can't match it, that test fails — which
+is the usual sign of a typo (e.g. a per-arg `contains` for a phrase that should
+be `joined`, or a `regex` whose `example` doesn't actually satisfy the pattern).

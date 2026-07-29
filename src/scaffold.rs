@@ -79,9 +79,9 @@ pub fn rule_for(entry: &KbEntry, platform: Platform, date: &str) -> String {
 }
 
 /// Build the `selection:` block from the entry's matcher, mirroring opseclint's
-/// own matching: an exact `program` -> `Image|endswith`, and the `args` / `line`
-/// literals -> `CommandLine|contains`. Multiple CommandLine terms are ANDed via
-/// `contains|all`.
+/// own matching: an exact `program` -> `Image|endswith`, the `args` / `line`
+/// literals -> `CommandLine|contains`, and any `regex` leaf -> `CommandLine|re`.
+/// Multiple CommandLine terms are ANDed via `contains|all`.
 fn build_selection(entry: &KbEntry, platform: Platform) -> String {
     let matcher = &entry.matcher;
     let mut s = String::new();
@@ -104,6 +104,18 @@ fn build_selection(entry: &KbEntry, platform: Platform) -> String {
             s.push_str("        CommandLine|contains|all:\n");
             for term in many {
                 s.push_str(&format!("            - '{}'\n", yaml_sq(term)));
+            }
+        }
+    }
+    // A single `CommandLine|re` key: a scalar for one pattern, a list for many
+    // (repeating the key would be invalid / lossy YAML).
+    match matcher.commandline_regexes().as_slice() {
+        [] => {}
+        [only] => s.push_str(&format!("        CommandLine|re: '{}'\n", yaml_sq(only))),
+        many => {
+            s.push_str("        CommandLine|re:\n");
+            for re in many {
+                s.push_str(&format!("            - '{}'\n", yaml_sq(re)));
             }
         }
     }
@@ -309,6 +321,7 @@ mod tests {
                 args: None,
                 line: Some(LinePred::Contains("lsass".into())),
             },
+            example: None,
             description: "Dump credentials: full LSASS memory — credential access".into(),
             techniques: vec![Technique {
                 id: "T1003.001".into(),
@@ -325,5 +338,47 @@ mod tests {
             Some("Dump credentials: full LSASS memory")
         );
         assert_eq!(v["level"].as_str(), Some("critical")); // noise 80 -> Critical
+    }
+
+    #[test]
+    fn scaffold_maps_a_regex_leaf_to_commandline_re() {
+        // A `regex` leaf lowers to a Sigma `CommandLine|re` selection alongside
+        // the `contains` terms.
+        let kb = kb::load(kb::Platform::WindowsSysmon).unwrap();
+        let e = entry(&kb, "powershell-hidden");
+        let yaml = rule_for(e, kb::Platform::WindowsSysmon, "2026-07-29");
+        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let sel = &v["detection"]["selection"];
+        assert!(
+            sel["CommandLine|re"].as_str().is_some(),
+            "expected a CommandLine|re selection, got:\n{yaml}"
+        );
+    }
+
+    #[test]
+    fn scaffold_lists_multiple_regexes_as_a_yaml_sequence() {
+        // Two regexes must become one `CommandLine|re` key holding a list — never
+        // a repeated key (invalid / lossy YAML).
+        let matcher: Matcher = serde_json::from_str(
+            r#"{ "line": { "all": [{ "regex": "aa" }, { "regex": "bb" }] } }"#,
+        )
+        .unwrap();
+        let e = KbEntry {
+            id: "multi".into(),
+            matcher,
+            example: Some("aa bb".into()),
+            description: "two regexes".into(),
+            techniques: vec![Technique {
+                id: "T1059".into(),
+                name: "n".into(),
+            }],
+            telemetry: vec![],
+            detections: vec![],
+            noise: 50,
+        };
+        let yaml = rule_for(&e, kb::Platform::LinuxAuditd, "2026-07-29");
+        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let re = &v["detection"]["selection"]["CommandLine|re"];
+        assert_eq!(re.as_sequence().map(|s| s.len()), Some(2), "got:\n{yaml}");
     }
 }

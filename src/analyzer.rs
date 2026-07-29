@@ -480,7 +480,14 @@ mod tests {
     /// by `--verify-detections` / `--scaffold` stays aligned with the engine.
     fn assert_self_consistent(kb: &KnowledgeBase) {
         for entry in &kb.entries {
-            let repr = entry.matcher.representative_line().unwrap_or_else(|| {
+            // An entry whose matcher uses a `regex` leaf cannot derive a literal
+            // representative, so it must supply an `example`.
+            assert!(
+                !entry.matcher.has_regex() || entry.example.is_some(),
+                "entry `{}` uses a regex leaf but has no `example`",
+                entry.id
+            );
+            let repr = entry.representative_line().unwrap_or_else(|| {
                 panic!(
                     "entry `{}` has no matchable field to build a representative from",
                     entry.id
@@ -629,34 +636,34 @@ mod tests {
 
     // ---- Increment E: precision fixes for three over-matchers ---------------
 
-    /// `powershell-hidden` was keyed on the bare word `hidden` (firing on any
-    /// legitimate use of it); it now scopes to a hidden-window launch.
+    /// `powershell-hidden` was keyed on the bare word `hidden`; it now uses a
+    /// `regex` leaf that covers the whole `-WindowStyle` abbreviation family
+    /// (`-w` … `-windowstyle`, plus the numeric `1`) scoped to a PowerShell line.
     #[test]
     fn powershell_hidden_is_scoped_to_window_style() {
         let kb = win_kb();
         let fires =
             |cmd: &str, rule: &str| analyze(cmd, &kb).findings.iter().any(|f| f.rule_id == rule);
-        assert!(fires(
+        // The full abbreviation family fires.
+        for cmd in [
             "powershell -w hidden -enc ZQBjAA==",
-            "powershell-hidden"
-        ));
-        assert!(fires(
             "powershell.exe -WindowStyle Hidden -c calc",
-            "powershell-hidden"
-        ));
-        // Wrapped launches (cmd /c powershell …) still fire — the marker is
-        // matched on the whole line, not just the resolved program.
-        assert!(fires(
-            "cmd /c powershell -w hidden -enc ZQBjAA==",
-            "powershell-hidden"
-        ));
-        // No longer fires on unrelated uses of the word "hidden", nor on a
-        // non-PowerShell line that merely contains the "-w hidden" marker.
-        assert!(!fires(
+            "pwsh -windowsty hidden",
+            "powershell -win hidden",
+            "powershell -windowstyle 1",
+            "cmd /c powershell -w hidden -enc ZQBjAA==", // wrapped launch
+        ] {
+            assert!(fires(cmd, "powershell-hidden"), "should fire: {cmd}");
+        }
+        // Does not fire on unrelated uses of "hidden", nor on a non-PowerShell
+        // line that merely contains the `-w hidden` marker.
+        for cmd in [
             "Get-ChildItem -Hidden C:\\Users",
-            "powershell-hidden"
-        ));
-        assert!(!fires("cmd.exe /c echo -w hidden", "powershell-hidden"));
+            "cmd.exe /c echo -w hidden",
+            "powershell -NoProfile -Command Get-Help",
+        ] {
+            assert!(!fires(cmd, "powershell-hidden"), "should not fire: {cmd}");
+        }
     }
 
     /// `net-user` was keyed on the substring `user` (also firing on

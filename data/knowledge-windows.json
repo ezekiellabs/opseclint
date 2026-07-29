@@ -169,7 +169,8 @@
     },
     {
       "id": "powershell-hidden",
-      "match": { "line": { "all": [{ "any": [{ "contains": "powershell" }, { "contains": "pwsh" }] }, { "any": [{ "contains": "windowstyle hidden" }, { "contains": "-w hidden" }] }] } },
+      "match": { "line": { "all": [{ "any": [{ "contains": "powershell" }, { "contains": "pwsh" }] }, { "regex": "-w(?:indowstyle|indowstyl|indowsty|indowst|indows|indow|indo|ind|in|i)?\\s+(?:hidden|1)\\b" }] } },
+      "example": "powershell -w hidden -enc ZQBjAGgAbwA=",
       "description": "Hidden-window PowerShell — defense evasion",
       "techniques": [
         { "id": "T1564.003", "name": "Hide Artifacts: Hidden Window" },

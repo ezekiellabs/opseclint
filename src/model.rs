@@ -37,6 +37,13 @@ pub struct KbEntry {
     /// The structured matcher that decides whether this entry applies to a line.
     #[serde(rename = "match")]
     pub matcher: Matcher,
+    /// A representative command line this entry should match, used to synthesize
+    /// an example event for `--verify-detections` / `--scaffold` and to drive the
+    /// self-consistency guard. Required for entries whose matcher uses a `regex`
+    /// leaf (a pattern cannot be reversed into a literal); optional otherwise,
+    /// where it overrides the literal-derived representative.
+    #[serde(default)]
+    pub example: Option<String>,
     pub description: String,
     pub techniques: Vec<Technique>,
     #[serde(default)]
@@ -48,6 +55,18 @@ pub struct KbEntry {
     pub noise: u8,
 }
 
+impl KbEntry {
+    /// A representative command line this entry matches: the author-supplied
+    /// `example` when present, otherwise one derived from the matcher's literals.
+    /// `None` only for a bare matcher with neither — which the self-consistency
+    /// guard rejects.
+    pub fn representative_line(&self) -> Option<String> {
+        self.example
+            .clone()
+            .or_else(|| self.matcher.representative_line())
+    }
+}
+
 /// The deserialized knowledge base.
 #[derive(Debug, Clone, Deserialize)]
 pub struct KnowledgeBase {
@@ -55,6 +74,23 @@ pub struct KnowledgeBase {
     #[serde(default)]
     pub note: String,
     pub entries: Vec<KbEntry>,
+}
+
+impl KnowledgeBase {
+    /// Enforce cross-field invariants after deserialization: an entry whose
+    /// matcher uses a `regex` leaf must supply an `example` (a pattern cannot be
+    /// reversed into a representative for verification/scaffolding).
+    pub fn validate(&self) -> Result<(), String> {
+        for e in &self.entries {
+            if e.matcher.has_regex() && e.example.is_none() {
+                return Err(format!(
+                    "entry `{}` uses a regex leaf but has no `example`",
+                    e.id
+                ));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Detectability bucket derived from a numeric noise score.
@@ -143,5 +179,49 @@ pub struct Report {
 impl Report {
     pub fn max_severity(&self) -> Severity {
         Severity::from_noise(self.max_noise)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn kb_with(matcher_json: &str, example: Option<&str>) -> KnowledgeBase {
+        let matcher: Matcher = serde_json::from_str(matcher_json).expect("matcher parses");
+        KnowledgeBase {
+            platform: "linux".into(),
+            note: String::new(),
+            entries: vec![KbEntry {
+                id: "x".into(),
+                matcher,
+                example: example.map(str::to_string),
+                description: "d".into(),
+                techniques: vec![],
+                telemetry: vec![],
+                detections: vec![],
+                noise: 10,
+            }],
+        }
+    }
+
+    #[test]
+    fn validate_requires_example_for_regex_entries() {
+        // A regex entry without an example is rejected...
+        assert!(
+            kb_with(r#"{ "line": { "regex": "foo" } }"#, None)
+                .validate()
+                .is_err()
+        );
+        // ...with one it is accepted, and non-regex entries never need one.
+        assert!(
+            kb_with(r#"{ "line": { "regex": "foo" } }"#, Some("foobar"))
+                .validate()
+                .is_ok()
+        );
+        assert!(
+            kb_with(r#"{ "line": { "contains": "foo" } }"#, None)
+                .validate()
+                .is_ok()
+        );
     }
 }
