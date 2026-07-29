@@ -126,8 +126,7 @@
     },
     {
       "id": "sudo-l",
-      "command": "sudo",
-      "args_contains": "-l",
+      "match": { "line": { "any": [{ "contains": "sudo -l" }, { "contains": "sudo --list" }] } },
       "description": "Enumeration of the current user's sudo privileges",
       "techniques": [{ "id": "T1069", "name": "Permission Groups Discovery" }],
       "telemetry": ["execve() of sudo with -l", "auditd USER_CMD / sudo log entry in /var/log/auth.log"],
@@ -735,8 +734,7 @@
     },
     {
       "id": "ssh-socks-proxy",
-      "command": "ssh",
-      "args_contains": "-d ",
+      "match": { "program": "ssh", "args": { "flag": "-D" } },
       "description": "SSH dynamic port forwarding (-D SOCKS) — tunneling",
       "techniques": [{ "id": "T1572", "name": "Protocol Tunneling" }],
       "telemetry": ["execve() of ssh with dynamic port forwarding (-D)", "long-lived ssh session carrying tunneled traffic"],

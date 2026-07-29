@@ -12,6 +12,7 @@ mod coverage;
 mod diff;
 mod edr;
 mod kb;
+mod matcher;
 mod model;
 mod navigator;
 mod parser;

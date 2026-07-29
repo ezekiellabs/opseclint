@@ -106,18 +106,11 @@ fn claimed_rules(entry: &KbEntry) -> Vec<String> {
         .collect()
 }
 
-/// Build a representative command for a KB entry: the command plus the substring
-/// it keys on (so the synthesized event carries what the rule would match), or
-/// the raw pattern for raw-only entries.
+/// Build a representative command for a KB entry: a synthetic command line the
+/// entry's matcher would match (program plus the literals it keys on), so the
+/// synthesized event carries what a real rule would look for.
 fn representative_command(entry: &KbEntry) -> Option<Command> {
-    let line = if let Some(prog) = &entry.command {
-        match &entry.args_contains {
-            Some(args) => format!("{prog} {args}"),
-            None => prog.clone(),
-        }
-    } else {
-        entry.raw_contains.clone()?
-    };
+    let line = entry.compiled_matcher().representative_line()?;
     parser::parse_line(&line).into_iter().next()
 }
 
@@ -382,6 +375,7 @@ mod tests {
     fn entry(id: &str, command: Option<&str>, raw: Option<&str>, tech: &str) -> KbEntry {
         KbEntry {
             id: id.into(),
+            matcher: None,
             command: command.map(str::to_string),
             args_contains: None,
             raw_contains: raw.map(str::to_string),

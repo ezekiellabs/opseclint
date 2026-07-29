@@ -78,12 +78,14 @@ pub fn rule_for(entry: &KbEntry, platform: Platform, date: &str) -> String {
     out
 }
 
-/// Build the `selection:` block from the entry's matching fields, mirroring
-/// opseclint's own matcher: `command` -> Image, `args_contains`/`raw_contains`
-/// -> CommandLine. Multiple CommandLine terms are ANDed via `contains|all`.
+/// Build the `selection:` block from the entry's matcher, mirroring opseclint's
+/// own matching: an exact `program` -> `Image|endswith`, and the `args` / `line`
+/// literals -> `CommandLine|contains`. Multiple CommandLine terms are ANDed via
+/// `contains|all`.
 fn build_selection(entry: &KbEntry, platform: Platform) -> String {
+    let matcher = entry.compiled_matcher();
     let mut s = String::new();
-    if let Some(cmd) = &entry.command {
+    if let Some(cmd) = matcher.program_literal() {
         // Mirror how opseclint synthesizes the Image field per platform.
         let image = match platform {
             Platform::WindowsSysmon => format!("\\{}.exe", yaml_sq(cmd)),
@@ -91,16 +93,7 @@ fn build_selection(entry: &KbEntry, platform: Platform) -> String {
         };
         s.push_str(&format!("        Image|endswith: '{image}'\n"));
     }
-    let mut terms: Vec<&str> = Vec::new();
-    // args_contains only constrains command entries in the matcher.
-    if entry.command.is_some()
-        && let Some(a) = &entry.args_contains
-    {
-        terms.push(a);
-    }
-    if let Some(r) = &entry.raw_contains {
-        terms.push(r);
-    }
+    let terms = matcher.commandline_terms();
     match terms.as_slice() {
         [] => {}
         [only] => s.push_str(&format!(
@@ -310,6 +303,7 @@ mod tests {
         // A colon+space would break an unquoted YAML title; it must be quoted.
         let e = KbEntry {
             id: "synthetic".into(),
+            matcher: None,
             command: None,
             args_contains: None,
             raw_contains: Some("lsass".into()),
