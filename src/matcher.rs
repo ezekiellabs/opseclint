@@ -514,8 +514,9 @@ fn add_or_group(sel: &mut SigmaSelection, lits: Vec<String>) {
 }
 
 /// Lower an argument predicate into the selection. `all` ANDs its children; an
-/// `any` of plain contains-like leaves becomes the OR-group; anything else (a
-/// nested/`not` branch) falls back to the first branch and marks `simplified`.
+/// `any` of plain contains-like leaves becomes the OR-group. A nested `any`
+/// falls back to its first branch, and a `not` is dropped (unrepresentable in a
+/// positive selection); both mark `simplified` so the scaffold warns.
 fn lower_arg_selection(pred: &ArgPred, sel: &mut SigmaSelection) {
     match pred {
         ArgPred::All(v) => v.iter().for_each(|p| lower_arg_selection(p, sel)),
@@ -528,7 +529,9 @@ fn lower_arg_selection(pred: &ArgPred, sel: &mut SigmaSelection) {
                 }
             }
         },
-        ArgPred::Not(_) => {}
+        // A `not` can't be expressed in a positive Sigma `selection:` field;
+        // dropping it broadens the scaffold, so flag the loss.
+        ArgPred::Not(_) => sel.simplified = true,
         ArgPred::Flag(s)
         | ArgPred::Eq(s)
         | ArgPred::Contains(s)
@@ -560,7 +563,8 @@ fn lower_line_selection(pred: &LinePred, sel: &mut SigmaSelection) {
                 }
             }
         },
-        LinePred::Not(_) => {}
+        // See `lower_arg_selection`: a dropped `not` broadens the scaffold.
+        LinePred::Not(_) => sel.simplified = true,
         LinePred::Contains(s) | LinePred::Word(s) | LinePred::Prefix(s) | LinePred::Suffix(s) => {
             sel.contains_all.push(s.clone())
         }
@@ -834,6 +838,18 @@ mod tests {
         ] } }"#);
         let sel = matcher.sigma_selection();
         assert_eq!(sel.regexes, vec!["aa", "bb"]);
+        assert!(sel.simplified);
+    }
+
+    #[test]
+    fn sigma_selection_flags_a_dropped_negation() {
+        // A `not` can't be represented in a positive selection; the positive
+        // terms survive but the loss is flagged (the private-key `.pub` shape).
+        let matcher = m(r#"{ "line": { "all": [
+            { "word": "id_rsa" }, { "not": { "contains": "id_rsa.pub" } }
+        ] } }"#);
+        let sel = matcher.sigma_selection();
+        assert_eq!(sel.contains_all, vec!["id_rsa"]);
         assert!(sel.simplified);
     }
 }

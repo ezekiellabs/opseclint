@@ -439,6 +439,24 @@ mod tests {
     }
 
     #[test]
+    fn scaffold_flags_a_dropped_negation_with_a_note() {
+        // `private-key-rsa` excludes `id_rsa.pub` via `not`, which a positive
+        // selection can't express — the scaffold must carry the review NOTE.
+        let kb = kb::load(kb::Platform::LinuxAuditd).unwrap();
+        let yaml = rule_for(
+            entry(&kb, "private-key-rsa"),
+            kb::Platform::LinuxAuditd,
+            "2026-07-29",
+        );
+        assert!(
+            yaml.contains("# NOTE:"),
+            "expected a review NOTE, got:\n{yaml}"
+        );
+        // The generated rule is still valid YAML.
+        serde_yaml::from_str::<serde_yaml::Value>(&yaml).unwrap();
+    }
+
+    #[test]
     fn scaffold_lists_multiple_regexes_as_a_yaml_sequence() {
         // Two regexes must become one `CommandLine|re` key holding a list — never
         // a repeated key (invalid / lossy YAML).
