@@ -9,7 +9,6 @@
 -->[![Downloads][downloads-shield]][downloads-url]<!--
 -->[![CI][ci-shield]][ci-url]<!--
 -->[![Marketplace][marketplace-shield]][marketplace-url]<!--
--->[![Last Commit][lastcommit-shield]][commits-url]<!--
 -->[![Stargazers][stars-shield]][stars-url]<!--
 -->[![Issues][issues-shield]][issues-url]<!--
 -->[![MIT License][license-shield]][license-url]
@@ -419,7 +418,7 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - [x] `--coverage-gaps`: flag actions whose techniques have rules but where none fire
 - [x] macOS/Endpoint Security KB deepened to breadth parity with Linux/Windows (66 entries)
 - [x] [EDR-specific telemetry mappings](#edr-telemetry---edr): CrowdStrike, Defender, SentinelOne, Elastic via `--edr`
-- [x] Linux/Windows KBs deepened with cloud, container/Kubernetes, LOLBin, and modern persistence/evasion coverage (81 / 83 entries)
+- [x] Linux/Windows KBs deepened with cloud, container/Kubernetes, LOLBin, and modern persistence/evasion coverage (83 / 83 entries)
 - [x] [Coverage diff](#coverage-diff---diff): compare a run against a saved report to see what coverage changed, via `--diff`
 
 See the [open issues][issues-url] for the full list, and
@@ -489,8 +488,6 @@ Project Link: [https://github.com/ezekiellabs/opseclint](https://github.com/ezek
 [ci-url]: https://github.com/ezekiellabs/opseclint/actions/workflows/ci.yml
 [marketplace-shield]: https://img.shields.io/badge/Marketplace-opseclint-2ea44f?style=flat-square&logo=github
 [marketplace-url]: https://github.com/marketplace/actions/opseclint-detection-coverage
-[lastcommit-shield]: https://img.shields.io/github/last-commit/ezekiellabs/opseclint?branch=main&style=flat-square&logo=git&logoColor=white
-[commits-url]: https://github.com/ezekiellabs/opseclint/commits/main
 [stars-shield]: https://img.shields.io/github/stars/ezekiellabs/opseclint?style=flat-square&logo=github
 [stars-url]: https://github.com/ezekiellabs/opseclint/stargazers
 [issues-shield]: https://img.shields.io/github/issues/ezekiellabs/opseclint?style=flat-square&logo=github

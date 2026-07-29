@@ -544,11 +544,32 @@
       "noise": 75
     },
     {
-      "id": "clear-syslog",
+      "id": "clear-syslog-rm",
+      "command": "rm",
       "raw_contains": "/var/log",
-      "description": "Access to or modification of system logs — potential log clearing (anti-forensics)",
+      "description": "Deleting system logs under /var/log — log clearing (anti-forensics)",
       "techniques": [{ "id": "T1070.002", "name": "Indicator Removal: Clear Linux or Mac System Logs" }],
-      "telemetry": ["truncate()/unlink()/write() under /var/log — auditd file watch"],
+      "telemetry": ["unlink() under /var/log — auditd file watch"],
+      "detections": [{ "source": "Sigma", "rule": "System log tampering (file_event_lnx)", "confidence": "medium" }],
+      "noise": 60
+    },
+    {
+      "id": "clear-syslog-truncate",
+      "command": "truncate",
+      "raw_contains": "/var/log",
+      "description": "Truncating system logs under /var/log — log clearing (anti-forensics)",
+      "techniques": [{ "id": "T1070.002", "name": "Indicator Removal: Clear Linux or Mac System Logs" }],
+      "telemetry": ["truncate() under /var/log — auditd file watch"],
+      "detections": [{ "source": "Sigma", "rule": "System log tampering (file_event_lnx)", "confidence": "medium" }],
+      "noise": 60
+    },
+    {
+      "id": "clear-syslog-shred",
+      "command": "shred",
+      "raw_contains": "/var/log",
+      "description": "Shredding system logs under /var/log — log clearing (anti-forensics)",
+      "techniques": [{ "id": "T1070.002", "name": "Indicator Removal: Clear Linux or Mac System Logs" }],
+      "telemetry": ["write()/unlink() under /var/log — auditd file watch"],
       "detections": [{ "source": "Sigma", "rule": "System log tampering (file_event_lnx)", "confidence": "medium" }],
       "noise": 60
     },

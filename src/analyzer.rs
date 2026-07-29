@@ -359,4 +359,120 @@ mod tests {
         let report = analyze(script, &kb());
         assert!(report.findings.is_empty());
     }
+
+    // ---- Known-benign corpus -------------------------------------------------
+    // Ordinary, security-irrelevant commands that MUST yield zero findings. This
+    // guards against knowledge-base false positives from loose substring matches.
+    // It deliberately excludes actions opseclint intentionally models as loud
+    // (curl/wget, tar archiving, `ps`/`find`/kubectl discovery, whoami, etc.).
+
+    const BENIGN_LINUX: &[&str] = &[
+        "ls -la /home/user",
+        "cd /var/log",             // reads and navigation under /var/log must not
+        "tail -f /var/log/syslog", // be read as anti-forensic log clearing
+        "ls /var/log/nginx",
+        "cat /var/log/app.log",
+        "pwd",
+        "echo build complete",
+        "cat README.md",
+        "mkdir -p build/output",
+        "cp config.example config.local",
+        "mv old.txt new.txt",
+        "rm -rf target/debug",
+        "grep -rn TODO src/",
+        "sed -i s/foo/bar/g file.txt",
+        "git status",
+        "git commit -m fix",
+        "git push origin main",
+        "cargo build --release",
+        "cargo test --all",
+        "npm install",
+        "make -j4",
+        "head -n 20 file.log",
+        "df -h",
+        "docker build -t app .",
+        "systemctl status nginx",
+    ];
+
+    const BENIGN_WINDOWS: &[&str] = &[
+        "dir C:\\Users",
+        "type readme.txt",
+        "copy a.txt b.txt",
+        "del old.log",
+        "mkdir builds",
+        "Get-ChildItem -Path .",
+        "Get-Content log.txt",
+        "Write-Output done",
+        "git status",
+        "cargo build",
+        "Get-Process",
+        "Set-Location C:\\src",
+        "Copy-Item a b",
+        "New-Item -ItemType Directory build",
+        "Remove-Item -Recurse target",
+    ];
+
+    const BENIGN_MACOS: &[&str] = &[
+        "ls -la /Users",
+        "cd /Applications",
+        "pwd",
+        "cat ~/notes.txt",
+        "open .",
+        "mkdir -p ~/dev/project",
+        "cp a.txt b.txt",
+        "git status",
+        "brew list",
+        "defaults read com.apple.dock",
+        "diskutil list",
+        "softwareupdate --list",
+    ];
+
+    fn assert_all_quiet(corpus: &[&str], kb: &KnowledgeBase) {
+        for cmd in corpus {
+            let report = analyze(cmd, kb);
+            assert!(
+                report.findings.is_empty(),
+                "benign command `{cmd}` produced a false positive: {:?}",
+                report
+                    .findings
+                    .iter()
+                    .map(|f| f.rule_id.as_str())
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn benign_corpus_linux_is_silent() {
+        assert_all_quiet(BENIGN_LINUX, &kb());
+    }
+
+    #[test]
+    fn benign_corpus_windows_is_silent() {
+        assert_all_quiet(BENIGN_WINDOWS, &win_kb());
+    }
+
+    #[test]
+    fn benign_corpus_macos_is_silent() {
+        assert_all_quiet(BENIGN_MACOS, &mac_kb());
+    }
+
+    #[test]
+    fn clear_syslog_still_detects_real_clearing() {
+        // The false-positive fix must not blind us to actual log clearing.
+        for cmd in [
+            "rm -rf /var/log/nginx",
+            "truncate -s 0 /var/log/syslog",
+            "shred -u /var/log/auth.log",
+        ] {
+            let report = analyze(cmd, &kb());
+            assert!(
+                report
+                    .findings
+                    .iter()
+                    .any(|f| f.rule_id.starts_with("clear-syslog")),
+                "expected a log-clearing finding for `{cmd}`"
+            );
+        }
+    }
 }

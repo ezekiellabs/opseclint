@@ -6,9 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Known-benign corpus test** — asserts a curated corpus of everyday commands
+  per platform (navigation, dev/build tooling, log reads) produces zero
+  findings, guarding against knowledge-base false positives.
+
+### Fixed
+
+- **`clear-syslog` false positive** — the Linux log-tampering rule keyed on a
+  bare `/var/log` substring, so ordinary reads and navigation (`cd /var/log`,
+  `tail -f /var/log/syslog`, `ls /var/log`) were flagged as anti-forensic log
+  clearing. Scoped it to actual clearing commands (`rm`/`truncate`/`shred`
+  targeting `/var/log`); `journalctl --vacuum` remains covered separately.
+
 ## [1.1.0] - 2026-07-27
 
-### Added
+### Added - 1.1.0
 
 - **Startup banner** — running `opseclint` with no input on an interactive
   terminal now prints a brief banner and usage hint instead of blocking on a
