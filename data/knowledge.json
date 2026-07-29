@@ -559,7 +559,7 @@
     },
     {
       "id": "journal-vacuum",
-      "match": { "line": { "contains": "--vacuum" } },
+      "match": { "program": "journalctl", "args": { "prefix": "--vacuum" } },
       "description": "journalctl --vacuum — deleting systemd journal logs (anti-forensics)",
       "techniques": [{ "id": "T1070.002", "name": "Indicator Removal: Clear Linux or Mac System Logs" }],
       "telemetry": ["execve() of journalctl --vacuum-*", "unlink() of journal files under /var/log/journal"],

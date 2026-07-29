@@ -626,4 +626,51 @@ mod tests {
         assert!(!fires("cp id_rsa.pub /tmp/authorized", "private-key-ssh"));
         assert!(fires("cp ~/.ssh/id_rsa /tmp/k", "private-key-ssh"));
     }
+
+    // ---- Increment E: precision fixes for three over-matchers ---------------
+
+    /// `powershell-hidden` was keyed on the bare word `hidden` (firing on any
+    /// legitimate use of it); it now scopes to a hidden-window launch.
+    #[test]
+    fn powershell_hidden_is_scoped_to_window_style() {
+        let kb = win_kb();
+        let fires =
+            |cmd: &str, rule: &str| analyze(cmd, &kb).findings.iter().any(|f| f.rule_id == rule);
+        assert!(fires(
+            "powershell -w hidden -enc ZQBjAA==",
+            "powershell-hidden"
+        ));
+        assert!(fires(
+            "powershell.exe -WindowStyle Hidden -c calc",
+            "powershell-hidden"
+        ));
+        // No longer fires on unrelated uses of the word "hidden".
+        assert!(!fires(
+            "Get-ChildItem -Hidden C:\\Users",
+            "powershell-hidden"
+        ));
+    }
+
+    /// `net-user` was keyed on the substring `user` (also firing on
+    /// `net localgroup users`); it now requires `user` as its own argument.
+    #[test]
+    fn net_user_requires_user_subcommand() {
+        let kb = win_kb();
+        let fires =
+            |cmd: &str, rule: &str| analyze(cmd, &kb).findings.iter().any(|f| f.rule_id == rule);
+        assert!(fires("net user administrator /domain", "net-user"));
+        assert!(!fires("net localgroup users", "net-user"));
+    }
+
+    /// `journal-vacuum` was keyed on the bare `--vacuum` substring; it now scopes
+    /// to `journalctl` so an unrelated `--vacuum*` flag does not match.
+    #[test]
+    fn journal_vacuum_is_scoped_to_journalctl() {
+        let kb = kb();
+        let fires =
+            |cmd: &str, rule: &str| analyze(cmd, &kb).findings.iter().any(|f| f.rule_id == rule);
+        assert!(fires("journalctl --vacuum-size=1M", "journal-vacuum"));
+        assert!(fires("sudo journalctl --vacuum-time=2d", "journal-vacuum"));
+        assert!(!fires("some-db-tool --vacuum-database", "journal-vacuum"));
+    }
 }
