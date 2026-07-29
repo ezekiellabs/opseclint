@@ -8,7 +8,7 @@
 use std::collections::HashSet;
 
 use crate::kb::Platform;
-use crate::model::{KbEntry, KnowledgeBase};
+use crate::model::{KbEntry, KnowledgeBase, Severity};
 
 /// Resolve knowledge-base entries for a list of rule ids, de-duplicated and in
 /// first-seen order.
@@ -40,7 +40,10 @@ pub fn rule_for(entry: &KbEntry, platform: Platform, date: &str) -> String {
     out.push_str("# opseclint scaffold — a starter rule mirroring how opseclint matches this\n");
     out.push_str("# action. Refine the TODO fields (and tighten the detection) before\n");
     out.push_str("# submitting upstream to SigmaHQ.\n");
-    out.push_str(&format!("title: {}\n", scaffold_title(&entry.description)));
+    out.push_str(&format!(
+        "title: '{}'\n",
+        yaml_sq(&scaffold_title(&entry.description))
+    ));
     out.push_str(&format!(
         "id: {}   # generated placeholder — regenerate with uuidgen\n",
         placeholder_uuid(&entry.id)
@@ -67,7 +70,7 @@ pub fn rule_for(entry: &KbEntry, platform: Platform, date: &str) -> String {
     out.push_str(&format!("    product: {}\n", platform.sigma_product()));
     out.push_str("detection:\n");
     out.push_str("    selection:\n");
-    out.push_str(&build_selection(entry));
+    out.push_str(&build_selection(entry, platform));
     out.push_str("    condition: selection\n");
     out.push_str("falsepositives:\n");
     out.push_str("    - Unknown\n");
@@ -78,10 +81,15 @@ pub fn rule_for(entry: &KbEntry, platform: Platform, date: &str) -> String {
 /// Build the `selection:` block from the entry's matching fields, mirroring
 /// opseclint's own matcher: `command` -> Image, `args_contains`/`raw_contains`
 /// -> CommandLine. Multiple CommandLine terms are ANDed via `contains|all`.
-fn build_selection(entry: &KbEntry) -> String {
+fn build_selection(entry: &KbEntry, platform: Platform) -> String {
     let mut s = String::new();
     if let Some(cmd) = &entry.command {
-        s.push_str(&format!("        Image|endswith: '/{}'\n", yaml_sq(cmd)));
+        // Mirror how opseclint synthesizes the Image field per platform.
+        let image = match platform {
+            Platform::WindowsSysmon => format!("\\{}.exe", yaml_sq(cmd)),
+            _ => format!("/{}", yaml_sq(cmd)),
+        };
+        s.push_str(&format!("        Image|endswith: '{image}'\n"));
     }
     let mut terms: Vec<&str> = Vec::new();
     // args_contains only constrains command entries in the matcher.
@@ -129,12 +137,13 @@ fn scaffold_title(desc: &str) -> String {
 
 /// Map detectability (0-100 noise) to a Sigma severity level.
 fn level_for(noise: u8) -> &'static str {
-    if noise >= 70 {
-        "high"
-    } else if noise >= 40 {
-        "medium"
-    } else {
-        "low"
+    // Reuse opseclint's own severity buckets so the scaffold level matches the
+    // tool's interpretation (Sigma also supports `critical`).
+    match Severity::from_noise(noise) {
+        Severity::Low => "low",
+        Severity::Medium => "medium",
+        Severity::High => "high",
+        Severity::Critical => "critical",
     }
 }
 
@@ -207,6 +216,7 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 mod tests {
     use super::*;
     use crate::kb;
+    use crate::model::Technique;
 
     fn linux_kb() -> KnowledgeBase {
         kb::load(kb::Platform::LinuxAuditd).unwrap()
@@ -280,5 +290,44 @@ mod tests {
         // 2026-07-29 is 20663 days after the Unix epoch.
         assert_eq!(civil_from_days(20_663), (2026, 7, 29));
         assert_eq!(civil_from_days(0), (1970, 1, 1));
+    }
+
+    #[test]
+    fn scaffold_windows_uses_backslash_exe_image() {
+        let kb = kb::load(kb::Platform::WindowsSysmon).unwrap();
+        let e = entry(&kb, "certutil-download");
+        let yaml = rule_for(e, kb::Platform::WindowsSysmon, "2026-07-29");
+        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(v["logsource"]["product"].as_str(), Some("windows"));
+        assert_eq!(
+            v["detection"]["selection"]["Image|endswith"].as_str(),
+            Some("\\certutil.exe")
+        );
+    }
+
+    #[test]
+    fn scaffold_title_with_colon_stays_valid_yaml() {
+        // A colon+space would break an unquoted YAML title; it must be quoted.
+        let e = KbEntry {
+            id: "synthetic".into(),
+            command: None,
+            args_contains: None,
+            raw_contains: Some("lsass".into()),
+            description: "Dump credentials: full LSASS memory — credential access".into(),
+            techniques: vec![Technique {
+                id: "T1003.001".into(),
+                name: "LSASS Memory".into(),
+            }],
+            telemetry: vec![],
+            detections: vec![],
+            noise: 80,
+        };
+        let yaml = rule_for(&e, kb::Platform::WindowsSysmon, "2026-07-29");
+        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(
+            v["title"].as_str(),
+            Some("Dump credentials: full LSASS memory")
+        );
+        assert_eq!(v["level"].as_str(), Some("critical")); // noise 80 -> Critical
     }
 }

@@ -22,7 +22,7 @@ mod sigma;
 mod sigma_eval;
 mod theme;
 
-use std::io::{IsTerminal, Read};
+use std::io::{IsTerminal, Read, Write};
 use std::process::ExitCode;
 
 use clap::Parser;
@@ -219,6 +219,8 @@ fn emit_scaffold(entries: &[&model::KbEntry], platform: kb::Platform) {
         "{}",
         scaffold::rules_for(entries, platform, &scaffold::today())
     );
+    // Flush stdout before the stderr note so combined streams stay ordered.
+    let _ = std::io::stdout().flush();
     eprintln!("opseclint: scaffolded {} starter rule(s)", entries.len());
 }
 
