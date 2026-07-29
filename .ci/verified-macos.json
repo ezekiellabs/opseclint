@@ -1,0 +1,758 @@
+{
+  "platform": "macos",
+  "rules_indexed": 124,
+  "results": [
+    {
+      "id": "arp",
+      "description": "ARP cache enumeration — adjacent host discovery",
+      "techniques": [
+        "T1018"
+      ],
+      "claimed": [
+        "Remote system discovery via arp (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "base64-decode",
+      "description": "Base64 decoding — deobfuscation of payloads",
+      "techniques": [
+        "T1140"
+      ],
+      "claimed": [
+        "Base64 decode (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "clipboard-capture",
+      "description": "Reading the clipboard — collection",
+      "techniques": [
+        "T1115"
+      ],
+      "claimed": [
+        "Clipboard read via pbpaste (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "crontab-persist",
+      "description": "Cron job listing or installation — scheduled-task persistence",
+      "techniques": [
+        "T1053.003"
+      ],
+      "claimed": [
+        "Cron persistence via crontab (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "ditto-archive",
+      "description": "Archiving data via ditto — collection prior to exfiltration",
+      "techniques": [
+        "T1560.001"
+      ],
+      "claimed": [
+        "Data archived via ditto (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "dscl-groups",
+      "description": "Local group enumeration via dscl",
+      "techniques": [
+        "T1069.001"
+      ],
+      "claimed": [
+        "Local group discovery via dscl (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "gatekeeper-disable",
+      "description": "Disabling Gatekeeper via spctl --master-disable — defense evasion",
+      "techniques": [
+        "T1553.001"
+      ],
+      "claimed": [
+        "Gatekeeper disabled via spctl (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "hidden-user",
+      "description": "Creating an account with IsHidden — hidden local user for persistence",
+      "techniques": [
+        "T1564.002"
+      ],
+      "claimed": [
+        "Hidden user creation via dscl (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "keychain-dump",
+      "description": "Dumping the login keychain — credential access",
+      "techniques": [
+        "T1555.001"
+      ],
+      "claimed": [
+        "Keychain dump via security (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "keychain-find",
+      "description": "Extracting a stored secret via security find-*-password",
+      "techniques": [
+        "T1555.001"
+      ],
+      "claimed": [
+        "Keychain secret extraction (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "launch-agent-persist",
+      "description": "Writing a LaunchAgent plist — user logon persistence",
+      "techniques": [
+        "T1543.001"
+      ],
+      "claimed": [
+        "LaunchAgent persistence (file_event_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "launch-daemon-persist",
+      "description": "Writing a LaunchDaemon plist — system-wide persistence",
+      "techniques": [
+        "T1543.004"
+      ],
+      "claimed": [
+        "LaunchDaemon persistence (file_event_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "mdfind",
+      "description": "Spotlight-backed file search — file and directory discovery",
+      "techniques": [
+        "T1083"
+      ],
+      "claimed": [
+        "Spotlight file discovery (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "netcat",
+      "description": "Raw TCP/UDP connection via nc — potential C2 or exfil channel",
+      "techniques": [
+        "T1095",
+        "T1071"
+      ],
+      "claimed": [
+        "Netcat execution (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "osascript-phish",
+      "description": "AppleScript password prompt (display dialog … with hidden answer) — GUI credential phishing",
+      "techniques": [
+        "T1056.002"
+      ],
+      "claimed": [
+        "osascript credential prompt (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "osascript-shell",
+      "description": "AppleScript spawning a shell (do shell script) — often privilege prompt abuse",
+      "techniques": [
+        "T1059.002"
+      ],
+      "claimed": [
+        "AppleScript do shell script (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "periodic-persist",
+      "description": "Dropping a periodic script — scheduled-task persistence",
+      "techniques": [
+        "T1053.003"
+      ],
+      "claimed": [
+        "Periodic script persistence (file_event_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "quarantine-removal",
+      "description": "Removing the quarantine attribute — Gatekeeper bypass",
+      "techniques": [
+        "T1553.001"
+      ],
+      "claimed": [
+        "Quarantine attribute removal (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "reverse-shell-devtcp",
+      "description": "Bash /dev/tcp reverse shell — interactive C2 channel",
+      "techniques": [
+        "T1059.004",
+        "T1071"
+      ],
+      "claimed": [
+        "Reverse shell via /dev/tcp (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "screencapture",
+      "description": "Screen capture — collection",
+      "techniques": [
+        "T1113"
+      ],
+      "claimed": [
+        "Screen capture via screencapture (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "spctl-status",
+      "description": "Querying Gatekeeper assessment status — security-software discovery",
+      "techniques": [
+        "T1518.001"
+      ],
+      "claimed": [
+        "Gatekeeper status query (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "sw-vers",
+      "description": "macOS version fingerprinting",
+      "techniques": [
+        "T1082"
+      ],
+      "claimed": [
+        "System information discovery (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "system-profiler",
+      "description": "Detailed system/hardware inventory",
+      "techniques": [
+        "T1082"
+      ],
+      "claimed": [
+        "system_profiler execution (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "tar-archive",
+      "description": "Archiving data — collection prior to exfiltration",
+      "techniques": [
+        "T1560.001"
+      ],
+      "claimed": [
+        "Data archived via tar (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "ard-kickstart",
+      "description": "Enabling Apple Remote Desktop via kickstart — remote-management foothold",
+      "techniques": [
+        "T1021.005"
+      ],
+      "claimed": [
+        "Remote Management enabled via kickstart (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "authorized-keys",
+      "description": "Modification of SSH authorized_keys — remote-access persistence",
+      "techniques": [
+        "T1098.004"
+      ],
+      "claimed": [
+        "authorized_keys modification (file_event_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "browser-cookies",
+      "description": "Reading Safari's binary cookie store — session-cookie theft",
+      "techniques": [
+        "T1539"
+      ],
+      "claimed": [
+        "Browser cookie store access (file_event_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "chflags-hidden",
+      "description": "Setting the hidden flag — hide artifacts from Finder",
+      "techniques": [
+        "T1564.001"
+      ],
+      "claimed": [
+        "File hidden via chflags (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "chflags-uchg",
+      "description": "Setting the immutable (uchg) flag — protect a dropped artifact",
+      "techniques": [
+        "T1222.002"
+      ],
+      "claimed": [
+        "Immutable flag set via chflags (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "chmod-exec",
+      "description": "Making a file executable — staging a dropped payload",
+      "techniques": [
+        "T1222.002"
+      ],
+      "claimed": [
+        "Executable bit set via chmod (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "chrome-logindata",
+      "description": "Reading Chrome's Login Data store — saved-credential theft",
+      "techniques": [
+        "T1555.003"
+      ],
+      "claimed": [
+        "Web-browser credential store access (file_event_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "dseditgroup-admin",
+      "description": "Group membership modification (e.g. adding to admin) via dseditgroup",
+      "techniques": [
+        "T1098"
+      ],
+      "claimed": [
+        "Admin group modification via dseditgroup (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "dyld-insert",
+      "description": "DYLD_INSERT_LIBRARIES injection — dynamic-linker hijacking",
+      "techniques": [
+        "T1574.006"
+      ],
+      "claimed": [
+        "DYLD_INSERT_LIBRARIES injection (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "firewall-disable",
+      "description": "Disabling the application firewall via socketfilterfw — defense impairment",
+      "techniques": [
+        "T1562.004"
+      ],
+      "claimed": [
+        "Application firewall disable (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "history-clear",
+      "description": "Shell command-history clearing — anti-forensics",
+      "techniques": [
+        "T1070.003"
+      ],
+      "claimed": [
+        "Command history clearing (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "id",
+      "description": "User and group identity discovery",
+      "techniques": [
+        "T1033"
+      ],
+      "claimed": [
+        "System owner discovery (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "kextload",
+      "description": "Loading a kernel extension — potential rootkit / persistence",
+      "techniques": [
+        "T1547.006"
+      ],
+      "claimed": [
+        "Kernel extension load (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "login-items-persist",
+      "description": "Adding a Login Item — logon persistence",
+      "techniques": [
+        "T1547.015"
+      ],
+      "claimed": [
+        "Login item persistence (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "loginhook-persist",
+      "description": "Setting a LoginHook via com.apple.loginwindow — logon persistence",
+      "techniques": [
+        "T1037.002"
+      ],
+      "claimed": [
+        "LoginHook persistence (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "pfctl-disable",
+      "description": "Disabling the packet filter via pfctl -d — defense impairment",
+      "techniques": [
+        "T1562.004"
+      ],
+      "claimed": [
+        "Packet filter disable via pfctl (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "private-key-ed25519",
+      "description": "Access to an SSH Ed25519 private key — unsecured credentials",
+      "techniques": [
+        "T1552.004"
+      ],
+      "claimed": [
+        "SSH private key access (file_event_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "private-key-ssh",
+      "description": "Access to an SSH RSA private key — unsecured credentials",
+      "techniques": [
+        "T1552.004"
+      ],
+      "claimed": [
+        "SSH private key access (file_event_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "ps",
+      "description": "Running process discovery",
+      "techniques": [
+        "T1057"
+      ],
+      "claimed": [
+        "Process discovery via ps (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "python-c",
+      "description": "Inline Python execution — common for one-liner payloads",
+      "techniques": [
+        "T1059.006"
+      ],
+      "claimed": [
+        "Inline Python execution (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "screensharing-enable",
+      "description": "Enabling the Screen Sharing (VNC) service — remote-access foothold",
+      "techniques": [
+        "T1021.005"
+      ],
+      "claimed": [
+        "Screen Sharing service enabled (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "shell-profile-persist",
+      "description": "Modifying a shell rc file (.zshrc) — logon persistence",
+      "techniques": [
+        "T1546.004"
+      ],
+      "claimed": [
+        "Shell profile modification (file_event_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "sip-disable",
+      "description": "Disabling System Integrity Protection — defense evasion",
+      "techniques": [
+        "T1562.001"
+      ],
+      "claimed": [
+        "SIP disabled via csrutil (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "ssh-lateral",
+      "description": "Interactive SSH — potential lateral movement",
+      "techniques": [
+        "T1021.004"
+      ],
+      "claimed": [
+        "Interactive SSH session (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "sudo-l",
+      "description": "Enumeration of the current user's sudo privileges",
+      "techniques": [
+        "T1069"
+      ],
+      "claimed": [
+        "sudo -l privilege enumeration (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "tcc-tamper",
+      "description": "Direct access to the TCC database — privacy/permission control bypass",
+      "techniques": [
+        "T1548.006"
+      ],
+      "claimed": [
+        "TCC database manipulation (file_event_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "unified-log-erase",
+      "description": "Erasing the unified log — anti-forensics",
+      "techniques": [
+        "T1070.002"
+      ],
+      "claimed": [
+        "Unified log erase (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "whoami",
+      "description": "Current user discovery",
+      "techniques": [
+        "T1033"
+      ],
+      "claimed": [
+        "System owner discovery (proc_creation_macos)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "curl",
+      "description": "Remote file transfer / HTTP client — tool ingress or exfil",
+      "techniques": [
+        "T1105"
+      ],
+      "claimed": [
+        "File transfer via curl (proc_creation_macos)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "emond-persist",
+      "description": "Writing an emond rule — event-monitor persistence",
+      "techniques": [
+        "T1546.014"
+      ],
+      "claimed": [
+        "Emond rule persistence (file_event_macos)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "networksetup",
+      "description": "Network configuration discovery / modification",
+      "techniques": [
+        "T1016"
+      ],
+      "claimed": [
+        "Network configuration discovery (proc_creation_macos)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "osascript",
+      "description": "Inline AppleScript execution",
+      "techniques": [
+        "T1059.002"
+      ],
+      "claimed": [
+        "Inline AppleScript execution (proc_creation_macos)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "python-http-server",
+      "description": "Ad-hoc HTTP server — data staging / exfiltration channel",
+      "techniques": [
+        "T1105",
+        "T1567"
+      ],
+      "claimed": [
+        "Ad-hoc Python HTTP server (proc_creation_macos)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "scp-exfil",
+      "description": "File transfer over SSH — ingress or exfiltration",
+      "techniques": [
+        "T1105",
+        "T1048"
+      ],
+      "claimed": [
+        "File transfer via scp (proc_creation_macos)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "shadowhash-dump",
+      "description": "Reading ShadowHashData via dscl — local password-hash extraction",
+      "techniques": [
+        "T1003"
+      ],
+      "claimed": [
+        "ShadowHashData dump via dscl (proc_creation_macos)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "creds-in-files",
+      "description": "Grepping the filesystem for passwords — credential hunting",
+      "techniques": [
+        "T1552.001"
+      ],
+      "claimed": [
+        "Credential search in files (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Credentials In Files"
+      ]
+    },
+    {
+      "id": "dscl-create-user",
+      "description": "Local account creation via dscl — persistence",
+      "techniques": [
+        "T1136.001"
+      ],
+      "claimed": [
+        "Local account creation via dscl (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Creation Of A Local User Account"
+      ]
+    },
+    {
+      "id": "dscl-list-users",
+      "description": "Local account enumeration via dscl",
+      "techniques": [
+        "T1087.001"
+      ],
+      "claimed": [
+        "Local account discovery via dscl (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Local System Accounts Discovery - MacOs"
+      ]
+    },
+    {
+      "id": "last-login",
+      "description": "Login history enumeration",
+      "techniques": [
+        "T1087.001"
+      ],
+      "claimed": [
+        "Login history discovery (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Local System Accounts Discovery - MacOs"
+      ]
+    },
+    {
+      "id": "launchctl-load",
+      "description": "Loading a launchd job — persistence / execution",
+      "techniques": [
+        "T1543.001",
+        "T1569.001"
+      ],
+      "claimed": [
+        "launchctl job load (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Launch Agent/Daemon Execution Via Launchctl"
+      ]
+    },
+    {
+      "id": "lsof-net",
+      "description": "Open network socket enumeration via lsof -i",
+      "techniques": [
+        "T1049"
+      ],
+      "claimed": [
+        "Network connection discovery (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "System Network Connections Discovery - MacOs"
+      ]
+    },
+    {
+      "id": "netstat",
+      "description": "Network connection discovery",
+      "techniques": [
+        "T1049"
+      ],
+      "claimed": [
+        "Network connection discovery (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "System Network Connections Discovery - MacOs"
+      ]
+    }
+  ]
+}

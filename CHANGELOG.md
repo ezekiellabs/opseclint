@@ -8,6 +8,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`--verify-detections`** — prove the knowledge base's own Sigma detection
+  claims against a real ruleset. For every entry that cites a Sigma detection,
+  opseclint synthesizes a representative command and checks whether a genuine
+  SigmaHQ rule for the entry's technique(s) actually fires, classifying each as
+  `verified` / `unverified` / `indeterminate` / `no-rule`. Audits the KB itself
+  (no input needed); honors `--json` (snapshot) and `--diff` (regression). A new
+  CI job runs it per platform against a fresh SigmaHQ checkout as a regression
+  gate: `--ci` fails when a previously-verified detection stops firing (diff
+  mode) or when any claimed detection is contradicted (standalone). Baselines
+  live in `.ci/verified-<platform>.json`.
+
 - **`--scaffold`** — generate a starter Sigma rule for each modeled action,
   with detection logic mirroring how opseclint matches it. Paired with
   `--coverage-gaps`, it scaffolds only the blind-spot actions, closing the

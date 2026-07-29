@@ -21,6 +21,7 @@ mod scaffold;
 mod sigma;
 mod sigma_eval;
 mod theme;
+mod verify;
 
 use std::io::{IsTerminal, Read, Write};
 use std::process::ExitCode;
@@ -125,6 +126,19 @@ struct Cli {
     )]
     scaffold: bool,
 
+    /// Verify the knowledge base's own Sigma detection claims against a real
+    /// ruleset (--sigma): for each entry claiming a Sigma detection, check that
+    /// a genuine rule for its technique(s) actually fires. Audits the KB itself,
+    /// so it needs no input. Honors --json (snapshot) and --diff (regression);
+    /// with --ci, fails on unverified claims — or, with --diff, on regressions.
+    #[arg(
+        long,
+        requires = "sigma",
+        conflicts_with_all = ["sarif", "coverage_gaps", "check_rule", "navigator", "scaffold"],
+        help_heading = "Modes"
+    )]
+    verify_detections: bool,
+
     /// Compare this run against a previously saved --json report and show the
     /// coverage delta. On its own, diffs findings (added / removed / changed);
     /// with --coverage-gaps, diffs blind spots (closed / opened). Honors --json.
@@ -224,8 +238,91 @@ fn emit_scaffold(entries: &[&model::KbEntry], platform: kb::Platform) {
     eprintln!("opseclint: scaffolded {} starter rule(s)", entries.len());
 }
 
+/// Verify the knowledge base's Sigma detection claims against a real ruleset.
+/// Audits the KB itself (no input required); a claimed detection that a genuine
+/// rule for the entry's technique(s) does not fire on is surfaced as unverified.
+fn run_verify(cli: &Cli) -> ExitCode {
+    let kb = match kb::load(cli.platform) {
+        Ok(k) => k,
+        Err(e) => {
+            eprintln!("opseclint: failed to load knowledge base: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let dir = cli.sigma.as_deref().expect("clap requires --sigma");
+    let index = match sigma::load_cached(
+        std::path::Path::new(dir),
+        cli.platform.sigma_product(),
+        !cli.no_sigma_cache,
+    ) {
+        Ok((i, _from_cache)) => i,
+        Err(e) => {
+            eprintln!("opseclint: could not read sigma dir '{dir}': {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let current = verify::verify(&kb, &index, cli.platform);
+    let color = !cli.no_color && std::io::stdout().is_terminal();
+
+    // --diff: regression gate against a saved snapshot.
+    if let Some(baseline_path) = &cli.diff {
+        let baseline: verify::VerifyReport = match std::fs::read_to_string(baseline_path)
+            .map_err(|e| e.to_string())
+            .and_then(|s| serde_json::from_str(&s).map_err(|e| e.to_string()))
+        {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!(
+                    "opseclint: could not read baseline '{baseline_path}': {e} \
+                     (expected a file saved with --verify-detections --json)"
+                );
+                return ExitCode::from(2);
+            }
+        };
+        let delta = verify::compute_delta(&baseline, &current);
+        if cli.json {
+            println!("{}", verify::render_delta_json(&delta));
+        } else {
+            print!("{}", verify::render_delta(&delta, color));
+        }
+        if cli.ci && delta.has_regressed() {
+            if !cli.json {
+                eprintln!(
+                    "\nopseclint: CI gate failed — a verified detection regressed from the baseline"
+                );
+            }
+            return ExitCode::from(1);
+        }
+        return ExitCode::SUCCESS;
+    }
+
+    if cli.json {
+        println!("{}", verify::render_json(&current));
+    } else {
+        print!("{}", verify::render(&current, color));
+    }
+    // Without a baseline, --ci fails when any claimed detection is contradicted
+    // (a real rule for the technique exists but none fire on the command).
+    let unverified = current.count(verify::Status::Unverified);
+    if cli.ci && unverified > 0 {
+        if !cli.json {
+            eprintln!(
+                "\nopseclint: CI gate failed — {unverified} claimed detection(s) do not fire"
+            );
+        }
+        return ExitCode::from(1);
+    }
+    ExitCode::SUCCESS
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
+
+    // --verify-detections audits the knowledge base itself; it needs no input,
+    // so handle it before the no-input banner would otherwise short-circuit.
+    if cli.verify_detections {
+        return run_verify(&cli);
+    }
 
     // With no input on an interactive terminal, greet with the banner instead
     // of blocking on a stdin read that will never arrive. Require both stdin and

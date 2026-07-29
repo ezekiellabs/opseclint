@@ -95,3 +95,38 @@ jobs:
             echo "::error::no findings were enriched from the live SigmaHQ ruleset"
             exit 1
           fi
+
+  verify-detections:
+    name: verify detections
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Clone the SigmaHQ ruleset
+        run: git clone --depth 1 https://github.com/SigmaHQ/sigma.git sigma-rules
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Verify KB detection claims against SigmaHQ (regression gate)
+        run: |
+          # For each platform, prove the knowledge base's Sigma detection claims
+          # against the live ruleset and fail if any previously-verified detection
+          # regressed vs the committed baseline (.ci/verified-<platform>.json).
+          # When SigmaHQ upstream legitimately shifts a verdict, regenerate the
+          # baseline: opseclint --verify-detections --sigma sigma-rules/rules \
+          #   --platform <p> --json > .ci/verified-<p>.json
+          fail=0
+          for plat in linux windows macos; do
+            echo "== $plat =="
+            ./target/release/opseclint --verify-detections \
+              --sigma sigma-rules/rules --platform "$plat" \
+              --diff ".ci/verified-$plat.json" --ci --no-color || fail=1
+          done
+          exit $fail
