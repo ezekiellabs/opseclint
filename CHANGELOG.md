@@ -32,6 +32,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   per platform (navigation, dev/build tooling, log reads) produces zero
   findings, guarding against knowledge-base false positives.
 
+- **Structured matcher `regex` leaf** — knowledge-base entries can now key on a
+  regular expression (in `args`, `line`, or a positional/`joined` leaf) when the
+  fixed leaves can't express the shape. Patterns compile at load (invalid = load
+  error) and match case-insensitively; an entry that uses one must supply an
+  `example` command, which also drives verification and scaffolding (`--scaffold`
+  lowers it to a Sigma `CommandLine|re`). Used to fold the whole PowerShell
+  `-WindowStyle Hidden` abbreviation family into one `powershell-hidden` rule.
+
 ### Fixed
 
 - **EDR classifier re-audit** — after the knowledge base was deepened, the

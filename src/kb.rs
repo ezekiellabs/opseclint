@@ -34,12 +34,17 @@ impl Platform {
     }
 }
 
-/// Load the embedded knowledge base for a platform.
+/// Load the embedded knowledge base for a platform. Deserialization is followed
+/// by a semantic validation pass (see [`KnowledgeBase::validate`]); a violation
+/// is surfaced as a deserialization error.
 pub fn load(platform: Platform) -> Result<KnowledgeBase, serde_json::Error> {
+    use serde::de::Error as _;
     let raw = match platform {
         Platform::LinuxAuditd => EMBEDDED_LINUX,
         Platform::WindowsSysmon => EMBEDDED_WINDOWS,
         Platform::MacosEs => EMBEDDED_MACOS,
     };
-    serde_json::from_str(raw)
+    let kb: KnowledgeBase = serde_json::from_str(raw)?;
+    kb.validate().map_err(serde_json::Error::custom)?;
+    Ok(kb)
 }

@@ -107,10 +107,10 @@ fn claimed_rules(entry: &KbEntry) -> Vec<String> {
 }
 
 /// Build a representative command for a KB entry: a synthetic command line the
-/// entry's matcher would match (program plus the literals it keys on), so the
-/// synthesized event carries what a real rule would look for.
+/// entry matches (its `example`, or one derived from the matcher's literals), so
+/// the synthesized event carries what a real rule would look for.
 fn representative_command(entry: &KbEntry) -> Option<Command> {
-    let line = entry.matcher.representative_line()?;
+    let line = entry.representative_line()?;
     parser::parse_line(&line).into_iter().next()
 }
 
@@ -382,6 +382,7 @@ mod tests {
         KbEntry {
             id: id.into(),
             matcher,
+            example: None,
             description: format!("{id} description"),
             techniques: vec![Technique {
                 id: tech.into(),

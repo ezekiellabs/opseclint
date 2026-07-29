@@ -79,6 +79,8 @@ pub enum ArgPred {
     /// A leaf string match against all arguments joined by spaces — for a phrase
     /// that spans several argument tokens, e.g. `process call create`.
     Joined(StrLeaf),
+    /// Some argument matches this regular expression (case-insensitive).
+    Regex(Re),
 }
 
 /// A positional argument match: the argument at `index` must satisfy `value`.
@@ -104,6 +106,8 @@ pub enum LinePred {
     Prefix(String),
     /// The line ends with this string.
     Suffix(String),
+    /// The line matches this regular expression (case-insensitive).
+    Regex(Re),
 }
 
 /// A leaf string match against a single value (used by `at` and `joined`).
@@ -115,6 +119,45 @@ pub enum StrLeaf {
     Prefix(String),
     Suffix(String),
     Word(String),
+    /// A regular expression (case-insensitive) the value must match.
+    Regex(Re),
+}
+
+/// A compiled regular expression, deserialized from its source string. The
+/// pattern is compiled once at knowledge-base load — an invalid pattern is a
+/// load-time error, not a silent no-match — and matched case-insensitively for
+/// consistency with the other leaves. Author-facing: an entry that uses a
+/// `regex` leaf must also carry an `example`, since a pattern (unlike a literal)
+/// cannot be reversed into a representative command (see `KbEntry::example`).
+#[derive(Debug, Clone)]
+pub struct Re {
+    src: String,
+    re: regex::Regex,
+}
+
+impl Re {
+    fn is_match(&self, value: &str) -> bool {
+        self.re.is_match(value)
+    }
+
+    /// The original pattern source (for scaffolding a Sigma `|re` selection).
+    pub fn as_str(&self) -> &str {
+        &self.src
+    }
+}
+
+impl<'de> Deserialize<'de> for Re {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let src = String::deserialize(deserializer)?;
+        let re = regex::RegexBuilder::new(&src)
+            .case_insensitive(true)
+            .build()
+            .map_err(serde::de::Error::custom)?;
+        Ok(Re { src, re })
+    }
 }
 
 // --- matching engine -------------------------------------------------------
@@ -186,6 +229,18 @@ impl ArgPred {
             ArgPred::PathUnder(base) => args.iter().any(|a| path_under(a, base)),
             ArgPred::At(pos) => args.get(pos.index).is_some_and(|a| pos.value.eval(a)),
             ArgPred::Joined(leaf) => leaf.eval(&args.join(" ")),
+            ArgPred::Regex(re) => args.iter().any(|a| re.is_match(a)),
+        }
+    }
+
+    fn has_regex(&self) -> bool {
+        match self {
+            ArgPred::All(v) | ArgPred::Any(v) => v.iter().any(ArgPred::has_regex),
+            ArgPred::Not(p) => p.has_regex(),
+            ArgPred::At(pos) => pos.value.is_regex(),
+            ArgPred::Joined(leaf) => leaf.is_regex(),
+            ArgPred::Regex(_) => true,
+            _ => false,
         }
     }
 }
@@ -200,6 +255,16 @@ impl LinePred {
             LinePred::Word(s) => word_match(line, s),
             LinePred::Prefix(s) => starts_with_ci(line, s),
             LinePred::Suffix(s) => ends_with_ci(line, s),
+            LinePred::Regex(re) => re.is_match(line),
+        }
+    }
+
+    fn has_regex(&self) -> bool {
+        match self {
+            LinePred::All(v) | LinePred::Any(v) => v.iter().any(LinePred::has_regex),
+            LinePred::Not(p) => p.has_regex(),
+            LinePred::Regex(_) => true,
+            _ => false,
         }
     }
 }
@@ -212,7 +277,12 @@ impl StrLeaf {
             StrLeaf::Prefix(s) => starts_with_ci(value, s),
             StrLeaf::Suffix(s) => ends_with_ci(value, s),
             StrLeaf::Word(s) => word_match(value, s),
+            StrLeaf::Regex(re) => re.is_match(value),
         }
+    }
+
+    fn is_regex(&self) -> bool {
+        matches!(self, StrLeaf::Regex(_))
     }
 }
 
@@ -297,6 +367,26 @@ impl Matcher {
             collect_line_terms(l, &mut terms);
         }
         terms
+    }
+
+    /// The regex patterns a mirroring Sigma `CommandLine|re` selection should
+    /// test — the source of every `regex` leaf in the `args` and `line` trees.
+    pub fn commandline_regexes(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        if let Some(a) = &self.args {
+            collect_arg_regexes(a, &mut out);
+        }
+        if let Some(l) = &self.line {
+            collect_line_regexes(l, &mut out);
+        }
+        out
+    }
+
+    /// Whether any leaf in this matcher is a `regex`. Such an entry cannot derive
+    /// its own representative from literals, so it must carry an `example`.
+    pub fn has_regex(&self) -> bool {
+        self.args.as_ref().is_some_and(ArgPred::has_regex)
+            || self.line.as_ref().is_some_and(LinePred::has_regex)
     }
 
     /// A representative command line that this matcher would match, for
@@ -390,8 +480,17 @@ fn collect_arg_repr(
         | ArgPred::Suffix(s)
         | ArgPred::Word(s)
         | ArgPred::PathUnder(s) => floating.push(s.clone()),
-        ArgPred::At(pos) => positional.push((pos.index, str_leaf_literal(&pos.value))),
-        ArgPred::Joined(leaf) => floating.push(str_leaf_literal(leaf)),
+        ArgPred::At(pos) => {
+            if let Some(lit) = str_leaf_literal(&pos.value) {
+                positional.push((pos.index, lit));
+            }
+        }
+        ArgPred::Joined(leaf) => {
+            if let Some(lit) = str_leaf_literal(leaf) {
+                floating.push(lit);
+            }
+        }
+        ArgPred::Regex(_) => {}
     }
 }
 
@@ -413,8 +512,9 @@ fn collect_arg_terms(pred: &ArgPred, out: &mut Vec<String>) {
         | ArgPred::Suffix(s)
         | ArgPred::Word(s)
         | ArgPred::PathUnder(s) => out.push(s.clone()),
-        ArgPred::At(pos) => out.push(str_leaf_literal(&pos.value)),
-        ArgPred::Joined(leaf) => out.push(str_leaf_literal(leaf)),
+        ArgPred::At(pos) => out.extend(str_leaf_literal(&pos.value)),
+        ArgPred::Joined(leaf) => out.extend(str_leaf_literal(leaf)),
+        ArgPred::Regex(_) => {}
     }
 }
 
@@ -431,16 +531,47 @@ fn collect_line_terms(pred: &LinePred, out: &mut Vec<String>) {
         LinePred::Contains(s) | LinePred::Word(s) | LinePred::Prefix(s) | LinePred::Suffix(s) => {
             out.push(s.clone())
         }
+        LinePred::Regex(_) => {}
     }
 }
 
-fn str_leaf_literal(leaf: &StrLeaf) -> String {
+/// Collect the source of every `regex` leaf in an argument predicate.
+fn collect_arg_regexes(pred: &ArgPred, out: &mut Vec<String>) {
+    match pred {
+        ArgPred::All(v) | ArgPred::Any(v) => v.iter().for_each(|p| collect_arg_regexes(p, out)),
+        ArgPred::Not(p) => collect_arg_regexes(p, out),
+        ArgPred::At(pos) => {
+            if let StrLeaf::Regex(re) = &pos.value {
+                out.push(re.as_str().to_string());
+            }
+        }
+        ArgPred::Joined(StrLeaf::Regex(re)) | ArgPred::Regex(re) => {
+            out.push(re.as_str().to_string())
+        }
+        _ => {}
+    }
+}
+
+/// Collect the source of every `regex` leaf in a line predicate.
+fn collect_line_regexes(pred: &LinePred, out: &mut Vec<String>) {
+    match pred {
+        LinePred::All(v) | LinePred::Any(v) => v.iter().for_each(|p| collect_line_regexes(p, out)),
+        LinePred::Not(p) => collect_line_regexes(p, out),
+        LinePred::Regex(re) => out.push(re.as_str().to_string()),
+        _ => {}
+    }
+}
+
+/// The literal a leaf keys on, or `None` for a `regex` leaf (a pattern cannot be
+/// reversed into a literal — such entries rely on `KbEntry::example`).
+fn str_leaf_literal(leaf: &StrLeaf) -> Option<String> {
     match leaf {
         StrLeaf::Eq(s)
         | StrLeaf::Contains(s)
         | StrLeaf::Prefix(s)
         | StrLeaf::Suffix(s)
-        | StrLeaf::Word(s) => s.clone(),
+        | StrLeaf::Word(s) => Some(s.clone()),
+        StrLeaf::Regex(_) => None,
     }
 }
 
@@ -574,5 +705,51 @@ mod tests {
         // A typo'd axis must fail loudly rather than silently match nothing.
         let err = serde_json::from_str::<Matcher>(r#"{ "programm": "curl" }"#);
         assert!(err.is_err());
+    }
+
+    #[test]
+    fn regex_leaf_on_line_and_args() {
+        // Line regex, case-insensitive, anchored with a word boundary.
+        let line = m(r#"{ "line": { "regex": "-w\\s+(hidden|1)\\b" } }"#);
+        assert!(matches(&line, "powershell -w hidden -enc AA=="));
+        assert!(matches(&line, "powershell -W HIDDEN")); // case-insensitive
+        assert!(matches(&line, "powershell -w 1"));
+        assert!(!matches(&line, "echo -w hiddenish")); // \b stops the partial word
+
+        // Arg regex is existential over the argument vector.
+        let args = m(r#"{ "program": "dd", "args": { "regex": "^if=/dev/sd[a-z]$" } }"#);
+        assert!(matches(&args, "dd if=/dev/sda of=/tmp/x"));
+        assert!(!matches(&args, "dd if=/tmp/file of=/dev/null"));
+    }
+
+    #[test]
+    fn regex_composes_with_other_leaves() {
+        // The powershell-hidden shape: a regex ANDed with contains leaves.
+        let matcher = m(r#"{ "line": { "all": [
+            { "any": [ {"contains": "powershell"}, {"contains": "pwsh"} ] },
+            { "regex": "-w(?:indowstyle|in|i)?\\s+hidden\\b" }
+        ] } }"#);
+        assert!(matches(&matcher, "powershell -windowstyle hidden"));
+        assert!(matches(&matcher, "cmd /c pwsh -w hidden"));
+        assert!(!matches(&matcher, "cmd /c echo -w hidden")); // no powershell token
+        assert!(matcher.has_regex());
+    }
+
+    #[test]
+    fn invalid_regex_is_a_load_time_error() {
+        // A bad pattern must fail at deserialization, not silently never match.
+        let err = serde_json::from_str::<Matcher>(r#"{ "line": { "regex": "-w(" } }"#);
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn regex_sources_surface_for_scaffolding() {
+        // `commandline_regexes` feeds the Sigma `CommandLine|re` scaffold; regex
+        // leaves contribute no literal to `commandline_terms`.
+        let matcher = m(r#"{ "line": { "all": [
+            { "contains": "powershell" }, { "regex": "-w\\s+hidden" }
+        ] } }"#);
+        assert_eq!(matcher.commandline_terms(), vec!["powershell"]);
+        assert_eq!(matcher.commandline_regexes(), vec!["-w\\s+hidden"]);
     }
 }
