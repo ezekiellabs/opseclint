@@ -17,11 +17,12 @@ mod navigator;
 mod parser;
 mod report;
 mod sarif;
+mod scaffold;
 mod sigma;
 mod sigma_eval;
 mod theme;
 
-use std::io::{IsTerminal, Read};
+use std::io::{IsTerminal, Read, Write};
 use std::process::ExitCode;
 
 use clap::Parser;
@@ -114,6 +115,16 @@ struct Cli {
     )]
     coverage_gaps: bool,
 
+    /// Scaffold a starter Sigma rule for each modeled action (multi-doc YAML to
+    /// stdout). With --coverage-gaps, scaffolds only the blind-spot actions,
+    /// closing the loop from a coverage gap to a rule that would fire on it.
+    #[arg(
+        long,
+        conflicts_with_all = ["json", "sarif", "navigator", "check_rule", "diff"],
+        help_heading = "Modes"
+    )]
+    scaffold: bool,
+
     /// Compare this run against a previously saved --json report and show the
     /// coverage delta. On its own, diffs findings (added / removed / changed);
     /// with --coverage-gaps, diffs blind spots (closed / opened). Honors --json.
@@ -198,6 +209,21 @@ fn run_check_rule(cli: &Cli, rule_path: &str, input: &str) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// Emit scaffolded Sigma rules (YAML) for `entries` to stdout, with a stderr note.
+fn emit_scaffold(entries: &[&model::KbEntry], platform: kb::Platform) {
+    if entries.is_empty() {
+        eprintln!("opseclint: no actions to scaffold");
+        return;
+    }
+    print!(
+        "{}",
+        scaffold::rules_for(entries, platform, &scaffold::today())
+    );
+    // Flush stdout before the stderr note so combined streams stay ordered.
+    let _ = std::io::stdout().flush();
+    eprintln!("opseclint: scaffolded {} starter rule(s)", entries.len());
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
@@ -254,6 +280,17 @@ fn main() -> ExitCode {
             }
         };
         let results = coverage::analyze(&report, &index, cli.platform);
+
+        // --coverage-gaps + --scaffold: emit a starter rule for each blind spot.
+        if cli.scaffold {
+            let gap_ids: Vec<&str> = results
+                .iter()
+                .filter(|r| r.coverage == coverage::Coverage::Gap)
+                .map(|r| r.rule_id.as_str())
+                .collect();
+            emit_scaffold(&scaffold::entries_by_ids(&kb, &gap_ids), cli.platform);
+            return ExitCode::SUCCESS;
+        }
         let color = !cli.no_color && std::io::stdout().is_terminal();
         let current = coverage::CoverageReport {
             platform: report.platform.clone(),
@@ -308,6 +345,13 @@ fn main() -> ExitCode {
         if cli.ci && coverage::gap_count(&current.results) > 0 {
             return ExitCode::from(1);
         }
+        return ExitCode::SUCCESS;
+    }
+
+    // --scaffold on its own: a starter rule for every modeled action found.
+    if cli.scaffold {
+        let ids: Vec<&str> = report.findings.iter().map(|f| f.rule_id.as_str()).collect();
+        emit_scaffold(&scaffold::entries_by_ids(&kb, &ids), cli.platform);
         return ExitCode::SUCCESS;
     }
 

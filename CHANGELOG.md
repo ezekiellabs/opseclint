@@ -8,9 +8,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`--scaffold`** — generate a starter Sigma rule for each modeled action,
+  with detection logic mirroring how opseclint matches it. Paired with
+  `--coverage-gaps`, it scaffolds only the blind-spot actions, closing the
+  loop from a coverage gap to a rule that would fire on it.
+
 - **`--navigator`** — emit an ATT&CK Navigator layer (JSON) of the techniques an
   input surfaces, scored by detectability, for import at the MITRE ATT&CK
   Navigator to visualize coverage on the matrix.
+
 - **Known-benign corpus test** — asserts a curated corpus of everyday commands
   per platform (navigation, dev/build tooling, log reads) produces zero
   findings, guarding against knowledge-base false positives.
