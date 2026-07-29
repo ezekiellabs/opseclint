@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: EzekielLabs.opseclint
+PackageVersion: 1.1.0
+Installers:
+  - Architecture: x64
+    InstallerType: zip
+    NestedInstallerType: portable
+    NestedInstallerFiles:
+      - RelativeFilePath: opseclint-v1.1.0-x86_64-pc-windows-msvc/opseclint.exe
+        PortableCommandAlias: opseclint
+    InstallerUrl: https://github.com/ezekiellabs/opseclint/releases/download/v1.1.0/opseclint-v1.1.0-x86_64-pc-windows-msvc.zip
+    InstallerSha256: 5FBA423F8246EC26AF4651D5F9FD7EDA087D27EDC6023769840BC910EB39CEAD
+ManifestType: installer
+ManifestVersion: 1.6.0

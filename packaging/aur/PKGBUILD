@@ -1,0 +1,20 @@
+# Maintainer: Your Name <you@example.com>
+# Destination: ssh://aur@aur.archlinux.org/opseclint-bin.git
+pkgname=opseclint-bin
+pkgver=1.1.0
+pkgrel=1
+pkgdesc="Detection-coverage analyzer: map shell/command actions to ATT&CK techniques, host telemetry, and the detections that would fire"
+arch=('x86_64')
+url="https://github.com/ezekiellabs/opseclint"
+license=('MIT')
+provides=('opseclint')
+conflicts=('opseclint')
+source=("opseclint-${pkgver}.tar.gz::https://github.com/ezekiellabs/opseclint/releases/download/v${pkgver}/opseclint-v${pkgver}-x86_64-unknown-linux-gnu.tar.gz")
+sha256sums=('18307d5fb97a15b60e0232d650676d82e00f20bc458525f91cd286c110a997e6')
+
+package() {
+    cd "${srcdir}/opseclint-v${pkgver}-x86_64-unknown-linux-gnu"
+    install -Dm755 opseclint "${pkgdir}/usr/bin/opseclint"
+    install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+    install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+}
