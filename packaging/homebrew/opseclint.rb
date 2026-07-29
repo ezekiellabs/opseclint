@@ -26,7 +26,10 @@ class Opseclint < Formula
   end
 
   def install
-    bin.install "opseclint"
+    # The archive nests the binary in a single opseclint-v<version>-<target>/
+    # directory; locate it explicitly so install works regardless of whether
+    # Homebrew has descended into that sole top-level directory.
+    bin.install Dir["**/opseclint"].first
   end
 
   test do
