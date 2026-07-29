@@ -166,6 +166,7 @@ opseclint app.ps1 --platform windows-sysmon   # analyze against Windows/Sysmon
 opseclint script.sh --min 50        # only show findings >= detectability 50
 opseclint script.sh --json          # machine-readable output
 opseclint script.sh --sarif         # SARIF 2.1.0 (GitHub code scanning)
+opseclint script.sh --navigator     # ATT&CK Navigator layer (JSON)
 opseclint script.sh --sigma ./sigma # enrich with a real SigmaHQ checkout
 opseclint script.sh --check-rule r.yml    # does this Sigma rule fire on each line?
 opseclint script.sh --sigma ./sigma --coverage-gaps   # which actions no rule catches
@@ -420,6 +421,7 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - [x] [EDR-specific telemetry mappings](#edr-telemetry---edr): CrowdStrike, Defender, SentinelOne, Elastic via `--edr`
 - [x] Linux/Windows KBs deepened with cloud, container/Kubernetes, LOLBin, and modern persistence/evasion coverage (83 / 83 entries)
 - [x] [Coverage diff](#coverage-diff---diff): compare a run against a saved report to see what coverage changed, via `--diff`
+- [x] ATT&CK Navigator layer export: visualize technique coverage on the MITRE matrix, via `--navigator`
 
 See the [open issues][issues-url] for the full list, and
 [CHANGELOG.md](CHANGELOG.md) for release history.
