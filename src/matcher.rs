@@ -1,8 +1,8 @@
 //! The structured matcher. A [`Matcher`] is a small, hand-authorable predicate
-//! over a parsed [`Command`] and its raw line, replacing the three ad-hoc
-//! substring fields (`command`/`args_contains`/`raw_contains`) that a
-//! knowledge-base entry used to carry. It describes *detectability* only — "what
-//! would a defender see?" — and encodes no evasion semantics.
+//! over a parsed [`Command`] and its raw line — the single matching schema a
+//! knowledge-base entry carries (under its `match` key). It describes
+//! *detectability* only — "what would a defender see?" — and encodes no evasion
+//! semantics.
 //!
 //! ## The three axes
 //! - `program` — who ran: an exact basename or an any-of set.
@@ -14,10 +14,6 @@
 //! (path-segment aware) exist to kill the substring false positives that plain
 //! `contains` produced — e.g. `/var/log` matching `cd /var/log`, or `id_rsa`
 //! matching `id_rsa_notes.txt`.
-//!
-//! Legacy entries are lowered into an equivalent `Matcher` at load time (see
-//! `KbEntry::compiled_matcher`), so the substring behavior is reproduced exactly
-//! and the knowledge bases can migrate incrementally.
 
 use serde::Deserialize;
 
@@ -80,8 +76,8 @@ pub enum ArgPred {
     PathUnder(String),
     /// The argument at a fixed position satisfies a leaf string match.
     At(PosMatch),
-    /// A leaf string match against all arguments joined by spaces. The
-    /// back-compatible lowering of the legacy `args_contains` field.
+    /// A leaf string match against all arguments joined by spaces — for a phrase
+    /// that spans several argument tokens, e.g. `process call create`.
     Joined(StrLeaf),
 }
 
@@ -138,8 +134,8 @@ impl Matcher {
                 .cloned()
                 .map(Some)
         } else {
-            // Line-scoped: a matcher with no program and no line matches nothing,
-            // mirroring the legacy raw-only path with an empty `raw_contains`.
+            // Line-scoped: with no `program` and no `line`, a matcher matches
+            // nothing.
             let line = self.line.as_ref()?;
             line.eval(raw).then(|| commands.first().cloned())
         }
