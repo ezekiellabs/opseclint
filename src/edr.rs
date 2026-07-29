@@ -94,6 +94,8 @@ const RULES: &[(&str, &[&str])] = &[
             "memory of lsass",
             "handle to lsass",
             "minidump",
+            "ptrace()",
+            "pid 1 namespaces",
         ],
     ),
     (
@@ -107,6 +109,9 @@ const RULES: &[(&str, &[&str])] = &[
             "clear-eventlog",
             "clears the",
             "vacuum",
+            "audit rule",
+            "history to /dev/null",
+            "history logging disabled",
         ],
     ),
     ("registry_set", &["registry", "eid 13", "run key", "asep"]),
@@ -124,6 +129,7 @@ const RULES: &[(&str, &[&str])] = &[
             "modprobe",
             " lkm",
             "dll load",
+            "init_module",
         ],
     ),
     (
@@ -137,6 +143,7 @@ const RULES: &[(&str, &[&str])] = &[
             "periodic script",
             " at job",
             "atrun",
+            "enabling a timer",
         ],
     ),
     (
@@ -166,6 +173,16 @@ const RULES: &[(&str, &[&str])] = &[
             "4625",
             "account created",
             "member added",
+            "4768",
+            "4769",
+            "4662",
+            "4776",
+            "kerberos",
+            "tgs-req",
+            "as-req",
+            "ds-replication",
+            "drsuapi",
+            "auth event",
         ],
     ),
     (
@@ -180,6 +197,7 @@ const RULES: &[(&str, &[&str])] = &[
             "setextattr",
             "quarantine",
             "execute bit",
+            "host capabilities",
         ],
     ),
     (
@@ -199,6 +217,13 @@ const RULES: &[(&str, &[&str])] = &[
             "remote host",
             "remote ip",
             "reverse shell",
+            "ldap",
+            "dns quer",
+            "proxy chain",
+            "tunnel",
+            "bits-client",
+            "netfilter",
+            "samr",
         ],
     ),
     (
@@ -215,6 +240,9 @@ const RULES: &[(&str, &[&str])] = &[
             "unlink",
             "writes to",
             "overwrit",
+            "write to /sys",
+            "rc.local",
+            "utime",
         ],
     ),
     (
@@ -230,6 +258,8 @@ const RULES: &[(&str, &[&str])] = &[
             "open of",
             "opens ",
             "access to",
+            "getxattr",
+            "cpassword",
         ],
     ),
     (
@@ -248,6 +278,11 @@ const RULES: &[(&str, &[&str])] = &[
             "child process",
             "interpreter",
             "processrollup",
+            "wmi",
+            "wsmprovhost",
+            "ntdsutil",
+            "vssadmin",
+            "suid",
         ],
     ),
 ];
@@ -453,5 +488,37 @@ mod tests {
     fn vendor_all_expands_to_four_unique() {
         assert_eq!(Vendor::All.expand().len(), 4);
         assert_eq!(Vendor::CrowdStrike.expand(), vec![Vendor::CrowdStrike]);
+    }
+
+    #[test]
+    fn no_kb_entry_silently_defaults_to_process_creation() {
+        // Re-audit guard: every KB entry that carries telemetry must have at
+        // least one line an EDR class pattern recognizes. Otherwise classes_for
+        // falls back to the process_creation default and mislabels the entry —
+        // as the Kerberos/AD entries did before this classifier re-audit.
+        // Individual lines may still be intentionally unmapped (e.g. sudo audit
+        // records), as long as the entry classifies via another line.
+        let mut defaulters: Vec<String> = Vec::new();
+        for platform in [
+            crate::kb::Platform::LinuxAuditd,
+            crate::kb::Platform::WindowsSysmon,
+            crate::kb::Platform::MacosEs,
+        ] {
+            let kb = crate::kb::load(platform).expect("knowledge base loads");
+            for entry in &kb.entries {
+                if !entry.telemetry.is_empty()
+                    && !entry.telemetry.iter().any(|l| classify_line(l).is_some())
+                {
+                    defaulters.push(format!("[{platform:?}] {}", entry.id));
+                }
+            }
+        }
+        assert!(
+            defaulters.is_empty(),
+            "KB entries whose telemetry matches no EDR class ({} — would default to \
+             process_creation); extend RULES in edr.rs:\n{}",
+            defaulters.len(),
+            defaulters.join("\n")
+        );
     }
 }
