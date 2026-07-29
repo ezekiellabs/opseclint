@@ -535,11 +535,19 @@ fn collect_line_terms(pred: &LinePred, out: &mut Vec<String>) {
     }
 }
 
-/// Collect the source of every `regex` leaf in an argument predicate.
+/// Collect the source of every *required* `regex` leaf in an argument predicate,
+/// mirroring `collect_arg_terms`: `any` follows only its first branch and `not`
+/// contributes nothing, so a scaffold never surfaces a negated or non-required
+/// pattern.
 fn collect_arg_regexes(pred: &ArgPred, out: &mut Vec<String>) {
     match pred {
-        ArgPred::All(v) | ArgPred::Any(v) => v.iter().for_each(|p| collect_arg_regexes(p, out)),
-        ArgPred::Not(p) => collect_arg_regexes(p, out),
+        ArgPred::All(v) => v.iter().for_each(|p| collect_arg_regexes(p, out)),
+        ArgPred::Any(v) => {
+            if let Some(first) = v.first() {
+                collect_arg_regexes(first, out);
+            }
+        }
+        ArgPred::Not(_) => {}
         ArgPred::At(pos) => {
             if let StrLeaf::Regex(re) = &pos.value {
                 out.push(re.as_str().to_string());
@@ -552,11 +560,17 @@ fn collect_arg_regexes(pred: &ArgPred, out: &mut Vec<String>) {
     }
 }
 
-/// Collect the source of every `regex` leaf in a line predicate.
+/// Collect the source of every *required* `regex` leaf in a line predicate
+/// (see `collect_arg_regexes` for the `any` / `not` handling).
 fn collect_line_regexes(pred: &LinePred, out: &mut Vec<String>) {
     match pred {
-        LinePred::All(v) | LinePred::Any(v) => v.iter().for_each(|p| collect_line_regexes(p, out)),
-        LinePred::Not(p) => collect_line_regexes(p, out),
+        LinePred::All(v) => v.iter().for_each(|p| collect_line_regexes(p, out)),
+        LinePred::Any(v) => {
+            if let Some(first) = v.first() {
+                collect_line_regexes(first, out);
+            }
+        }
+        LinePred::Not(_) => {}
         LinePred::Regex(re) => out.push(re.as_str().to_string()),
         _ => {}
     }
@@ -751,5 +765,18 @@ mod tests {
         ] } }"#);
         assert_eq!(matcher.commandline_terms(), vec!["powershell"]);
         assert_eq!(matcher.commandline_regexes(), vec!["-w\\s+hidden"]);
+    }
+
+    #[test]
+    fn regex_collection_ignores_not_and_non_first_any() {
+        // Mirrors literal collection: `all` keeps every branch, `any` keeps only
+        // its first, and `not` contributes nothing — so a scaffold never surfaces
+        // a negated or non-required pattern.
+        let matcher = m(r#"{ "line": { "all": [
+            { "regex": "aa" },
+            { "any": [ { "regex": "bb" }, { "regex": "cc" } ] },
+            { "not": { "regex": "dd" } }
+        ] } }"#);
+        assert_eq!(matcher.commandline_regexes(), vec!["aa", "bb"]);
     }
 }

@@ -107,8 +107,17 @@ fn build_selection(entry: &KbEntry, platform: Platform) -> String {
             }
         }
     }
-    for re in matcher.commandline_regexes() {
-        s.push_str(&format!("        CommandLine|re: '{}'\n", yaml_sq(&re)));
+    // A single `CommandLine|re` key: a scalar for one pattern, a list for many
+    // (repeating the key would be invalid / lossy YAML).
+    match matcher.commandline_regexes().as_slice() {
+        [] => {}
+        [only] => s.push_str(&format!("        CommandLine|re: '{}'\n", yaml_sq(only))),
+        many => {
+            s.push_str("        CommandLine|re:\n");
+            for re in many {
+                s.push_str(&format!("            - '{}'\n", yaml_sq(re)));
+            }
+        }
     }
     if s.is_empty() {
         s.push_str("        # TODO: no matchable field on this entry; define the selection\n");
@@ -344,5 +353,32 @@ mod tests {
             sel["CommandLine|re"].as_str().is_some(),
             "expected a CommandLine|re selection, got:\n{yaml}"
         );
+    }
+
+    #[test]
+    fn scaffold_lists_multiple_regexes_as_a_yaml_sequence() {
+        // Two regexes must become one `CommandLine|re` key holding a list — never
+        // a repeated key (invalid / lossy YAML).
+        let matcher: Matcher = serde_json::from_str(
+            r#"{ "line": { "all": [{ "regex": "aa" }, { "regex": "bb" }] } }"#,
+        )
+        .unwrap();
+        let e = KbEntry {
+            id: "multi".into(),
+            matcher,
+            example: Some("aa bb".into()),
+            description: "two regexes".into(),
+            techniques: vec![Technique {
+                id: "T1059".into(),
+                name: "n".into(),
+            }],
+            telemetry: vec![],
+            detections: vec![],
+            noise: 50,
+        };
+        let yaml = rule_for(&e, kb::Platform::LinuxAuditd, "2026-07-29");
+        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let re = &v["detection"]["selection"]["CommandLine|re"];
+        assert_eq!(re.as_sequence().map(|s| s.len()), Some(2), "got:\n{yaml}");
     }
 }
