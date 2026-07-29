@@ -56,7 +56,7 @@ struct Cli {
 
     /// Emit an ATT&CK Navigator layer (JSON) of the techniques surfaced, scored
     /// by detectability. Import at mitre-attack.github.io/attack-navigator.
-    #[arg(long, conflicts_with_all = ["json", "sarif"], help_heading = "Output")]
+    #[arg(long, conflicts_with_all = ["json", "sarif", "diff", "coverage_gaps", "check_rule"], help_heading = "Output")]
     navigator: bool,
 
     /// Force-disable ANSI color (color is auto-disabled when not a TTY).
