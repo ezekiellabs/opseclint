@@ -110,7 +110,7 @@ fn claimed_rules(entry: &KbEntry) -> Vec<String> {
 /// entry's matcher would match (program plus the literals it keys on), so the
 /// synthesized event carries what a real rule would look for.
 fn representative_command(entry: &KbEntry) -> Option<Command> {
-    let line = entry.compiled_matcher().representative_line()?;
+    let line = entry.matcher.representative_line()?;
     parser::parse_line(&line).into_iter().next()
 }
 
@@ -362,6 +362,7 @@ pub fn render_delta_json(delta: &VerifyDelta) -> String {
 mod tests {
     use super::*;
     use crate::kb;
+    use crate::matcher::{LinePred, Matcher, ProgramMatch};
     use crate::model::{Detection, Technique};
     use std::path::PathBuf;
 
@@ -370,15 +371,17 @@ mod tests {
         SigmaIndex::load_dir(&dir, "linux").expect("index loads")
     }
 
-    /// Build a KB entry that claims a Sigma detection, keyed either by command
-    /// (with optional args) or by a raw substring.
+    /// Build a KB entry that claims a Sigma detection, keyed either by an exact
+    /// program or by a raw line substring.
     fn entry(id: &str, command: Option<&str>, raw: Option<&str>, tech: &str) -> KbEntry {
+        let matcher = Matcher {
+            program: command.map(|c| ProgramMatch::Exact(c.to_string())),
+            args: None,
+            line: raw.map(|r| LinePred::Contains(r.to_string())),
+        };
         KbEntry {
             id: id.into(),
-            matcher: None,
-            command: command.map(str::to_string),
-            args_contains: None,
-            raw_contains: raw.map(str::to_string),
+            matcher,
             description: format!("{id} description"),
             techniques: vec![Technique {
                 id: tech.into(),

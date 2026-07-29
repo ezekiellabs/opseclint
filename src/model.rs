@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::matcher::{ArgPred, LinePred, Matcher, ProgramMatch, StrLeaf};
+use crate::matcher::Matcher;
 
 /// A single ATT&CK technique reference.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,24 +28,15 @@ pub struct Detection {
 /// techniques it implements, the telemetry it emits, and the detections that
 /// would fire.
 ///
-/// Matching is driven by a structured [`Matcher`] under the `match` key. For
-/// backward compatibility the legacy substring fields (`command`,
-/// `args_contains`, `raw_contains`) are still accepted; when `match` is absent
-/// they are lowered into an equivalent matcher by [`KbEntry::compiled_matcher`],
-/// so the two forms behave identically and the knowledge bases can migrate one
-/// entry at a time.
+/// Matching is driven by the structured [`Matcher`] under the required `match`
+/// key. (The legacy substring fields `command` / `args_contains` /
+/// `raw_contains` were removed once every knowledge base finished migrating.)
 #[derive(Debug, Clone, Deserialize)]
 pub struct KbEntry {
     pub id: String,
-    /// Structured matcher (preferred). Overrides the legacy fields when present.
-    #[serde(default, rename = "match")]
-    pub matcher: Option<Matcher>,
-    #[serde(default)]
-    pub command: Option<String>,
-    #[serde(default)]
-    pub args_contains: Option<String>,
-    #[serde(default)]
-    pub raw_contains: Option<String>,
+    /// The structured matcher that decides whether this entry applies to a line.
+    #[serde(rename = "match")]
+    pub matcher: Matcher,
     pub description: String,
     pub techniques: Vec<Technique>,
     #[serde(default)]
@@ -55,34 +46,6 @@ pub struct KbEntry {
     /// Detectability on a 0-100 scale: how likely this action is to surface in
     /// defensive telemetry. Higher = louder.
     pub noise: u8,
-}
-
-impl KbEntry {
-    /// The effective [`Matcher`] for this entry: the explicit `match` object if
-    /// present, otherwise the legacy `command`/`args_contains`/`raw_contains`
-    /// fields lowered into their exact structural equivalent.
-    pub fn compiled_matcher(&self) -> Matcher {
-        if let Some(m) = &self.matcher {
-            return m.clone();
-        }
-        // Lower the legacy substring fields. `command` present ⇒ command-scoped
-        // (exact program + optional joined-args / line refinements); otherwise
-        // line-scoped over the raw line.
-        let program = self.command.clone().map(ProgramMatch::Exact);
-        let args = if self.command.is_some() {
-            self.args_contains
-                .clone()
-                .map(|s| ArgPred::Joined(StrLeaf::Contains(s)))
-        } else {
-            None
-        };
-        let line = self.raw_contains.clone().map(LinePred::Contains);
-        Matcher {
-            program,
-            args,
-            line,
-        }
-    }
 }
 
 /// The deserialized knowledge base.

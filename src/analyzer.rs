@@ -3,7 +3,6 @@
 
 use std::collections::HashSet;
 
-use crate::matcher::Matcher;
 use crate::model::{Finding, KnowledgeBase, Report, Severity};
 use crate::parser::{self, parse_line};
 
@@ -32,9 +31,6 @@ pub fn analyze(input: &str, kb: &KnowledgeBase) -> Report {
     let mut findings = Vec::new();
     let mut lines_analyzed = 0;
 
-    // Compile each entry's matcher once (lowering legacy fields as needed).
-    let matchers: Vec<Matcher> = kb.entries.iter().map(|e| e.compiled_matcher()).collect();
-
     for unit in parser::preprocess(input) {
         let trimmed = unit.text.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -53,12 +49,12 @@ pub fn analyze(input: &str, kb: &KnowledgeBase) -> Report {
         // both a command and a raw match) is reported once.
         let mut seen: HashSet<&str> = HashSet::new();
 
-        for (entry, matcher) in kb.entries.iter().zip(&matchers) {
+        for entry in &kb.entries {
             // `evaluate` yields the specific command that matched (for
             // command-scoped matchers) or the line's first command (for
             // line-scoped matches), kept so coverage analysis can evaluate rule
             // logic against it.
-            if let Some(matched_command) = matcher.evaluate(&commands, trimmed)
+            if let Some(matched_command) = entry.matcher.evaluate(&commands, trimmed)
                 && seen.insert(entry.id.as_str())
             {
                 findings.push(finding_from_entry(entry, unit.line, matched_command));
@@ -484,15 +480,12 @@ mod tests {
     /// by `--verify-detections` / `--scaffold` stays aligned with the engine.
     fn assert_self_consistent(kb: &KnowledgeBase) {
         for entry in &kb.entries {
-            let repr = entry
-                .compiled_matcher()
-                .representative_line()
-                .unwrap_or_else(|| {
-                    panic!(
-                        "entry `{}` has no matchable field to build a representative from",
-                        entry.id
-                    )
-                });
+            let repr = entry.matcher.representative_line().unwrap_or_else(|| {
+                panic!(
+                    "entry `{}` has no matchable field to build a representative from",
+                    entry.id
+                )
+            });
             let report = analyze(&repr, kb);
             assert!(
                 report.findings.iter().any(|f| f.rule_id == entry.id),
@@ -541,7 +534,7 @@ mod tests {
                 .iter()
                 .find(|e| e.id == id)
                 .unwrap_or_else(|| panic!("no KB entry with id `{id}`"))
-                .compiled_matcher()
+                .matcher
                 .representative_line()
         };
         assert_eq!(repr("private-key-rsa").as_deref(), Some("id_rsa"));

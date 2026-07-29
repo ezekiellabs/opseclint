@@ -83,7 +83,7 @@ pub fn rule_for(entry: &KbEntry, platform: Platform, date: &str) -> String {
 /// literals -> `CommandLine|contains`. Multiple CommandLine terms are ANDed via
 /// `contains|all`.
 fn build_selection(entry: &KbEntry, platform: Platform) -> String {
-    let matcher = entry.compiled_matcher();
+    let matcher = &entry.matcher;
     let mut s = String::new();
     if let Some(cmd) = matcher.program_literal() {
         // Mirror how opseclint synthesizes the Image field per platform.
@@ -209,6 +209,7 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 mod tests {
     use super::*;
     use crate::kb;
+    use crate::matcher::{LinePred, Matcher};
     use crate::model::Technique;
 
     fn linux_kb() -> KnowledgeBase {
@@ -303,10 +304,11 @@ mod tests {
         // A colon+space would break an unquoted YAML title; it must be quoted.
         let e = KbEntry {
             id: "synthetic".into(),
-            matcher: None,
-            command: None,
-            args_contains: None,
-            raw_contains: Some("lsass".into()),
+            matcher: Matcher {
+                program: None,
+                args: None,
+                line: Some(LinePred::Contains("lsass".into())),
+            },
             description: "Dump credentials: full LSASS memory — credential access".into(),
             techniques: vec![Technique {
                 id: "T1003.001".into(),
