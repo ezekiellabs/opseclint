@@ -1,0 +1,962 @@
+{
+  "platform": "linux",
+  "rules_indexed": 251,
+  "results": [
+    {
+      "id": "arp",
+      "description": "ARP cache enumeration — adjacent host discovery",
+      "techniques": [
+        "T1018"
+      ],
+      "claimed": [
+        "Remote system discovery utility (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "base64-decode",
+      "description": "Base64 decoding — deobfuscation of payloads",
+      "techniques": [
+        "T1140"
+      ],
+      "claimed": [
+        "Base64 decode chained to execution (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "bash-history-tamper",
+      "description": "Direct manipulation/removal of shell history file — anti-forensics",
+      "techniques": [
+        "T1070.003"
+      ],
+      "claimed": [
+        "Shell history file tampering (file_event_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "capabilities-enum",
+      "description": "Enumerating file capabilities — privilege-escalation recon",
+      "techniques": [
+        "T1083",
+        "T1548.001"
+      ],
+      "claimed": [
+        "Capabilities enumeration via getcap (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "find-generic",
+      "description": "File and directory discovery",
+      "techniques": [
+        "T1083"
+      ],
+      "claimed": [
+        "Filesystem discovery utility (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "find-suid",
+      "description": "SUID/SGID binary hunting — privilege-escalation recon",
+      "techniques": [
+        "T1083",
+        "T1548.001"
+      ],
+      "claimed": [
+        "SUID/SGID discovery via find -perm (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "hostname",
+      "description": "Host name discovery",
+      "techniques": [
+        "T1082"
+      ],
+      "claimed": [
+        "System information discovery utility (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "id",
+      "description": "User and group identity discovery",
+      "techniques": [
+        "T1033"
+      ],
+      "claimed": [
+        "Local system reconnaissance utility execution (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "login-discovery",
+      "description": "Login history enumeration",
+      "techniques": [
+        "T1087.001"
+      ],
+      "claimed": [
+        "Login history discovery (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "os-release",
+      "description": "OS distribution/version fingerprinting via release files",
+      "techniques": [
+        "T1082"
+      ],
+      "claimed": [
+        "Read of OS release/version files (file_event_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "python-c",
+      "description": "Inline Python execution — common for one-liner payloads",
+      "techniques": [
+        "T1059.006"
+      ],
+      "claimed": [
+        "Inline Python one-liner execution (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "ss",
+      "description": "Socket / network connection discovery",
+      "techniques": [
+        "T1049"
+      ],
+      "claimed": [
+        "Network connection discovery utility (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "uname",
+      "description": "Kernel / OS version discovery",
+      "techniques": [
+        "T1082"
+      ],
+      "claimed": [
+        "System information discovery utility (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "usermod-group",
+      "description": "Modifying user group membership — privilege escalation / account manipulation",
+      "techniques": [
+        "T1098"
+      ],
+      "claimed": [
+        "User account/group modification (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "whoami",
+      "description": "System owner / current user discovery",
+      "techniques": [
+        "T1033"
+      ],
+      "claimed": [
+        "Local system reconnaissance utility execution (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "authorized-keys",
+      "description": "Modification of SSH authorized_keys — persistence / account manipulation",
+      "techniques": [
+        "T1098.004",
+        "T1547"
+      ],
+      "claimed": [
+        "Modification of authorized_keys (file_event_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "clear-syslog-rm",
+      "description": "Deleting system logs under /var/log — log clearing (anti-forensics)",
+      "techniques": [
+        "T1070.002"
+      ],
+      "claimed": [
+        "System log tampering (file_event_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "clear-syslog-shred",
+      "description": "Shredding system logs under /var/log — log clearing (anti-forensics)",
+      "techniques": [
+        "T1070.002"
+      ],
+      "claimed": [
+        "System log tampering (file_event_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "clear-syslog-truncate",
+      "description": "Truncating system logs under /var/log — log clearing (anti-forensics)",
+      "techniques": [
+        "T1070.002"
+      ],
+      "claimed": [
+        "System log tampering (file_event_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "cloud-imds",
+      "description": "Querying the cloud instance metadata endpoint — credential theft",
+      "techniques": [
+        "T1552.005"
+      ],
+      "claimed": [
+        "Cloud instance metadata access (net_connection_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "disable-audit",
+      "description": "Manipulating the Linux audit subsystem — defense/telemetry impairment",
+      "techniques": [
+        "T1562.012"
+      ],
+      "claimed": [
+        "Audit subsystem tampering (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "docker-sock",
+      "description": "Interacting with the Docker socket — container-to-host escape vector",
+      "techniques": [
+        "T1611"
+      ],
+      "claimed": [
+        "Docker socket abuse (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "histfile-tamper",
+      "description": "Disabling shell history (HISTFILE) — impairing command logging",
+      "techniques": [
+        "T1562.003"
+      ],
+      "claimed": [
+        "Shell history logging disabled (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "iptables-flush",
+      "description": "Flushing firewall rules — defense impairment",
+      "techniques": [
+        "T1562.004"
+      ],
+      "claimed": [
+        "Firewall rules flushed (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "journal-vacuum",
+      "description": "journalctl --vacuum — deleting systemd journal logs (anti-forensics)",
+      "techniques": [
+        "T1070.002"
+      ],
+      "claimed": [
+        "systemd journal vacuum (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "k8s-sa-token",
+      "description": "Reading the Kubernetes service-account token — credential theft",
+      "techniques": [
+        "T1552.007"
+      ],
+      "claimed": [
+        "Kubernetes service account token access (file_event_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "kubectl-exec",
+      "description": "Command execution inside a pod via kubectl exec",
+      "techniques": [
+        "T1609"
+      ],
+      "claimed": [
+        "kubectl exec into a pod (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "kubectl-get",
+      "description": "Enumerating cluster resources via kubectl get",
+      "techniques": [
+        "T1613"
+      ],
+      "claimed": [
+        "Kubernetes resource enumeration (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "netcat",
+      "description": "Raw TCP/UDP connection — potential C2 or exfil channel",
+      "techniques": [
+        "T1095",
+        "T1071"
+      ],
+      "claimed": [
+        "Netcat execution / suspicious socket (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "nsenter-escape",
+      "description": "Entering host namespaces via nsenter — container escape",
+      "techniques": [
+        "T1611"
+      ],
+      "claimed": [
+        "Container escape via nsenter (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "private-key-ed25519",
+      "description": "Access to an SSH Ed25519 private key — unsecured credential theft",
+      "techniques": [
+        "T1552.004"
+      ],
+      "claimed": [
+        "Private key file access (file_event_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "private-key-rsa",
+      "description": "Access to an SSH RSA private key — unsecured credential theft",
+      "techniques": [
+        "T1552.004"
+      ],
+      "claimed": [
+        "Private key file access (file_event_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "privileged-container",
+      "description": "Launching a privileged container — container escape vector",
+      "techniques": [
+        "T1611"
+      ],
+      "claimed": [
+        "Privileged container launch (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "proc-root-escape",
+      "description": "Accessing the host filesystem via /proc/1/root — container escape",
+      "techniques": [
+        "T1611"
+      ],
+      "claimed": [
+        "Host filesystem access via /proc/1/root (file_event_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "proxychains",
+      "description": "Wrapping a tool with proxychains — multi-hop proxying",
+      "techniques": [
+        "T1090.003"
+      ],
+      "claimed": [
+        "Proxied execution via proxychains (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "ptrace-gdb",
+      "description": "Attaching to a live process with gdb — process injection / inspection",
+      "techniques": [
+        "T1055.008"
+      ],
+      "claimed": [
+        "Process attach via gdb/ptrace (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "rc-local-persist",
+      "description": "Writing to /etc/rc.local — boot persistence",
+      "techniques": [
+        "T1037.004"
+      ],
+      "claimed": [
+        "RC script persistence (file_event_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "selinux-disable",
+      "description": "Disabling SELinux enforcement — defense impairment",
+      "techniques": [
+        "T1562.001"
+      ],
+      "claimed": [
+        "SELinux enforcement disabled (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "shadow-read",
+      "description": "Access to /etc/shadow — password hash exposure",
+      "techniques": [
+        "T1003.008"
+      ],
+      "claimed": [
+        "Access to /etc/shadow outside auth context (file_event_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "socat",
+      "description": "Bidirectional relay — potential C2 or reverse shell channel",
+      "techniques": [
+        "T1095",
+        "T1071"
+      ],
+      "claimed": [
+        "socat relay / reverse shell (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "ssh-lateral",
+      "description": "Interactive SSH — potential lateral movement",
+      "techniques": [
+        "T1021.004"
+      ],
+      "claimed": [
+        "Outbound SSH from unusual context (proc_creation_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "sudo-l",
+      "description": "Enumeration of the current user's sudo privileges",
+      "techniques": [
+        "T1069"
+      ],
+      "claimed": [
+        "Sudo privilege enumeration (proc_creation_lnx / auth logs)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "systemd-timer-persist",
+      "description": "Installing a systemd .timer unit — scheduled-task persistence",
+      "techniques": [
+        "T1053.006"
+      ],
+      "claimed": [
+        "Systemd timer persistence (file_event_lnx)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "awk-system-exec",
+      "description": "Command execution via awk system() (GTFOBins)",
+      "techniques": [
+        "T1059.004"
+      ],
+      "claimed": [
+        "Command execution via awk system() (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "aws-s3-exfil",
+      "description": "Transferring data via the aws CLI (s3 cp/sync) — exfiltration",
+      "techniques": [
+        "T1567.002"
+      ],
+      "claimed": [
+        "S3 data transfer via aws CLI (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "chattr-immutable",
+      "description": "Setting file attributes (e.g. immutable) — hide artifacts / resist removal",
+      "techniques": [
+        "T1222.002",
+        "T1564"
+      ],
+      "claimed": [
+        "chattr immutable/append attribute change (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "chmod-exec",
+      "description": "Making a file executable — staging a dropped payload",
+      "techniques": [
+        "T1222.002"
+      ],
+      "claimed": [
+        "chmod +x on file in tmp/user dir (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "creds-in-files",
+      "description": "Grepping the filesystem for passwords — credentials in files",
+      "techniques": [
+        "T1552.001"
+      ],
+      "claimed": [
+        "Credential keyword search (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "cron-persist",
+      "description": "Writing to system cron locations — scheduled-task persistence",
+      "techniques": [
+        "T1053.003"
+      ],
+      "claimed": [
+        "System cron persistence (file_event_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "crontab-l",
+      "description": "Scheduled task (cron) discovery",
+      "techniques": [
+        "T1053.003"
+      ],
+      "claimed": [
+        "Cron enumeration (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "dd-wipe",
+      "description": "Overwriting a block device with dd — data destruction",
+      "techniques": [
+        "T1485"
+      ],
+      "claimed": [
+        "Disk overwrite via dd (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "dnscat",
+      "description": "DNS-tunneled C2 via dnscat",
+      "techniques": [
+        "T1071.004"
+      ],
+      "claimed": [
+        "DNS tunneling C2 (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "find-exec-shell",
+      "description": "Spawning a shell via find -exec — SUID/restricted-shell escape (GTFOBins)",
+      "techniques": [
+        "T1548.001",
+        "T1059.004"
+      ],
+      "claimed": [
+        "Shell spawned via find -exec (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "kernel-module-insmod",
+      "description": "Loading a kernel module — potential rootkit / persistence",
+      "techniques": [
+        "T1547.006"
+      ],
+      "claimed": [
+        "Kernel module load via insmod (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "kernel-module-modprobe",
+      "description": "Loading a kernel module by name — potential rootkit / persistence",
+      "techniques": [
+        "T1547.006"
+      ],
+      "claimed": [
+        "Kernel module load via modprobe (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "ld-preload",
+      "description": "Writing /etc/ld.so.preload — dynamic linker hijacking (userland rootkit)",
+      "techniques": [
+        "T1574.006"
+      ],
+      "claimed": [
+        "ld.so.preload modification (file_event_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "masscan",
+      "description": "High-rate network port scanning",
+      "techniques": [
+        "T1046"
+      ],
+      "claimed": [
+        "Mass port scanner execution (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "pipe-to-sh",
+      "description": "Piping downloaded content directly into a shell interpreter",
+      "techniques": [
+        "T1059.004",
+        "T1105"
+      ],
+      "claimed": [
+        "Download piped to shell interpreter (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "pipe-to-shell",
+      "description": "Piping downloaded content directly into a shell interpreter",
+      "techniques": [
+        "T1059.004",
+        "T1105"
+      ],
+      "claimed": [
+        "Download piped to shell interpreter (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "ps",
+      "description": "Running process discovery",
+      "techniques": [
+        "T1057"
+      ],
+      "claimed": [
+        "Process discovery utility execution (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "python-http-server",
+      "description": "Ad-hoc HTTP server — data staging / exfiltration channel",
+      "techniques": [
+        "T1105",
+        "T1567"
+      ],
+      "claimed": [
+        "Python http.server execution (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "rclone-exfil",
+      "description": "Copying data to a remote/cloud backend via rclone — exfiltration",
+      "techniques": [
+        "T1567.002"
+      ],
+      "claimed": [
+        "Data exfiltration via rclone (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "reverse-shell-devtcp",
+      "description": "Bash /dev/tcp reverse shell — interactive C2 channel",
+      "techniques": [
+        "T1059.004",
+        "T1071"
+      ],
+      "claimed": [
+        "Reverse shell via /dev/tcp redirection (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "scp",
+      "description": "File transfer over SSH — ingress or exfiltration",
+      "techniques": [
+        "T1105",
+        "T1048"
+      ],
+      "claimed": [
+        "File transfer via scp (proc_creation_lnx / network)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "shell-profile-persist",
+      "description": "Modifying a shell rc file (.bashrc) — logon persistence",
+      "techniques": [
+        "T1546.004"
+      ],
+      "claimed": [
+        "Shell rc file modification (file_event_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "ssh-socks-proxy",
+      "description": "SSH dynamic port forwarding (-D SOCKS) — tunneling",
+      "techniques": [
+        "T1572"
+      ],
+      "claimed": [
+        "SSH dynamic port forwarding (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "sudoers-tamper",
+      "description": "Reading or modifying /etc/sudoers — privilege escalation / persistence",
+      "techniques": [
+        "T1548.003"
+      ],
+      "claimed": [
+        "Sudoers file modification (file_event_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "systemd-persistence",
+      "description": "Enabling a systemd unit — service persistence",
+      "techniques": [
+        "T1543.002"
+      ],
+      "claimed": [
+        "Systemd service persistence (proc_creation_lnx / file_event_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "tar-archive",
+      "description": "Archiving data — collection prior to exfiltration",
+      "techniques": [
+        "T1560.001"
+      ],
+      "claimed": [
+        "Bulk archive creation (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "tcpdump",
+      "description": "Packet capture — network sniffing",
+      "techniques": [
+        "T1040"
+      ],
+      "claimed": [
+        "Packet capture utility execution (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "timestomp-touch",
+      "description": "Copying a reference file's timestamps with touch — timestomping",
+      "techniques": [
+        "T1070.006"
+      ],
+      "claimed": [
+        "Timestomping via touch (proc_creation_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "useradd",
+      "description": "Local account creation — persistence",
+      "techniques": [
+        "T1136.001"
+      ],
+      "claimed": [
+        "Local account creation (proc_creation_lnx / file_event_lnx)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "wget",
+      "description": "Remote file download — tool ingress",
+      "techniques": [
+        "T1105"
+      ],
+      "claimed": [
+        "File download via wget (proc_creation_lnx / network)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "at-job",
+      "description": "One-off scheduled job via at — execution / persistence",
+      "techniques": [
+        "T1053.002"
+      ],
+      "claimed": [
+        "at job scheduling (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Scheduled Task/Job At"
+      ]
+    },
+    {
+      "id": "curl",
+      "description": "Remote file transfer / HTTP client — tool ingress or exfil",
+      "techniques": [
+        "T1105"
+      ],
+      "claimed": [
+        "File transfer via curl (proc_creation_lnx / network)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Curl Usage on Linux"
+      ]
+    },
+    {
+      "id": "group-discovery",
+      "description": "Enumeration of local groups via /etc/group",
+      "techniques": [
+        "T1069.001"
+      ],
+      "claimed": [
+        "Local group enumeration (file_event_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Local Groups Discovery - Linux"
+      ]
+    },
+    {
+      "id": "history-clear",
+      "description": "Shell command-history clearing — anti-forensics",
+      "techniques": [
+        "T1070.003"
+      ],
+      "claimed": [
+        "Command history clearing (proc_creation_lnx / file_event_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Linux Command History Tampering"
+      ]
+    },
+    {
+      "id": "ifconfig",
+      "description": "Network interface configuration discovery",
+      "techniques": [
+        "T1016"
+      ],
+      "claimed": [
+        "Network configuration discovery utility (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "System Network Discovery - Linux"
+      ]
+    },
+    {
+      "id": "ip-addr",
+      "description": "Network interface configuration discovery",
+      "techniques": [
+        "T1016"
+      ],
+      "claimed": [
+        "Network configuration discovery utility (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "System Network Discovery - Linux"
+      ]
+    },
+    {
+      "id": "netstat",
+      "description": "Network connection discovery",
+      "techniques": [
+        "T1049"
+      ],
+      "claimed": [
+        "Network connection discovery utility (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "System Network Connections Discovery - Linux"
+      ]
+    },
+    {
+      "id": "nmap",
+      "description": "Active network service scanning",
+      "techniques": [
+        "T1046"
+      ],
+      "claimed": [
+        "Port/service scanner execution (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Linux Network Service Scanning Tools Execution"
+      ]
+    },
+    {
+      "id": "passwd-read",
+      "description": "Enumeration of local accounts via /etc/passwd",
+      "techniques": [
+        "T1087.001",
+        "T1003.008"
+      ],
+      "claimed": [
+        "Read of /etc/passwd by interactive utility (file_event_lnx / proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Local System Accounts Discovery - Linux"
+      ]
+    },
+    {
+      "id": "shred",
+      "description": "Secure file deletion — anti-forensics",
+      "techniques": [
+        "T1070.004"
+      ],
+      "claimed": [
+        "Secure deletion via shred (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "File Deletion"
+      ]
+    }
+  ]
+}

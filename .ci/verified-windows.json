@@ -1,0 +1,937 @@
+{
+  "platform": "windows",
+  "rules_indexed": 2216,
+  "results": [
+    {
+      "id": "certutil-download",
+      "description": "certutil used to download a file — LOLBin tool ingress",
+      "techniques": [
+        "T1105"
+      ],
+      "claimed": [
+        "certutil file download (proc_creation_win)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "download-file",
+      "description": "PowerShell DownloadFile — tool ingress to disk",
+      "techniques": [
+        "T1105"
+      ],
+      "claimed": [
+        "PowerShell DownloadFile (ps_script)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "regsvr32-squiblydoo",
+      "description": "regsvr32 scrobj.dll (Squiblydoo) — LOLBin proxy execution",
+      "techniques": [
+        "T1218.010"
+      ],
+      "claimed": [
+        "Squiblydoo regsvr32 execution (proc_creation_win)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "amsi-bypass",
+      "description": "In-memory AMSI bypass via amsiInitFailed — defense impairment",
+      "techniques": [
+        "T1562.001"
+      ],
+      "claimed": [
+        "AMSI bypass via amsiInitFailed (ps_script)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "asreproast",
+      "description": "AS-REP roasting via GetNPUsers (Impacket)",
+      "techniques": [
+        "T1558.004"
+      ],
+      "claimed": [
+        "AS-REP roasting via GetNPUsers (proc_creation_win / ps_script)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "clear-eventlog",
+      "description": "Clearing a Windows event log — anti-forensics",
+      "techniques": [
+        "T1070.001"
+      ],
+      "claimed": [
+        "Event log cleared via wevtutil (proc_creation_win)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "clear-eventlog-ps",
+      "description": "Clearing event logs via PowerShell — anti-forensics",
+      "techniques": [
+        "T1070.001"
+      ],
+      "claimed": [
+        "Event log cleared via PowerShell (ps_script)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "defender-disable",
+      "description": "Disabling Defender real-time monitoring — defense impairment",
+      "techniques": [
+        "T1562.001"
+      ],
+      "claimed": [
+        "Defender real-time protection disabled (ps_script)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "defender-exclusion",
+      "description": "Adding a Defender exclusion path — defense impairment",
+      "techniques": [
+        "T1562.001"
+      ],
+      "claimed": [
+        "Defender exclusion added (ps_script)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "golden-ticket",
+      "description": "Golden/forged Kerberos ticket via mimikatz kerberos::golden",
+      "techniques": [
+        "T1558.001"
+      ],
+      "claimed": [
+        "Mimikatz golden ticket indicators (proc_creation_win)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "installutil",
+      "description": "Executing a .NET assembly via InstallUtil — LOLBin proxy execution",
+      "techniques": [
+        "T1218.004"
+      ],
+      "claimed": [
+        "Proxy execution via InstallUtil (proc_creation_win)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "netsh-firewall",
+      "description": "Modifying the Windows firewall via netsh — defense impairment",
+      "techniques": [
+        "T1562.004"
+      ],
+      "claimed": [
+        "Firewall modification via netsh (proc_creation_win)"
+      ],
+      "status": "no-rule"
+    },
+    {
+      "id": "accessibility-sethc",
+      "description": "Accessibility feature hijack (sticky keys / utilman) — persistence / backdoor",
+      "techniques": [
+        "T1546.008"
+      ],
+      "claimed": [
+        "Accessibility feature hijack (registry_set_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "adfind",
+      "description": "AdFind — Active Directory enumeration",
+      "techniques": [
+        "T1087.002",
+        "T1482"
+      ],
+      "claimed": [
+        "AdFind execution (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "arp",
+      "description": "ARP cache enumeration — adjacent host discovery",
+      "techniques": [
+        "T1018"
+      ],
+      "claimed": [
+        "Remote system discovery (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "attrib-hidden",
+      "description": "Setting the hidden attribute — hide artifacts",
+      "techniques": [
+        "T1564.001"
+      ],
+      "claimed": [
+        "Hidden file attribute set (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "av-discovery",
+      "description": "Enumerating installed AV via the AntiVirusProduct WMI class — security-software discovery",
+      "techniques": [
+        "T1518.001"
+      ],
+      "claimed": [
+        "Security software discovery (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "bcdedit-recovery",
+      "description": "Modifying boot configuration — inhibit system recovery",
+      "techniques": [
+        "T1490"
+      ],
+      "claimed": [
+        "Boot recovery tampering via bcdedit (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "bitsadmin-transfer",
+      "description": "BITS job for file transfer — stealthy tool ingress",
+      "techniques": [
+        "T1197"
+      ],
+      "claimed": [
+        "bitsadmin transfer (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "certutil-decode",
+      "description": "certutil used to decode a payload — LOLBin deobfuscation",
+      "techniques": [
+        "T1140",
+        "T1027"
+      ],
+      "claimed": [
+        "certutil decode (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "cmdkey-creds",
+      "description": "Enumerating stored credentials via cmdkey — Credential Manager access",
+      "techniques": [
+        "T1555.004"
+      ],
+      "claimed": [
+        "Credential Manager enumeration via cmdkey (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "cmstp",
+      "description": "Executing an attacker INF via CMSTP — LOLBin proxy execution",
+      "techniques": [
+        "T1218.003"
+      ],
+      "claimed": [
+        "Proxy execution via CMSTP (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "cscript-vbs",
+      "description": "Script-host execution via cscript (WSH) — VBScript/JScript",
+      "techniques": [
+        "T1059.005"
+      ],
+      "claimed": [
+        "Script execution via cscript (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "dcsync",
+      "description": "DCSync — replicating directory secrets from a domain controller",
+      "techniques": [
+        "T1003.006"
+      ],
+      "claimed": [
+        "DCSync replication request (proc_creation_win / security)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "domain-admins-enum",
+      "description": "Enumerating the Domain Admins group — high-value target discovery",
+      "techniques": [
+        "T1069.002"
+      ],
+      "claimed": [
+        "Domain Admins enumeration (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "domain-discovery",
+      "description": "Domain account/group enumeration (net group /domain, etc.)",
+      "techniques": [
+        "T1087.002"
+      ],
+      "claimed": [
+        "Domain account discovery (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "download-cradle",
+      "description": "PowerShell download cradle (Net.WebClient.DownloadString) — in-memory tool ingress",
+      "techniques": [
+        "T1059.001",
+        "T1105"
+      ],
+      "claimed": [
+        "PowerShell download cradle (ps_script / proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "dsquery",
+      "description": "dsquery — directory object enumeration",
+      "techniques": [
+        "T1087.002"
+      ],
+      "claimed": [
+        "dsquery enumeration (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "findstr-creds",
+      "description": "Searching files for passwords via findstr — credential hunting",
+      "techniques": [
+        "T1552.001"
+      ],
+      "claimed": [
+        "Credential search via findstr (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "gpp-cpassword",
+      "description": "Reading Group Policy Preferences cPassword — credentials in SYSVOL",
+      "techniques": [
+        "T1552.006"
+      ],
+      "claimed": [
+        "GPP cPassword access (proc_creation_win / ps_script)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "ifeo-debugger",
+      "description": "Image File Execution Options Debugger — persistence / hijack",
+      "techniques": [
+        "T1546.012"
+      ],
+      "claimed": [
+        "IFEO debugger persistence (registry_set_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "impacket-exec",
+      "description": "Impacket wmiexec/smbexec-style remote execution",
+      "techniques": [
+        "T1021.002",
+        "T1047"
+      ],
+      "claimed": [
+        "Impacket lateral movement (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "invoke-expression",
+      "description": "Invoke-Expression (IEX) — dynamic code execution",
+      "techniques": [
+        "T1059.001"
+      ],
+      "claimed": [
+        "Invoke-Expression usage (ps_script)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "ipconfig",
+      "description": "Network configuration discovery",
+      "techniques": [
+        "T1016"
+      ],
+      "claimed": [
+        "Network configuration discovery (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "kerberoast-getuserspns",
+      "description": "Kerberoasting via GetUserSPNs (Impacket / PowerView)",
+      "techniques": [
+        "T1558.003"
+      ],
+      "claimed": [
+        "Kerberoasting via GetUserSPNs (proc_creation_win / ps_script)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "kerberoast-invoke",
+      "description": "Kerberoasting via Invoke-Kerberoast",
+      "techniques": [
+        "T1558.003"
+      ],
+      "claimed": [
+        "Invoke-Kerberoast usage (ps_script)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "klist",
+      "description": "Kerberos ticket cache listing",
+      "techniques": [
+        "T1550.003"
+      ],
+      "claimed": [
+        "Kerberos ticket listing via klist (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "lsadump",
+      "description": "mimikatz lsadump — SAM / LSA secrets extraction",
+      "techniques": [
+        "T1003.004"
+      ],
+      "claimed": [
+        "mimikatz lsadump indicators (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "lsass-comsvcs",
+      "description": "LSASS memory dump via comsvcs.dll MiniDump — credential access",
+      "techniques": [
+        "T1003.001"
+      ],
+      "claimed": [
+        "LSASS dump via comsvcs MiniDump (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "mimikatz",
+      "description": "Mimikatz sekurlsa — credential material extraction",
+      "techniques": [
+        "T1003.001"
+      ],
+      "claimed": [
+        "Mimikatz sekurlsa indicators (proc_creation_win / ps_script)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "msbuild-inline",
+      "description": "Running an inline C# task via MSBuild — trusted-utility proxy execution",
+      "techniques": [
+        "T1127.001"
+      ],
+      "claimed": [
+        "Inline task execution via MSBuild (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "mshta-http",
+      "description": "mshta executing remote content — LOLBin proxy execution",
+      "techniques": [
+        "T1218.005"
+      ],
+      "claimed": [
+        "mshta remote execution (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "msiexec-remote",
+      "description": "Installing an MSI from a URL via msiexec — LOLBin proxy execution",
+      "techniques": [
+        "T1218.007"
+      ],
+      "claimed": [
+        "Remote MSI install via msiexec (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "net-account-create",
+      "description": "Local account creation via net user /add — persistence",
+      "techniques": [
+        "T1136.001"
+      ],
+      "claimed": [
+        "Local account creation via net (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "net-localgroup-admin",
+      "description": "Adding a user to the local Administrators group — privilege escalation",
+      "techniques": [
+        "T1098"
+      ],
+      "claimed": [
+        "Local admin group modification (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "net-share",
+      "description": "Network share discovery",
+      "techniques": [
+        "T1135"
+      ],
+      "claimed": [
+        "Network share discovery (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "net-user",
+      "description": "Local/domain account enumeration via net user",
+      "techniques": [
+        "T1087.001"
+      ],
+      "claimed": [
+        "Account discovery via net (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "netsh-portproxy",
+      "description": "Local port forwarding via netsh portproxy — tunneling / pivot",
+      "techniques": [
+        "T1090.001"
+      ],
+      "claimed": [
+        "Port forwarding via netsh portproxy (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "netstat",
+      "description": "Network connection discovery",
+      "techniques": [
+        "T1049"
+      ],
+      "claimed": [
+        "Network connection discovery (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "nltest-trusts",
+      "description": "Domain trust enumeration via nltest",
+      "techniques": [
+        "T1482"
+      ],
+      "claimed": [
+        "Domain trust discovery via nltest (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "ntds-dump",
+      "description": "Access to NTDS.dit — domain credential database dumping",
+      "techniques": [
+        "T1003.003"
+      ],
+      "claimed": [
+        "NTDS.dit access (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "pass-the-hash",
+      "description": "Pass-the-Hash via mimikatz sekurlsa::pth",
+      "techniques": [
+        "T1550.002"
+      ],
+      "claimed": [
+        "Pass-the-hash via mimikatz (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "powershell-encoded",
+      "description": "Encoded PowerShell command — obfuscated execution",
+      "techniques": [
+        "T1059.001",
+        "T1027"
+      ],
+      "claimed": [
+        "Encoded PowerShell command (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "powershell-hidden",
+      "description": "Hidden-window PowerShell — defense evasion",
+      "techniques": [
+        "T1564.003",
+        "T1059.001"
+      ],
+      "claimed": [
+        "Hidden window process execution (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "powerview",
+      "description": "PowerView domain enumeration (Get-Net* / Get-Domain*)",
+      "techniques": [
+        "T1087.002",
+        "T1069.002"
+      ],
+      "claimed": [
+        "PowerView domain enumeration (ps_script)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "procdump-lsass",
+      "description": "procdump against lsass — credential access",
+      "techniques": [
+        "T1003.001"
+      ],
+      "claimed": [
+        "procdump lsass dump (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "psexec",
+      "description": "PsExec — remote execution over SMB admin shares",
+      "techniques": [
+        "T1021.002",
+        "T1569.002"
+      ],
+      "claimed": [
+        "PsExec execution (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "rdp-enable",
+      "description": "Enabling RDP via the fDenyTSConnections registry value — remote access",
+      "techniques": [
+        "T1021.001"
+      ],
+      "claimed": [
+        "RDP enabled via registry (registry_set_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "reg-query",
+      "description": "Registry query — configuration / autostart discovery",
+      "techniques": [
+        "T1012"
+      ],
+      "claimed": [
+        "Registry query via reg.exe (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "run-key-persist",
+      "description": "Writing a Run key — registry autostart persistence",
+      "techniques": [
+        "T1547.001"
+      ],
+      "claimed": [
+        "Run key modification (registry_set_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "runas-netonly",
+      "description": "runas /netonly — using alternate credentials for network auth",
+      "techniques": [
+        "T1078"
+      ],
+      "claimed": [
+        "runas /netonly usage (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "rundll32",
+      "description": "rundll32 execution — common proxy-execution LOLBin",
+      "techniques": [
+        "T1218.011"
+      ],
+      "claimed": [
+        "Suspicious rundll32 execution (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "sam-hive-dump",
+      "description": "Dumping the SAM registry hive — credential access",
+      "techniques": [
+        "T1003.002"
+      ],
+      "claimed": [
+        "SAM hive export via reg.exe (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "schtasks-create",
+      "description": "Scheduled task creation — execution / persistence",
+      "techniques": [
+        "T1053.005"
+      ],
+      "claimed": [
+        "Scheduled task creation (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "service-create",
+      "description": "Windows service creation — persistence / privilege",
+      "techniques": [
+        "T1543.003"
+      ],
+      "claimed": [
+        "Service creation via sc.exe (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "setspn-kerberoast",
+      "description": "SPN enumeration via setspn — Kerberoasting reconnaissance",
+      "techniques": [
+        "T1558.003"
+      ],
+      "claimed": [
+        "SPN enumeration via setspn (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "systeminfo",
+      "description": "System information / patch-level discovery",
+      "techniques": [
+        "T1082"
+      ],
+      "claimed": [
+        "systeminfo execution (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "tasklist",
+      "description": "Running process discovery",
+      "techniques": [
+        "T1057"
+      ],
+      "claimed": [
+        "Process discovery via tasklist (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "timestomp-ps",
+      "description": "Backdating a file's timestamps via PowerShell — timestomping",
+      "techniques": [
+        "T1070.006"
+      ],
+      "claimed": [
+        "Timestomping via PowerShell (ps_script)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "token-impersonation",
+      "description": "Impersonating another process token via Invoke-TokenManipulation",
+      "techniques": [
+        "T1134.001"
+      ],
+      "claimed": [
+        "Access token manipulation (ps_script)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "uac-bypass-fodhelper",
+      "description": "UAC bypass via fodhelper.exe auto-elevation",
+      "techniques": [
+        "T1548.002"
+      ],
+      "claimed": [
+        "UAC bypass via fodhelper (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "vssadmin-delete",
+      "description": "Deleting volume shadow copies — inhibit system recovery",
+      "techniques": [
+        "T1490"
+      ],
+      "claimed": [
+        "Shadow copy deletion (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "wbadmin-delete",
+      "description": "Deleting backups/catalog via wbadmin — inhibit system recovery",
+      "techniques": [
+        "T1490"
+      ],
+      "claimed": [
+        "Backup deletion via wbadmin (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "whoami",
+      "description": "Current user discovery",
+      "techniques": [
+        "T1033"
+      ],
+      "claimed": [
+        "Whoami utility execution (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "winlogon-persist",
+      "description": "Modifying Winlogon Shell/Userinit — logon persistence",
+      "techniques": [
+        "T1547.004"
+      ],
+      "claimed": [
+        "Winlogon helper persistence (registry_set_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "winrm-remoting",
+      "description": "PowerShell remoting (Invoke-Command / Enter-PSSession) — lateral movement",
+      "techniques": [
+        "T1021.006"
+      ],
+      "claimed": [
+        "PowerShell remoting execution (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "wmi-event-persist",
+      "description": "WMI event subscription (EventFilter/Consumer) — persistence",
+      "techniques": [
+        "T1546.003"
+      ],
+      "claimed": [
+        "WMI event subscription persistence (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "wmic-process-create",
+      "description": "Process creation via WMI",
+      "techniques": [
+        "T1047"
+      ],
+      "claimed": [
+        "WMI process creation (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "wmic-shadow-delete",
+      "description": "Deleting volume shadow copies via wmic — inhibit system recovery",
+      "techniques": [
+        "T1490"
+      ],
+      "claimed": [
+        "Shadow copy deletion via wmic (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "wscript-vbs",
+      "description": "Script-host execution via wscript (WSH) — VBScript/JScript",
+      "techniques": [
+        "T1059.005"
+      ],
+      "claimed": [
+        "Script execution via wscript (proc_creation_win)"
+      ],
+      "status": "indeterminate"
+    },
+    {
+      "id": "rubeus",
+      "description": "Rubeus — Kerberos ticket abuse (roasting, ptt, harvesting)",
+      "techniques": [
+        "T1558.003"
+      ],
+      "claimed": [
+        "Rubeus indicators (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "HackTool - Rubeus Execution"
+      ]
+    },
+    {
+      "id": "sharphound",
+      "description": "BloodHound collection via SharpHound — AD relationship mapping",
+      "techniques": [
+        "T1087.002",
+        "T1069.002"
+      ],
+      "claimed": [
+        "SharpHound / BloodHound collection (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "HackTool - Bloodhound/Sharphound Execution"
+      ]
+    },
+    {
+      "id": "whoami-priv",
+      "description": "Privilege enumeration via whoami /priv",
+      "techniques": [
+        "T1033"
+      ],
+      "claimed": [
+        "Whoami privilege enumeration (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Security Privileges Enumeration Via Whoami.EXE"
+      ]
+    }
+  ]
+}

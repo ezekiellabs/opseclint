@@ -171,6 +171,7 @@ opseclint script.sh --sigma ./sigma # enrich with a real SigmaHQ checkout
 opseclint script.sh --check-rule r.yml    # does this Sigma rule fire on each line?
 opseclint script.sh --sigma ./sigma --coverage-gaps   # which actions no rule catches
 opseclint script.sh --scaffold       # starter Sigma rule per action (YAML)
+opseclint --sigma ./sigma --verify-detections --platform windows   # do the KB's Sigma claims fire?
 opseclint script.sh --ci --threshold 70   # exit 1 if loudest action >= 70
 ```
 
