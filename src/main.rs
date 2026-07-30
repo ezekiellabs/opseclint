@@ -21,6 +21,7 @@ mod sarif;
 mod scaffold;
 mod sigma;
 mod sigma_eval;
+mod telemetry;
 mod theme;
 mod verify;
 
@@ -40,6 +41,23 @@ struct Cli {
     /// Analyze a single command string instead of a file.
     #[arg(short, long)]
     command: Option<String>,
+
+    /// Ingest recorded host telemetry (the events a sensor actually logged) and
+    /// map it back to techniques, detectability, and coverage — the complement
+    /// to the predictive mode. Currently Windows Sysmon Event ID 1 (Process
+    /// Create), as a JSON array of events or JSONL. Honors --json / --sarif /
+    /// --navigator / --edr like any other input.
+    #[arg(
+        long,
+        value_name = "FILE",
+        conflicts_with_all = ["command", "path", "check_rule", "verify_detections"],
+        help_heading = "Ingest"
+    )]
+    telemetry: Option<String>,
+
+    /// Format of the --telemetry file.
+    #[arg(long, value_enum, default_value = "sysmon", help_heading = "Ingest")]
+    format: telemetry::Format,
 
     /// Target platform / telemetry model.
     #[arg(long, value_enum, default_value = "linux-auditd")]
@@ -338,6 +356,7 @@ fn main() -> ExitCode {
     // stdout to be a TTY so a redirected `opseclint > out.txt` doesn't capture it.
     if cli.command.is_none()
         && cli.path.is_none()
+        && cli.telemetry.is_none()
         && std::io::stdin().is_terminal()
         && std::io::stdout().is_terminal()
     {
@@ -353,20 +372,51 @@ fn main() -> ExitCode {
         }
     };
 
-    let input = match read_input(&cli) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("opseclint: failed to read input: {e}");
-            return ExitCode::from(2);
+    // Build the report from one of two input directions: ingested real
+    // telemetry (--telemetry) or predicted from text (a file / command / stdin).
+    let mut report = if let Some(tel_path) = &cli.telemetry {
+        let text = match std::fs::read_to_string(tel_path) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!("opseclint: failed to read telemetry '{tel_path}': {e}");
+                return ExitCode::from(2);
+            }
+        };
+        let ingest = match telemetry::parse(&text, cli.format) {
+            Ok(i) => i,
+            Err(e) => {
+                eprintln!("opseclint: could not parse telemetry '{tel_path}': {e}");
+                return ExitCode::from(2);
+            }
+        };
+        if !cli.json && !cli.sarif && !cli.navigator {
+            let skipped = if ingest.skipped > 0 {
+                format!(", {} non-process record(s) skipped", ingest.skipped)
+            } else {
+                String::new()
+            };
+            eprintln!(
+                "opseclint: telemetry — {} process-creation event(s) ingested{skipped}",
+                ingest.observations.len()
+            );
         }
+        analyzer::analyze_telemetry(&ingest.observations, &kb)
+    } else {
+        let input = match read_input(&cli) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("opseclint: failed to read input: {e}");
+                return ExitCode::from(2);
+            }
+        };
+
+        // --check-rule is a distinct mode: evaluate detection logic, not coverage.
+        if let Some(rule_path) = &cli.check_rule {
+            return run_check_rule(&cli, rule_path, &input);
+        }
+
+        analyzer::analyze(&input, &kb)
     };
-
-    // --check-rule is a distinct mode: evaluate detection logic, not coverage.
-    if let Some(rule_path) = &cli.check_rule {
-        return run_check_rule(&cli, rule_path, &input);
-    }
-
-    let mut report = analyzer::analyze(&input, &kb);
     if cli.min > 0 {
         report.findings.retain(|f| f.noise >= cli.min);
     }
@@ -528,14 +578,18 @@ fn main() -> ExitCode {
     if cli.navigator {
         println!("{}", navigator::render(&report));
     } else if cli.sarif {
-        let source_uri = cli.path.clone().unwrap_or_else(|| {
-            if cli.command.is_some() {
-                "<command>"
-            } else {
-                "stdin"
-            }
-            .to_string()
-        });
+        let source_uri = cli
+            .path
+            .clone()
+            .or_else(|| cli.telemetry.clone())
+            .unwrap_or_else(|| {
+                if cli.command.is_some() {
+                    "<command>"
+                } else {
+                    "stdin"
+                }
+                .to_string()
+            });
         println!("{}", sarif::render(&report, &source_uri));
     } else if cli.json {
         println!("{}", report::render_json(&report));

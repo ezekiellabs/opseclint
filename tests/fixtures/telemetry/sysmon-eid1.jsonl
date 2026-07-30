@@ -1,0 +1,2 @@
+{"EventID":1,"EventData":{"Image":"C:\\Windows\\System32\\vssadmin.exe","OriginalFileName":"VSSADMIN.EXE","CommandLine":"vssadmin delete shadows /all /quiet","ParentImage":"C:\\Windows\\System32\\cmd.exe","User":"CORP\\svc-backup"}}
+{"winlog":{"event_id":1,"event_data":{"Image":"C:\\Windows\\System32\\net.exe","OriginalFileName":"net.exe","CommandLine":"net user administrator /domain","ParentImage":"C:\\Windows\\System32\\cmd.exe"}}}

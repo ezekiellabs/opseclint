@@ -8,6 +8,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`--telemetry <FILE>`** — ingest recorded host telemetry (the events a sensor
+  actually logged) and map it back to techniques, detectability, and coverage —
+  the observed-mode complement to opseclint's predictive analysis. The first
+  supported format is Windows **Sysmon Event ID 1** (Process Create), as a JSON
+  array of events or JSONL (`--format sysmon`); flat, `EventData`-nested, and
+  Elastic `winlog.event_data` shapes are all accepted. Each record reduces to
+  the same `Command` the analyzer already understands, so `--json` / `--sarif` /
+  `--navigator` / `--edr` all work on ingested events, and observed verdicts
+  agree with predicted ones by construction. Non-process records are skipped and
+  counted. See [`docs/design/telemetry-ingest.md`](docs/design/telemetry-ingest.md).
+
 - **`--verify-detections`** — prove the knowledge base's own Sigma detection
   claims against a real ruleset. For every entry that cites a Sigma detection,
   opseclint synthesizes a representative command and checks whether a genuine

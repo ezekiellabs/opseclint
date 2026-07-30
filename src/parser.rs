@@ -104,7 +104,12 @@ fn is_assignment(tok: &str) -> bool {
 /// for Linux input (native binaries rarely carry these).
 const EXE_EXTENSIONS: &[&str] = &[".exe", ".com", ".bat", ".cmd", ".ps1"];
 
-fn basename(program: &str) -> String {
+/// Resolve a program path to its matched basename: the last path segment with a
+/// leading `./` and a known executable extension stripped (`C:\…\certutil.exe`
+/// → `certutil`). This is the exact normalization the matcher's `program` axis
+/// keys on, so telemetry ingestion reuses it to reduce a Sysmon `Image` to the
+/// same basename a parsed command line would yield.
+pub(crate) fn basename(program: &str) -> String {
     let trimmed = program.strip_prefix("./").unwrap_or(program);
     // Split on both POSIX and Windows path separators.
     let last = trimmed.rsplit(['/', '\\']).next().unwrap_or(trimmed);

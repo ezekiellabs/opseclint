@@ -4,7 +4,8 @@
 use std::collections::HashSet;
 
 use crate::model::{Finding, KnowledgeBase, Report, Severity};
-use crate::parser::{self, parse_line};
+use crate::parser::{self, Command, parse_line};
+use crate::telemetry::Observation;
 
 fn finding_from_entry(
     entry: &crate::model::KbEntry,
@@ -23,6 +24,54 @@ fn finding_from_entry(
         noise: entry.noise,
         severity: Severity::from_noise(entry.noise),
         matched_command,
+    }
+}
+
+/// Match one unit's commands against the whole KB, appending its findings.
+///
+/// A "unit" is a single logical action: a source line (from a script/playbook)
+/// or one ingested telemetry record. `raw` is the raw text line-scoped matchers
+/// evaluate against; `line` is the source position a finding points back at.
+fn match_unit(
+    kb: &KnowledgeBase,
+    line: usize,
+    commands: &[Command],
+    raw: &str,
+    findings: &mut Vec<Finding>,
+) {
+    // Dedupe entries per unit so a rule matched by multiple segments (or by both
+    // a command and a raw match) is reported once.
+    let mut seen: HashSet<&str> = HashSet::new();
+    for entry in &kb.entries {
+        // `evaluate` yields the specific command that matched (for command-scoped
+        // matchers) or the unit's first command (for line-scoped matches), kept
+        // so coverage analysis can evaluate rule logic against it.
+        if let Some(matched_command) = entry.matcher.evaluate(commands, raw)
+            && seen.insert(entry.id.as_str())
+        {
+            findings.push(finding_from_entry(entry, line, matched_command));
+        }
+    }
+}
+
+/// Assemble matched findings into a report: order loudest-first (then by line),
+/// and record the loudest score and how many units were analyzed.
+fn finalize(mut findings: Vec<Finding>, kb: &KnowledgeBase, lines_analyzed: usize) -> Report {
+    findings.sort_by(|a, b| {
+        b.noise
+            .cmp(&a.noise)
+            .then(a.line.cmp(&b.line))
+            .then(a.rule_id.cmp(&b.rule_id))
+    });
+
+    let max_noise = findings.iter().map(|f| f.noise).max().unwrap_or(0);
+
+    Report {
+        platform: kb.platform.clone(),
+        note: kb.note.clone(),
+        findings,
+        max_noise,
+        lines_analyzed,
     }
 }
 
@@ -45,40 +94,22 @@ pub fn analyze(input: &str, kb: &KnowledgeBase) -> Report {
             commands.extend(parse_line(&sub));
         }
 
-        // Dedupe entries per unit so a rule matched by multiple segments (or by
-        // both a command and a raw match) is reported once.
-        let mut seen: HashSet<&str> = HashSet::new();
-
-        for entry in &kb.entries {
-            // `evaluate` yields the specific command that matched (for
-            // command-scoped matchers) or the line's first command (for
-            // line-scoped matches), kept so coverage analysis can evaluate rule
-            // logic against it.
-            if let Some(matched_command) = entry.matcher.evaluate(&commands, trimmed)
-                && seen.insert(entry.id.as_str())
-            {
-                findings.push(finding_from_entry(entry, unit.line, matched_command));
-            }
-        }
+        match_unit(kb, unit.line, &commands, trimmed, &mut findings);
     }
 
-    // Order findings loudest-first, then by line for stable output.
-    findings.sort_by(|a, b| {
-        b.noise
-            .cmp(&a.noise)
-            .then(a.line.cmp(&b.line))
-            .then(a.rule_id.cmp(&b.rule_id))
-    });
+    finalize(findings, kb, lines_analyzed)
+}
 
-    let max_noise = findings.iter().map(|f| f.noise).max().unwrap_or(0);
-
-    Report {
-        platform: kb.platform.clone(),
-        note: kb.note.clone(),
-        findings,
-        max_noise,
-        lines_analyzed,
+/// Analyze ingested telemetry: map each observed process-creation record's
+/// commands against the KB, exactly as [`analyze`] does for parsed source lines.
+/// The predictive and observed modes therefore share one matching core — the
+/// only difference is where the commands came from.
+pub fn analyze_telemetry(observations: &[Observation], kb: &KnowledgeBase) -> Report {
+    let mut findings = Vec::new();
+    for obs in observations {
+        match_unit(kb, obs.record, &obs.commands, obs.raw.trim(), &mut findings);
     }
+    finalize(findings, kb, observations.len())
 }
 
 #[cfg(test)]
