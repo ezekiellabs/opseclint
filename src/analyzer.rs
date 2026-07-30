@@ -680,8 +680,10 @@ mod tests {
         assert!(!fires("net help user", "net-user"));
     }
 
-    /// Local group enumeration (`net localgroup`) is covered by its own entry —
-    /// the group-discovery action the tightened `net-user` no longer claims.
+    /// Local group *enumeration* (`net localgroup`) is covered by its own entry —
+    /// the group-discovery action the tightened `net-user` no longer claims. It is
+    /// scoped to discovery: a modifying `/add` / `/delete` invocation is group
+    /// manipulation, not enumeration, and must not fire it.
     #[test]
     fn net_localgroup_is_covered() {
         let kb = win_kb();
@@ -690,6 +692,14 @@ mod tests {
         assert!(fires("net localgroup users", "net-localgroup"));
         assert!(fires("net1 localgroup", "net-localgroup"));
         assert!(!fires("net user administrator", "net-localgroup"));
+        // Modification, not enumeration — excluded to avoid a mislabeled finding
+        // (and overlap with net-localgroup-admin).
+        assert!(!fires("net localgroup users bob /add", "net-localgroup"));
+        assert!(!fires("net localgroup admins /delete", "net-localgroup"));
+        assert!(fires(
+            "net localgroup administrators evil /add",
+            "net-localgroup-admin"
+        ));
     }
 
     /// `journal-vacuum` was keyed on the bare `--vacuum` substring; it now scopes
