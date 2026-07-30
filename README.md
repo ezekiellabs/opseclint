@@ -206,7 +206,11 @@ opseclint --telemetry exec.jsonl --format esf --platform macos-es
 Each record reduces to the same `Command` the analyzer already understands, so
 `--json`, `--sarif`, `--navigator`, and `--edr` all work on ingested events, and
 observed verdicts agree with the predictive ones. Only process-execution records
-are ingested; other event classes are skipped and counted.
+are ingested as their own units; other event classes are skipped and counted —
+but Sysmon network/file/registry events (EID 3 / 11 / 13) are **correlated by
+process id** back to the execution that caused them and shown as confirmed
+secondary telemetry (a green `◉ observed:` line), turning predicted telemetry
+into recorded proof.
 
 Because a real event carries more than a command line, pairing `--telemetry`
 with `--sigma` evaluates each detection against the **recorded event** — so a

@@ -179,6 +179,37 @@ Evaluation stays honest: a field the record genuinely lacks is still
 `INDETERMINATE`, and an unsupported Sigma modifier (`re`, `cidr`, `base64`) is
 still `Unknown` — the real event resolves only the fields it actually carries.
 
+## Correlating non-execution events
+
+A real export interleaves process launches with the network, file, and registry
+events those processes cause. opseclint reduces only executions into analyzable
+units, but it does not throw the rest away: each non-execution record names the
+process that emitted it (its **pid**), so it can be **correlated back** to the
+execution and surfaced as *confirmed* secondary telemetry.
+
+This turns a prediction into an observation. Where predictive mode says "certutil
+*would* emit an outbound connection", correlation adds the recorded proof:
+
+```
+├ ◈ Sysmon EID 3 (network) from certutil.exe          ← predicted
+├ ◉ observed: network connection to 192.0.2.10:443     ← confirmed, from EID 3
+├ ◉ observed: file created C:\Users\analyst\a.exe      ← confirmed, from EID 11
+```
+
+Each execution `Observation` carries its `pid`; non-execution records are parsed
+into `(pid, SideEffect{class, detail})` pairs and attached to the matching
+observation (`correlate_side_effects`), then ride onto every `Finding` as
+`observed_side_effects` and render as green `◉ observed:` lines. An event whose
+causing process is not in the same file is dropped — correlation never guesses.
+
+**Currently wired for Sysmon** (EID 3 network → `DestinationIp:DestinationPort`,
+EID 11 → `TargetFilename`, EID 13 → `TargetObject`), the canonical case: a flat
+`ProcessId` and named destination/target fields. The same framework extends to
+auditd (correlate by `pid`, decode `SOCKADDR` `saddr`) and ESF (the audit-token
+pid, `NOTIFY_OPEN`) as follow-ons. Pid reuse is the known caveat — correlation is
+scoped to a single ingest file; tightening it with event timestamps / process
+start time is a future refinement.
+
 ## Scope and what comes next
 
 - **Process-execution events only.** The KB matches commands, so process launches

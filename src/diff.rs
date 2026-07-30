@@ -325,6 +325,7 @@ mod tests {
             severity: Severity::from_noise(noise),
             matched_command: None,
             observed_event: None,
+            observed_side_effects: Vec::new(),
         }
     }
 

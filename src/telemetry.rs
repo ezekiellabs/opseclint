@@ -33,6 +33,7 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
+use crate::model::SideEffect;
 use crate::parser::{self, Command};
 
 /// A telemetry format opseclint can ingest. All three reduce to the same
@@ -68,6 +69,9 @@ pub struct Observation {
     pub commands: Vec<Command>,
     pub raw: String,
     pub event: Arc<HashMap<String, String>>,
+    /// Non-execution events (network / file / registry) correlated to this
+    /// execution by pid — confirmed secondary telemetry.
+    pub side_effects: Vec<SideEffect>,
 }
 
 /// The result of ingesting a telemetry file: the process-execution observations
@@ -90,24 +94,73 @@ pub fn parse(text: &str, format: Format) -> Result<Ingest, String> {
 
 fn parse_sysmon(text: &str) -> Result<Ingest, String> {
     let events = read_events(text)?;
-    let mut observations = Vec::new();
+    let mut observations: Vec<Observation> = Vec::new();
+    // pid -> index of the most recent execution seen so far with that pid.
+    // Correlating in file order to the latest prior execution attributes a
+    // side-effect to the right process even when a pid is reused within the file
+    // (a process exits and the id is recycled), and keeps correlation linear.
+    let mut latest_by_pid: HashMap<String, usize> = HashMap::new();
     let mut skipped = 0;
     for (i, ev) in events.iter().enumerate() {
         let fields = flatten_fields(ev);
         match reduce_process_create(&fields) {
-            Some((commands, raw)) => observations.push(Observation {
-                record: i + 1,
-                commands,
-                raw,
-                event: Arc::new(fields),
-            }),
-            None => skipped += 1,
+            Some((commands, raw)) => {
+                if let Some(p) = fields.get("ProcessId") {
+                    latest_by_pid.insert(p.clone(), observations.len());
+                }
+                observations.push(Observation {
+                    record: i + 1,
+                    commands,
+                    raw,
+                    event: Arc::new(fields),
+                    side_effects: Vec::new(),
+                });
+            }
+            None => {
+                // A non-process-creation record is still skipped (not analyzed as
+                // its own unit), but a recognized side-effect class is attached to
+                // the execution that most recently held its pid.
+                skipped += 1;
+                if let Some((pid, effect)) = sysmon_side_effect(&fields)
+                    && let Some(&idx) = latest_by_pid.get(&pid)
+                {
+                    observations[idx].side_effects.push(effect);
+                }
+            }
         }
     }
     Ok(Ingest {
         observations,
         skipped,
     })
+}
+
+/// Extract a `(pid, SideEffect)` from a Sysmon network (EID 3), file-create
+/// (EID 11), or registry (EID 13) record, or `None` for any other event. The
+/// process id ties it back to the EID 1 execution that emitted it.
+fn sysmon_side_effect(fields: &HashMap<String, String>) -> Option<(String, SideEffect)> {
+    let pid = fields.get("ProcessId").filter(|p| !p.trim().is_empty())?;
+    let get = |k: &str| fields.get(k).map(String::as_str).filter(|v| !v.is_empty());
+    let (class, detail) = match fields.get("EventID").map(String::as_str) {
+        Some("3") => {
+            let host = get("DestinationIp").or_else(|| get("DestinationHostname"))?;
+            let detail = match get("DestinationPort") {
+                Some(port) => format!("network connection to {host}:{port}"),
+                None => format!("network connection to {host}"),
+            };
+            ("network", detail)
+        }
+        Some("11") => ("file", format!("file created {}", get("TargetFilename")?)),
+        Some("13") => ("registry", format!("registry set {}", get("TargetObject")?)),
+        _ => return None,
+    };
+    Some((
+        pid.clone(),
+        SideEffect {
+            class: class.to_string(),
+            detail,
+        },
+    ))
 }
 
 /// Canonical Sysmon Event ID 1 field names. Ingested records arrive with varied
@@ -134,6 +187,13 @@ const SYSMON_FIELDS: &[&str] = &[
     "ProcessId",
     "LogonId",
     "TerminalSessionId",
+    // Non-execution fields used for side-effect correlation (EID 3 / 11 / 13).
+    "DestinationIp",
+    "DestinationPort",
+    "DestinationHostname",
+    "TargetFilename",
+    "TargetObject",
+    "EventType",
 ];
 
 /// Map an incoming field key to its canonical Sysmon name (case-insensitively),
@@ -403,6 +463,7 @@ fn parse_auditd(text: &str) -> Result<Ingest, String> {
                 commands,
                 raw,
                 event: Arc::new(fields),
+                side_effects: Vec::new(),
             }),
             None => skipped += 1,
         }
@@ -592,6 +653,7 @@ fn parse_esf(text: &str) -> Result<Ingest, String> {
                     commands,
                     raw,
                     event: Arc::new(fields),
+                    side_effects: Vec::new(),
                 }),
                 None => skipped += 1,
             },
@@ -763,6 +825,68 @@ mod tests {
         let ids = ids(&report);
         assert!(ids.contains(&"vssadmin-delete".to_string()));
         assert!(ids.contains(&"net-user".to_string()));
+    }
+
+    #[test]
+    fn sysmon_correlates_network_and_file_side_effects() {
+        let ingest =
+            parse(&fixture("sysmon-with-side-effects.json"), Format::Sysmon).expect("parses");
+        // One EID 1 execution; the three non-process records are skipped as units.
+        assert_eq!(ingest.observations.len(), 1);
+        assert_eq!(ingest.skipped, 3);
+        // The EID 3 / EID 11 events sharing the process's pid attach as confirmed
+        // side-effects; the EID 3 for an uncaptured pid (9999) is dropped.
+        let effects = &ingest.observations[0].side_effects;
+        assert_eq!(effects.len(), 2);
+        assert!(
+            effects
+                .iter()
+                .any(|e| e.class == "network" && e.detail == "network connection to 192.0.2.10:443")
+        );
+        assert!(
+            effects
+                .iter()
+                .any(|e| e.class == "file" && e.detail.contains("a.exe"))
+        );
+    }
+
+    #[test]
+    fn side_effects_reach_the_finding() {
+        let ingest =
+            parse(&fixture("sysmon-with-side-effects.json"), Format::Sysmon).expect("parses");
+        let report = analyzer::analyze_telemetry(&ingest.observations, &win_kb());
+        let certutil = report
+            .findings
+            .iter()
+            .find(|f| f.rule_id == "certutil-download")
+            .expect("certutil finding");
+        assert_eq!(certutil.observed_side_effects.len(), 2);
+    }
+
+    #[test]
+    fn side_effects_correlate_to_the_latest_execution_of_a_reused_pid() {
+        // Two executions reuse pid 100. Each connection must attach to the
+        // execution that most recently held the pid — not both to the first.
+        let sysmon = r#"[
+            {"EventID":1,"ProcessId":"100","Image":"C:\\a.exe","CommandLine":"a.exe"},
+            {"EventID":3,"ProcessId":"100","DestinationIp":"10.0.0.1","DestinationPort":"1"},
+            {"EventID":1,"ProcessId":"100","Image":"C:\\b.exe","CommandLine":"b.exe"},
+            {"EventID":3,"ProcessId":"100","DestinationIp":"10.0.0.2","DestinationPort":"2"}
+        ]"#;
+        let ingest = parse(sysmon, Format::Sysmon).expect("parses");
+        assert_eq!(ingest.observations.len(), 2);
+        assert_eq!(ingest.observations[0].side_effects.len(), 1);
+        assert!(
+            ingest.observations[0].side_effects[0]
+                .detail
+                .contains("10.0.0.1")
+        );
+        assert_eq!(ingest.observations[1].side_effects.len(), 1);
+        assert!(
+            ingest.observations[1].side_effects[0]
+                .detail
+                .contains("10.0.0.2")
+        );
     }
 
     #[test]

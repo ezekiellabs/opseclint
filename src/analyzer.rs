@@ -13,6 +13,7 @@ fn finding_from_entry(
     line: usize,
     matched_command: Option<crate::parser::Command>,
     observed_event: Option<Arc<HashMap<String, String>>>,
+    observed_side_effects: Vec<crate::model::SideEffect>,
 ) -> Finding {
     Finding {
         line,
@@ -23,6 +24,7 @@ fn finding_from_entry(
         telemetry: entry.telemetry.clone(),
         detections: entry.detections.clone(),
         edr: Vec::new(),
+        observed_side_effects,
         noise: entry.noise,
         severity: Severity::from_noise(entry.noise),
         matched_command,
@@ -41,6 +43,7 @@ fn match_unit(
     commands: &[Command],
     raw: &str,
     observed_event: Option<&Arc<HashMap<String, String>>>,
+    side_effects: &[crate::model::SideEffect],
     findings: &mut Vec<Finding>,
 ) {
     // Dedupe entries per unit so a rule matched by multiple segments (or by both
@@ -58,6 +61,7 @@ fn match_unit(
                 line,
                 matched_command,
                 observed_event.cloned(),
+                side_effects.to_vec(),
             ));
         }
     }
@@ -103,7 +107,7 @@ pub fn analyze(input: &str, kb: &KnowledgeBase) -> Report {
             commands.extend(parse_line(&sub));
         }
 
-        match_unit(kb, unit.line, &commands, trimmed, None, &mut findings);
+        match_unit(kb, unit.line, &commands, trimmed, None, &[], &mut findings);
     }
 
     finalize(findings, kb, lines_analyzed)
@@ -124,6 +128,7 @@ pub fn analyze_telemetry(observations: &[Observation], kb: &KnowledgeBase) -> Re
             &obs.commands,
             obs.raw.trim(),
             Some(&obs.event),
+            &obs.side_effects,
             &mut findings,
         );
     }
