@@ -98,6 +98,11 @@ impl KnowledgeBase {
                     e.id
                 ));
             }
+            if let Some(event) = &e.matcher.event {
+                event
+                    .validate()
+                    .map_err(|m| format!("entry `{}`: {m}", e.id))?;
+            }
         }
         Ok(())
     }

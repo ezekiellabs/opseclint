@@ -60,7 +60,22 @@ pub struct EventMatch {
 }
 
 impl EventMatch {
+    /// Exactly one of `contains` / `eq` must be set and non-empty. Neither, both,
+    /// or an empty predicate is a knowledge-base authoring mistake — an empty
+    /// `contains` would otherwise match every value — so it is rejected at load
+    /// (see [`crate::model::KnowledgeBase::validate`]) rather than matching broadly.
+    pub fn validate(&self) -> Result<(), String> {
+        match (self.contains.as_deref(), self.eq.as_deref()) {
+            (Some(_), Some(_)) => Err("event match sets both `contains` and `eq`".into()),
+            (None, None) => Err("event match sets neither `contains` nor `eq`".into()),
+            (Some(""), None) | (None, Some("")) => Err("event match predicate is empty".into()),
+            _ => Ok(()),
+        }
+    }
+
     /// Whether this predicate holds for a record of the given `class` and fields.
+    /// An empty or ambiguous predicate never matches (it is rejected at load, but
+    /// `eval` is explicit rather than relying on that).
     fn eval(&self, class: &str, fields: &HashMap<String, String>) -> bool {
         if !self.class.eq_ignore_ascii_case(class) {
             return false;
@@ -68,13 +83,13 @@ impl EventMatch {
         let Some(val) = fields.get(&self.field) else {
             return false;
         };
-        if let Some(needle) = &self.contains {
-            return val.to_lowercase().contains(&needle.to_lowercase());
+        match (self.contains.as_deref(), self.eq.as_deref()) {
+            (Some(needle), None) if !needle.is_empty() => {
+                val.to_lowercase().contains(&needle.to_lowercase())
+            }
+            (None, Some(exact)) if !exact.is_empty() => val.eq_ignore_ascii_case(exact),
+            _ => false,
         }
-        if let Some(exact) = &self.eq {
-            return val.eq_ignore_ascii_case(exact);
-        }
-        false
     }
 }
 
@@ -815,6 +830,35 @@ mod tests {
         assert!(!m(r#"{ "program": "reg" }"#).evaluate_event("registry", &fields));
         // …and an event matcher does not match a command line.
         assert!(reg.evaluate(&[], "reg add HKLM").is_none());
+    }
+
+    #[test]
+    fn event_match_rejects_empty_or_ambiguous_predicate() {
+        let ev = |json: &str| m(json).event.expect("has event");
+        assert!(
+            ev(r#"{ "event": { "class": "registry", "field": "T", "contains": "x" } }"#)
+                .validate()
+                .is_ok()
+        );
+        // Both predicates set — ambiguous.
+        assert!(
+            ev(r#"{ "event": { "class": "registry", "field": "T", "contains": "x", "eq": "y" } }"#)
+                .validate()
+                .is_err()
+        );
+        // Neither set.
+        assert!(
+            ev(r#"{ "event": { "class": "registry", "field": "T" } }"#)
+                .validate()
+                .is_err()
+        );
+        // Empty `contains` would otherwise match every value — rejected, and never
+        // matches even if it slipped through.
+        let empty = m(r#"{ "event": { "class": "registry", "field": "T", "contains": "" } }"#);
+        assert!(empty.event.as_ref().unwrap().validate().is_err());
+        let mut fields = HashMap::new();
+        fields.insert("T".to_string(), "anything".to_string());
+        assert!(!empty.evaluate_event("registry", &fields));
     }
 
     #[test]

@@ -412,7 +412,12 @@ fn main() -> ExitCode {
                 String::new()
             };
             let standalone = if !ingest.event_observations.is_empty() {
-                format!(" ({} matched standalone)", ingest.event_observations.len())
+                // These are the standalone *candidates* evaluated against the
+                // event axis — not a count of findings, some may match nothing.
+                format!(
+                    " ({} evaluated as standalone event(s))",
+                    ingest.event_observations.len()
+                )
             } else {
                 String::new()
             };
