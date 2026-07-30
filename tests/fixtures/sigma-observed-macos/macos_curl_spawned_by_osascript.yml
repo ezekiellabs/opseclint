@@ -1,0 +1,20 @@
+---
+title: Curl Spawned By osascript
+id: 55555555-5555-5555-5555-555555555555
+status: test
+description: >
+  curl launched as a child of osascript — AppleScript shelling out to download a
+  payload. Keys on ParentImage, which a command line alone cannot supply, so it
+  is indeterminate in predictive mode but resolves against a real ESF event.
+logsource:
+  product: macos
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: '/curl'
+    ParentImage|endswith: '/osascript'
+  condition: selection
+level: high
+tags:
+  - attack.command_and_control
+  - attack.t1105

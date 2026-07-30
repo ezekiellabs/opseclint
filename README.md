@@ -185,7 +185,7 @@ ingests the events a sensor **actually recorded** and maps each back to
 techniques, detectability, and coverage, answering "given what the sensor did
 record, which techniques does this represent?"
 
-Two formats are supported, selected with `--format`:
+Three formats are supported, selected with `--format`:
 
 - `sysmon` (the default) — Windows **Sysmon Event ID 1** (Process Create), as a
   JSON array of events or JSONL.
@@ -193,11 +193,14 @@ Two formats are supported, selected with `--format`:
   multi-line `SYSCALL` / `EXECVE` / `CWD` records of one event are reassembled by
   their `audit(…)` id, the argv rebuilt from the `EXECVE` fields (quoted and
   hex-encoded values decoded), and the program taken from the `exe` path.
+- `esf` — macOS **Endpoint Security** `NOTIFY_EXEC` events, as `eslogger exec`
+  JSON (array, single object, or JSONL). The image, argv, and working directory come from
+  `event.exec.target`; the calling process supplies a real `ParentImage`.
 
 ```bash
 opseclint --telemetry sysmon-events.json --platform windows-sysmon
 opseclint --telemetry audit.log --format auditd --platform linux-auditd
-opseclint --telemetry audit.log --format auditd --platform linux-auditd --json
+opseclint --telemetry exec.jsonl --format esf --platform macos-es
 ```
 
 Each record reduces to the same `Command` the analyzer already understands, so
@@ -468,7 +471,7 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - [x] [Coverage diff](#coverage-diff---diff): compare a run against a saved report to see what coverage changed, via `--diff`
 - [x] ATT&CK Navigator layer export: visualize technique coverage on the MITRE matrix, via `--navigator`
 - [x] Gap-to-rule scaffolding: generate a starter Sigma rule for a modeled action (or a `--coverage-gaps` blind spot), via `--scaffold`
-- [x] [Ingest real telemetry](docs/design/telemetry-ingest.md): map recorded sensor events back to techniques and coverage, via `--telemetry` (Windows Sysmon Event ID 1 JSON, and Linux auditd `execve` logs); with `--sigma`, evaluate detections against the real event so parent/integrity/working-directory-keyed rules resolve instead of reading indeterminate
+- [x] [Ingest real telemetry](docs/design/telemetry-ingest.md): map recorded sensor events back to techniques and coverage, via `--telemetry` — Windows Sysmon Event ID 1 JSON, Linux auditd `execve` logs, and macOS Endpoint Security `NOTIFY_EXEC` (`eslogger`); with `--sigma`, evaluate detections against the real event so parent/integrity/working-directory-keyed rules resolve instead of reading indeterminate
 
 See the [open issues][issues-url] for the full list, and
 [CHANGELOG.md](CHANGELOG.md) for release history.

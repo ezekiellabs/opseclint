@@ -1,6 +1,6 @@
 # Reference: ingesting real telemetry
 
-**Status:** current (Windows Sysmon Event ID 1 JSON; Linux auditd `execve`)
+**Status:** current (Windows Sysmon EID 1 JSON; Linux auditd `execve`; macOS ESF `NOTIFY_EXEC`)
 **Scope:** how opseclint maps recorded host telemetry back to the knowledge base.
 
 opseclint's original direction is *predictive*: given a command, resolve the
@@ -120,6 +120,31 @@ wrong answer rather than an honest "can't tell":
 Reassembling oversized args split across `aN_len` + `aN[0]…` chunks is a known
 limitation; the common single-token `aN` shape is handled.
 
+## The reduction (macOS Endpoint Security)
+
+macOS emits one **`ES_EVENT_TYPE_NOTIFY_EXEC`** per launch. Exported with Apple's
+built-in `eslogger exec`, each is a self-contained JSON object (a top-level array,
+a single object, or JSONL, read by the same reader the Sysmon path uses — no
+reassembly). A record
+is an execution when it carries an `event.exec` object; any other event class
+(`event.open`, `event.fork`) is **skipped and counted**.
+
+The ESF exec model is the key to the mapping. `event.exec.target` is the *new*
+process, while the message's top-level `process` is the caller that invoked
+`exec`:
+
+- **`Image`** ← `event.exec.target.executable.path`; its `basename` is the
+  program.
+- **`CommandLine`** ← `event.exec.args`, joined with the same argv re-quoting the
+  auditd path uses (ESF also hands us exact argv).
+- **`CurrentDirectory`** ← `event.exec.cwd.path`.
+- **`ParentImage`** ← `process.executable.path`, the calling process's image.
+
+That last mapping is what sets ESF apart: unlike auditd (a numeric `ppid` only),
+ESF names the calling process, so `ParentImage`-keyed detections **resolve**
+against ingested macOS telemetry. `User` is still left unmapped — the audit token
+carries a numeric uid, the same name-vs-number hazard as auditd.
+
 ## Evaluating detections on the real event
 
 The command reduction drives *matching*, but a record carries more than a
@@ -149,11 +174,13 @@ still `Unknown` — the real event resolves only the fields it actually carries.
 ## Scope and what comes next
 
 - **Process-execution events only.** The KB matches commands, so process launches
-  are the natural target across both formats. Other event classes (network /
+  are the natural target across all three formats. Other event classes (network /
   file / registry) tie into the `edr.rs` event-class taxonomy and are out of
   scope for now — they are skipped and counted.
 
-**macOS/ESF** (`NOTIFY_EXEC`) follows as the next format behind the same
-`--telemetry` input path, reusing this same reduction and observed-event
-evaluation. Its `ES_EVENT_TYPE_NOTIFY_EXEC` carries `argv`, the executable path,
-and the parent — so, unlike auditd, it can supply a real `ParentImage`.
+With Sysmon, auditd, and ESF, the three platforms opseclint models each have a
+process-execution ingest path. Natural extensions from here are non-execution
+event classes (file / network / registry) mapped through `edr.rs`, and richer
+per-format field coverage (e.g. resolving numeric uids to names when a record
+carries the mapping) — each additive behind the same reduction and observed-event
+evaluation.

