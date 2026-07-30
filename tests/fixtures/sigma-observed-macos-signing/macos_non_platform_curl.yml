@@ -1,0 +1,21 @@
+---
+title: Curl-Named Binary That Is Not An Apple Platform Binary
+id: 66666666-6666-6666-6666-666666666666
+status: test
+description: >
+  A process whose image is named curl but which is not a macOS platform binary —
+  a masquerading download utility. Keys on is_platform_binary, a code-signing fact
+  only a real Endpoint Security event carries, so it is indeterminate predictively
+  and resolves against ingested ESF telemetry.
+logsource:
+  product: macos
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: '/curl'
+    is_platform_binary: 'false'
+  condition: selection
+level: high
+tags:
+  - attack.command_and_control
+  - attack.t1105

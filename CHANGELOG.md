@@ -26,8 +26,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   agree with predicted ones by construction. Non-execution records are skipped
   and counted. When paired with `--sigma`, detections are evaluated against the
   **real recorded event**: a rule keyed on a field a command line can't supply
-  (`ParentImage`, `IntegrityLevel`, `CurrentDirectory`, …) resolves to `fires` /
-  `no-fire` instead of `indeterminate` — the payoff of ingesting real telemetry.
+  (`ParentImage`, `IntegrityLevel`, `CurrentDirectory`, macOS code-signing fields
+  like `is_platform_binary`, …) resolves to `fires` / `no-fire` instead of
+  `indeterminate` — the payoff of ingesting real telemetry. Each format carries
+  the extra context it records: ESF the calling parent and the new image's
+  code-signing (`signing_id` / `team_id` / `is_platform_binary`), auditd the
+  controlling `tty` and audit-rule `key`.
   See [`docs/design/telemetry-ingest.md`](docs/design/telemetry-ingest.md).
 
 - **`--verify-detections`** — prove the knowledge base's own Sigma detection

@@ -366,12 +366,23 @@ fn parse_auditd(text: &str) -> Result<Ingest, String> {
         if !cmdline.is_empty() {
             fields.insert("CommandLine".to_string(), cmdline);
         }
-        if let Some(syscall) = recs.iter().find(|r| r.kind == "SYSCALL")
-            && let Some(exe) = syscall.fields.get("exe")
-        {
-            let exe = decode_value(exe);
-            if !exe.is_empty() {
-                fields.insert("Image".to_string(), exe);
+        if let Some(syscall) = recs.iter().find(|r| r.kind == "SYSCALL") {
+            if let Some(exe) = syscall.fields.get("exe") {
+                let exe = decode_value(exe);
+                if !exe.is_empty() {
+                    fields.insert("Image".to_string(), exe);
+                }
+            }
+            // The controlling tty and the audit rule tag (`key`) — extra context
+            // auditd records that a rule may key on. Each is carried only when the
+            // SYSCALL record includes it; a `(none)` tty is dropped.
+            for (src, dst) in [("tty", "tty"), ("key", "key")] {
+                if let Some(v) = syscall.fields.get(src) {
+                    let v = decode_value(v);
+                    if !v.is_empty() && v != "(none)" {
+                        fields.insert(dst.to_string(), v);
+                    }
+                }
             }
         }
         if let Some(cwd) = recs.iter().find(|r| r.kind == "CWD")
@@ -615,6 +626,20 @@ fn reduce_esf(ev: &Value) -> Option<HashMap<String, String>> {
     }
     if let Some(parent) = nested_str(ev, &["process", "executable", "path"]) {
         insert_nonempty(&mut fields, "ParentImage", parent);
+    }
+    // Code-signing context of the new image — the fields macOS detections key on
+    // to flag unsigned or third-party binaries. Kept under their `eslogger`
+    // names so a rule author keys on what they see in the telemetry.
+    if let Some(target) = exec.get("target") {
+        if let Some(signing_id) = target.get("signing_id").and_then(Value::as_str) {
+            insert_nonempty(&mut fields, "signing_id", signing_id);
+        }
+        if let Some(team_id) = target.get("team_id").and_then(Value::as_str) {
+            insert_nonempty(&mut fields, "team_id", team_id);
+        }
+        if let Some(platform) = target.get("is_platform_binary").and_then(Value::as_bool) {
+            fields.insert("is_platform_binary".to_string(), platform.to_string());
+        }
     }
     Some(fields)
 }
@@ -990,6 +1015,50 @@ type=EXECVE msg=audit(1.0:1): argc=4 a0=\"grep\" a1=\"-r\" a2=68656c6c6f20776f72
             curl.event.get("ParentImage").map(String::as_str),
             Some("/usr/bin/osascript")
         );
+    }
+
+    #[test]
+    fn esf_carries_code_signing_fields() {
+        // The signing context a command line can't supply rides along for
+        // observed Sigma evaluation of macOS unsigned/third-party rules.
+        let ev = r#"{"event":{"exec":{"target":{
+            "executable":{"path":"/tmp/curl"},
+            "signing_id":"com.example.tool","team_id":"ABCDE12345","is_platform_binary":false},
+            "args":["curl","http://x/y"]}},"process":{"executable":{"path":"/bin/zsh"}}}"#;
+        let ingest = parse(ev, Format::Esf).expect("parses");
+        let event = &ingest.observations[0].event;
+        assert_eq!(
+            event.get("signing_id").map(String::as_str),
+            Some("com.example.tool")
+        );
+        assert_eq!(event.get("team_id").map(String::as_str), Some("ABCDE12345"));
+        assert_eq!(
+            event.get("is_platform_binary").map(String::as_str),
+            Some("false")
+        );
+    }
+
+    #[test]
+    fn auditd_carries_tty_and_key() {
+        let log = "\
+type=SYSCALL msg=audit(1.0:1): syscall=59 exe=\"/usr/bin/whoami\" tty=pts0 key=\"recon\"
+type=EXECVE msg=audit(1.0:1): argc=1 a0=\"whoami\"
+";
+        let ingest = parse(log, Format::Auditd).expect("parses");
+        let event = &ingest.observations[0].event;
+        assert_eq!(event.get("tty").map(String::as_str), Some("pts0"));
+        assert_eq!(event.get("key").map(String::as_str), Some("recon"));
+    }
+
+    #[test]
+    fn auditd_omits_placeholder_tty() {
+        // A `(none)` tty is a placeholder, not a value — it must not be carried.
+        let log = "\
+type=SYSCALL msg=audit(1.0:1): syscall=59 exe=\"/usr/bin/whoami\" tty=(none)
+type=EXECVE msg=audit(1.0:1): argc=1 a0=\"whoami\"
+";
+        let ingest = parse(log, Format::Auditd).expect("parses");
+        assert!(ingest.observations[0].event.get("tty").is_none());
     }
 
     #[test]
