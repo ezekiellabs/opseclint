@@ -59,6 +59,12 @@ struct Cli {
     #[arg(long, value_enum, default_value = "sysmon", help_heading = "Ingest")]
     format: telemetry::Format,
 
+    /// `passwd`-format file mapping numeric uids to names, so ingested telemetry
+    /// with a numeric uid (auditd) resolves the `User` field. Without it, a
+    /// numeric uid is left unresolved rather than guessed.
+    #[arg(long, value_name = "FILE", help_heading = "Ingest")]
+    users: Option<String>,
+
     /// Target platform / telemetry model.
     #[arg(long, value_enum, default_value = "linux-auditd")]
     platform: kb::Platform,
@@ -382,7 +388,17 @@ fn main() -> ExitCode {
                 return ExitCode::from(2);
             }
         };
-        let ingest = match telemetry::parse(&text, cli.format) {
+        let users = match &cli.users {
+            Some(path) => match std::fs::read_to_string(path) {
+                Ok(t) => telemetry::parse_passwd(&t),
+                Err(e) => {
+                    eprintln!("opseclint: failed to read --users '{path}': {e}");
+                    return ExitCode::from(2);
+                }
+            },
+            None => Default::default(),
+        };
+        let ingest = match telemetry::parse_with_users(&text, cli.format, &users) {
             Ok(i) => i,
             Err(e) => {
                 eprintln!("opseclint: could not parse telemetry '{tel_path}': {e}");

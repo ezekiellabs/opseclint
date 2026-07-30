@@ -118,7 +118,10 @@ wrong answer rather than an honest "can't tell":
   path. Parent-keyed rules stay `INDETERMINATE`.
 - **`User`** — auditd records a numeric `uid`; mapping `0` onto the name-based
   `User` field would make a rule expecting `root` report a definite `no-fire`.
-  Left absent, such a rule stays `INDETERMINATE` (honest) instead.
+  Left absent, such a rule stays `INDETERMINATE` (honest) instead — **unless**
+  `--users <passwd-file>` supplies the uid→name mapping, in which case `User` is
+  resolved from it (`parse_passwd`). The resolution is opt-in precisely so the
+  default never guesses: no mapping ⇒ no `User` ⇒ honest indeterminate.
 
 Reassembling oversized args split across `aN_len` + `aN[0]…` chunks is a known
 limitation; the common single-token `aN` shape is handled.
