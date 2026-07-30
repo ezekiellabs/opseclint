@@ -343,7 +343,7 @@ fn parse_auditd(text: &str) -> Result<Ingest, String> {
 
     let mut observations = Vec::new();
     let mut skipped = 0;
-    for id in &order {
+    for (idx, id) in order.iter().enumerate() {
         let recs = &groups[id];
         let execve = recs.iter().find(|r| r.kind == "EXECVE");
         // An EXECVE record is emitted only for execve/execveat, so its presence
@@ -377,7 +377,10 @@ fn parse_auditd(text: &str) -> Result<Ingest, String> {
 
         match execution_from_fields(&fields) {
             Some((commands, raw)) => observations.push(Observation {
-                record: observations.len() + 1,
+                // The event's ordinal position in the source log (skipped events
+                // consume a number too), so a finding points back at the right
+                // event — matching the Sysmon path's `record`.
+                record: idx + 1,
                 commands,
                 raw,
                 event: Arc::new(fields),
@@ -417,14 +420,45 @@ fn event_id_from_msg(msg: &str) -> Option<String> {
 /// argument fields, in order, each decoded (quoted or hex). Stops at the first
 /// gap. Argument chunking (`a1_len` + `a1[0]`…) for oversized args is not
 /// reassembled — a documented limitation.
+///
+/// auditd hands us the *exact* argv, already split; the shared reducer then
+/// re-tokenizes the joined line with the shell parser. So each argument is
+/// re-quoted if it holds anything the parser would act on (whitespace, quotes, a
+/// separator), keeping the reconstructed boundaries identical to what the sensor
+/// recorded rather than letting one argument split into several.
 fn build_execve_cmdline(fields: &HashMap<String, String>) -> String {
     let mut args = Vec::new();
     let mut i = 0;
     while let Some(v) = fields.get(&format!("a{i}")) {
-        args.push(decode_value(v));
+        args.push(shell_quote_arg(&decode_value(v)));
         i += 1;
     }
     args.join(" ")
+}
+
+/// Quote a decoded argv element for the shell tokenizer so it round-trips as one
+/// token. Values made only of characters the parser treats literally are left
+/// bare; anything else is wrapped in a quote it does not itself contain (double
+/// preferred). The parser toggles on quotes without honoring backslash escapes,
+/// so an argument holding *both* quote kinds can't round-trip perfectly — a rare,
+/// documented edge that is no worse than leaving it unquoted.
+fn shell_quote_arg(arg: &str) -> String {
+    let is_bare = !arg.is_empty()
+        && arg.bytes().all(|b| {
+            b.is_ascii_alphanumeric()
+                || matches!(
+                    b,
+                    b'-' | b'_' | b'.' | b'/' | b':' | b'=' | b'@' | b',' | b'+' | b'%'
+                )
+        });
+    if is_bare {
+        return arg.to_string();
+    }
+    if !arg.contains('"') {
+        format!("\"{arg}\"")
+    } else {
+        format!("'{arg}'")
+    }
 }
 
 /// Decode an auditd field value: strip surrounding quotes, or hex-decode when it
@@ -687,13 +721,15 @@ mod tests {
         // no EXECVE record) is skipped.
         assert_eq!(ingest.observations.len(), 3);
         assert_eq!(ingest.skipped, 1);
+        // Record numbers are the events' source positions: the skipped connect
+        // event is #3, so whoami (the 4th event) is record 4 — not 3.
         assert_eq!(
             ingest
                 .observations
                 .iter()
                 .map(|o| o.record)
                 .collect::<Vec<_>>(),
-            vec![1, 2, 3]
+            vec![1, 2, 4]
         );
     }
 
@@ -755,10 +791,37 @@ type=SYSCALL msg=audit(10.0:1): syscall=59 exe=\"/usr/bin/cat\" uid=0
         assert_eq!(decode_value("\"/usr/bin/cat\""), "/usr/bin/cat");
         assert_eq!(decode_value("2f7573722f62696e2f6361740000"), "/usr/bin/cat");
         assert_eq!(decode_value("/usr/bin/whoami"), "/usr/bin/whoami");
-        // Odd length and non-hex fall through to literal, so numeric-ish tokens
-        // are never mangled.
+        // An even-length all-hex token like "5678" DOES decode (→ "Vx") — which
+        // is exactly why decode_value is applied only to string fields (exe, cwd,
+        // argv), never to numeric ones like uid/pid. Odd-length or non-hex always
+        // passes through literally.
         assert_eq!(decode_value("5678"), "Vx");
         assert_eq!(decode_value("567"), "567");
+    }
+
+    #[test]
+    fn auditd_preserves_argv_boundaries_across_whitespace_and_metachars() {
+        // auditd hex-encodes argv values that contain spaces/quotes/separators.
+        // Joining the exact argv must keep each element one token, not let the
+        // shell parser re-split it. a2 = hex("hello world"), a3 = hex("a;b|c").
+        let log = "\
+type=SYSCALL msg=audit(1.0:1): syscall=59 exe=\"/usr/bin/grep\"
+type=EXECVE msg=audit(1.0:1): argc=4 a0=\"grep\" a1=\"-r\" a2=68656c6c6f20776f726c64 a3=613b627c63
+";
+        let ingest = parse(log, Format::Auditd).expect("parses");
+        let cmd = &ingest.observations[0].commands[0];
+        assert_eq!(cmd.program, "grep");
+        // The space- and separator-bearing args each survive as a single token.
+        assert!(
+            cmd.args.iter().any(|a| a == "hello world"),
+            "expected 'hello world' as one arg, got {:?}",
+            cmd.args
+        );
+        assert!(
+            cmd.args.iter().any(|a| a == "a;b|c"),
+            "expected 'a;b|c' as one arg, got {:?}",
+            cmd.args
+        );
     }
 
     #[test]

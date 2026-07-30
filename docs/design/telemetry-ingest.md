@@ -98,7 +98,11 @@ downstream analysis are identical:
   order. Each value is **decoded**: auditd double-quotes values, or hex-encodes
   them when they contain spaces/quotes/control characters (`a0=6C73` → `ls`).
   Decoding is applied only to string fields, never numeric ones, so `pid=5678`
-  is never mistaken for hex.
+  is never mistaken for hex. Because auditd hands us the *exact* argv but the
+  shared reducer re-tokenizes the joined line, each element is **re-quoted** when
+  it holds anything the shell parser would act on (whitespace, a quote, a `;` /
+  `|` / `&`), so an argument that legitimately contains a space stays one token
+  instead of splitting into several.
 - **`Image`** ← the `SYSCALL` `exe` path (also decoded); its `basename` becomes
   the primary command's program.
 - **`CurrentDirectory`** ← the `CWD` record — a field the command line can't
