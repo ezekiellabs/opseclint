@@ -107,6 +107,9 @@ downstream analysis are identical:
   the primary command's program.
 - **`CurrentDirectory`** ← the `CWD` record — a field the command line can't
   supply, carried for observed Sigma evaluation.
+- **`tty`** / **`key`** ← the `SYSCALL` controlling tty and audit-rule tag — extra
+  always-present context a rule may key on (a `(none)` tty is a placeholder and is
+  dropped, not carried).
 
 Two fields are **deliberately not mapped**, because doing so would fabricate a
 wrong answer rather than an honest "can't tell":
@@ -139,8 +142,13 @@ process, while the message's top-level `process` is the caller that invoked
   auditd path uses (ESF also hands us exact argv).
 - **`CurrentDirectory`** ← `event.exec.cwd.path`.
 - **`ParentImage`** ← `process.executable.path`, the calling process's image.
+- **`signing_id`** / **`team_id`** / **`is_platform_binary`** ← the new image's
+  code-signing context. These are carried under their `eslogger` field names and
+  are what macOS detections key on to flag unsigned or third-party binaries
+  (`is_platform_binary: 'false'`) — a fact only a real Endpoint Security event
+  supplies, so such a rule is indeterminate predictively and resolves here.
 
-That last mapping is what sets ESF apart: unlike auditd (a numeric `ppid` only),
+That parent mapping is what sets ESF apart: unlike auditd (a numeric `ppid` only),
 ESF names the calling process, so `ParentImage`-keyed detections **resolve**
 against ingested macOS telemetry. `User` is still left unmapped — the audit token
 carries a numeric uid, the same name-vs-number hazard as auditd.
