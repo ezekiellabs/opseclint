@@ -83,13 +83,40 @@ pub struct Ingest {
     pub skipped: usize,
 }
 
-/// Parse recorded telemetry `text` in the given `format` into observations.
+/// A uid → user-name map, from a `passwd`-format file (see [`parse_passwd`]).
+pub type UserMap = HashMap<String, String>;
+
+/// Parse recorded telemetry `text` in the given `format` into observations, with
+/// no uid→name mapping. The ergonomic default used across the tests; the binary
+/// goes through [`parse_with_users`] to honor `--users`.
+#[allow(dead_code)]
 pub fn parse(text: &str, format: Format) -> Result<Ingest, String> {
+    parse_with_users(text, format, &UserMap::new())
+}
+
+/// Like [`parse`], but resolves numeric uids to names via `users` (from
+/// `--users`). Only auditd carries a numeric uid today; Sysmon already names the
+/// user and ESF's audit-token uid is a follow-on.
+pub fn parse_with_users(text: &str, format: Format, users: &UserMap) -> Result<Ingest, String> {
     match format {
         Format::Sysmon => parse_sysmon(text),
-        Format::Auditd => parse_auditd(text),
+        Format::Auditd => parse_auditd(text, users),
         Format::Esf => parse_esf(text),
     }
+}
+
+/// Parse a `passwd`-format file into a uid → name map: each `name:x:uid:…` line
+/// contributes `uid -> name`. Lines with fewer than three colon fields (comments,
+/// blanks) are ignored.
+pub fn parse_passwd(text: &str) -> UserMap {
+    let mut map = UserMap::new();
+    for line in text.lines() {
+        let fields: Vec<&str> = line.split(':').collect();
+        if fields.len() >= 3 && !fields[0].is_empty() && !fields[2].is_empty() {
+            map.insert(fields[2].to_string(), fields[0].to_string());
+        }
+    }
+    map
 }
 
 fn parse_sysmon(text: &str) -> Result<Ingest, String> {
@@ -392,9 +419,10 @@ struct AuditRecord {
 /// Only fields opseclint can map honestly are carried onto the event: auditd
 /// records the parent as a numeric `ppid` (no path), so `ParentImage` is absent
 /// and parent-keyed rules stay indeterminate; and it records a numeric `uid`,
-/// which is deliberately not mapped onto the name-based `User` field to avoid a
-/// false `no-fire` against a rule expecting `root`.
-fn parse_auditd(text: &str) -> Result<Ingest, String> {
+/// which is mapped onto the name-based `User` field **only** when `--users`
+/// supplies the uid→name mapping — otherwise it is left unresolved rather than
+/// guessed (mapping `0` to `root` blindly would risk a false `no-fire`).
+fn parse_auditd(text: &str, users: &UserMap) -> Result<Ingest, String> {
     let mut order: Vec<String> = Vec::new();
     let mut groups: HashMap<String, Vec<AuditRecord>> = HashMap::new();
     for line in text.lines() {
@@ -427,6 +455,12 @@ fn parse_auditd(text: &str) -> Result<Ingest, String> {
             fields.insert("CommandLine".to_string(), cmdline);
         }
         if let Some(syscall) = recs.iter().find(|r| r.kind == "SYSCALL") {
+            // Resolve the numeric uid to a name only when `--users` maps it.
+            if let Some(uid) = syscall.fields.get("uid")
+                && let Some(name) = users.get(uid)
+            {
+                fields.insert("User".to_string(), name.clone());
+            }
             if let Some(exe) = syscall.fields.get("exe") {
                 let exe = decode_value(exe);
                 if !exe.is_empty() {
@@ -1080,6 +1114,35 @@ type=EXECVE msg=audit(1.0:1): argc=4 a0=\"grep\" a1=\"-r\" a2=68656c6c6f20776f72
             cmd.args.iter().any(|a| a == "a;b|c"),
             "expected 'a;b|c' as one arg, got {:?}",
             cmd.args
+        );
+    }
+
+    #[test]
+    fn passwd_maps_uid_to_name() {
+        let passwd = "root:x:0:0:root:/root:/bin/bash\n# comment\nanalyst:x:1000:1000::/home/analyst:/bin/zsh\nbad-line\n";
+        let map = parse_passwd(passwd);
+        assert_eq!(map.get("0").map(String::as_str), Some("root"));
+        assert_eq!(map.get("1000").map(String::as_str), Some("analyst"));
+        assert_eq!(map.len(), 2);
+    }
+
+    #[test]
+    fn auditd_resolves_user_only_with_a_mapping() {
+        let log = "\
+type=SYSCALL msg=audit(1.0:1): syscall=59 exe=\"/usr/bin/whoami\" uid=0
+type=EXECVE msg=audit(1.0:1): argc=1 a0=\"whoami\"
+";
+        // No mapping: uid stays unresolved — honest, so a User-keyed rule remains
+        // indeterminate rather than getting a wrong answer.
+        let bare = parse(log, Format::Auditd).expect("parses");
+        assert!(bare.observations[0].event.get("User").is_none());
+
+        // With a mapping, uid 0 resolves to root.
+        let users = parse_passwd("root:x:0:0:::\n");
+        let mapped = parse_with_users(log, Format::Auditd, &users).expect("parses");
+        assert_eq!(
+            mapped.observations[0].event.get("User").map(String::as_str),
+            Some("root")
         );
     }
 

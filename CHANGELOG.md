@@ -38,6 +38,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   recorded proof.
   See [`docs/design/telemetry-ingest.md`](docs/design/telemetry-ingest.md).
 
+- **`--users <FILE>`** — a `passwd`-format file mapping numeric uids to names, so
+  ingested auditd telemetry resolves the `User` field (uid `0` → `root`), letting
+  `User`-keyed detections resolve. Opt-in by design: without it a numeric uid is
+  left unresolved rather than guessed, so a rule expecting `root` stays
+  `indeterminate` instead of getting a wrong `no-fire`.
+
 - **`--verify-detections`** — prove the knowledge base's own Sigma detection
   claims against a real ruleset. For every entry that cites a Sigma detection,
   opseclint synthesizes a representative command and checks whether a genuine
