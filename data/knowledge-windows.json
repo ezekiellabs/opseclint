@@ -139,7 +139,7 @@
     },
     {
       "id": "run-key-persist",
-      "match": { "line": { "contains": "currentversion\\run" } },
+      "match": { "line": { "contains": "currentversion\\run" }, "event": { "class": "registry", "field": "TargetObject", "contains": "\\CurrentVersion\\Run" } },
       "description": "Writing a Run key — registry autostart persistence",
       "techniques": [{ "id": "T1547.001", "name": "Boot or Logon Autostart Execution: Registry Run Keys / Startup Folder" }],
       "telemetry": ["Sysmon EID 13 (Registry Set) under ...\\CurrentVersion\\Run"],

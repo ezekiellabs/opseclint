@@ -15,16 +15,21 @@
 //! `contains` produced — e.g. `/var/log` matching `cd /var/log`, or `id_rsa`
 //! matching `id_rsa_notes.txt`.
 
+use std::collections::HashMap;
+
 use serde::Deserialize;
 
 use crate::parser::Command;
 
 /// A structured predicate matching a parsed command within its raw line.
 ///
-/// All three fields are optional. When `program` is present the matcher is
-/// command-scoped: some command in the unit must satisfy `program` (and `args`
-/// / `line`, if given). When `program` is absent the matcher is line-scoped: the
-/// raw line must satisfy `line`.
+/// The command axes (`program` / `args` / `line`) are optional. When `program`
+/// is present the matcher is command-scoped: some command in the unit must
+/// satisfy `program` (and `args` / `line`, if given). When `program` is absent
+/// the matcher is line-scoped: the raw line must satisfy `line`. The `event` axis
+/// is orthogonal: it matches a *non-execution* record (network / file / registry)
+/// by its fields rather than a command line, for entries recognized from
+/// standalone telemetry with no captured `execve`.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Matcher {
@@ -34,6 +39,43 @@ pub struct Matcher {
     pub args: Option<ArgPred>,
     #[serde(default)]
     pub line: Option<LinePred>,
+    #[serde(default)]
+    pub event: Option<EventMatch>,
+}
+
+/// A predicate over a non-execution event's fields: the event `class`
+/// (`network` / `file` / `registry`) and a single string test (`contains` or
+/// `eq`, case-insensitive) on one named `field` (e.g. a registry `TargetObject`).
+/// Deliberately small — hand-authorable, and evaluated against the same field map
+/// the ingest builds for observed Sigma evaluation.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EventMatch {
+    pub class: String,
+    pub field: String,
+    #[serde(default)]
+    pub contains: Option<String>,
+    #[serde(default)]
+    pub eq: Option<String>,
+}
+
+impl EventMatch {
+    /// Whether this predicate holds for a record of the given `class` and fields.
+    fn eval(&self, class: &str, fields: &HashMap<String, String>) -> bool {
+        if !self.class.eq_ignore_ascii_case(class) {
+            return false;
+        }
+        let Some(val) = fields.get(&self.field) else {
+            return false;
+        };
+        if let Some(needle) = &self.contains {
+            return val.to_lowercase().contains(&needle.to_lowercase());
+        }
+        if let Some(exact) = &self.eq {
+            return val.eq_ignore_ascii_case(exact);
+        }
+        false
+    }
 }
 
 /// How to match the program basename: exact (a bare string) or any-of a set.
@@ -169,6 +211,12 @@ impl Matcher {
     /// does, where `mc` is the specific command that matched (for command-scoped
     /// matchers) or the unit's first command (for line-scoped matchers) — the
     /// `matched_command` that downstream coverage/Sigma evaluation keys on.
+    /// Whether this entry's `event` axis matches a non-execution record of the
+    /// given `class` and field map. `false` for a command-only matcher.
+    pub fn evaluate_event(&self, class: &str, fields: &HashMap<String, String>) -> bool {
+        self.event.as_ref().is_some_and(|e| e.eval(class, fields))
+    }
+
     pub fn evaluate(&self, commands: &[Command], raw: &str) -> Option<Option<Command>> {
         if self.program.is_some() {
             commands
@@ -748,6 +796,25 @@ mod tests {
                 "representative `{repr}` did not match its own matcher {json}",
             );
         }
+    }
+
+    #[test]
+    fn event_axis_matches_class_and_field() {
+        let reg = m(
+            r#"{ "event": { "class": "registry", "field": "TargetObject", "contains": "\\Run" } }"#,
+        );
+        let mut fields = HashMap::new();
+        fields.insert(
+            "TargetObject".to_string(),
+            "HKLM\\...\\CurrentVersion\\Run\\x".to_string(),
+        );
+        assert!(reg.evaluate_event("registry", &fields));
+        assert!(!reg.evaluate_event("file", &fields)); // class mismatch
+        assert!(!reg.evaluate_event("registry", &HashMap::new())); // field absent
+        // A command-scoped matcher never matches an event.
+        assert!(!m(r#"{ "program": "reg" }"#).evaluate_event("registry", &fields));
+        // …and an event matcher does not match a command line.
+        assert!(reg.evaluate(&[], "reg add HKLM").is_none());
     }
 
     #[test]

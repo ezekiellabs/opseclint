@@ -75,12 +75,26 @@ pub struct Observation {
 }
 
 /// The result of ingesting a telemetry file: the process-execution observations
-/// to analyze, and how many records were skipped because they are not
-/// process-execution events.
+/// to analyze, how many records were skipped as their own units, and the
+/// non-execution events that did not correlate to any execution — matched
+/// standalone against the KB's `event` axis.
 #[derive(Debug, Clone)]
 pub struct Ingest {
     pub observations: Vec<Observation>,
     pub skipped: usize,
+    pub event_observations: Vec<EventObservation>,
+}
+
+/// A non-execution event (network / file / registry) that did not correlate to a
+/// captured execution — so it is matched on its own, by the KB `event` axis,
+/// against the recorded field map. Its causing process was either not in the file
+/// or was not a process launch (e.g. a GUI-set registry Run key).
+#[derive(Debug, Clone)]
+pub struct EventObservation {
+    pub record: usize,
+    pub class: String,
+    pub detail: String,
+    pub event: Arc<HashMap<String, String>>,
 }
 
 /// A uid → user-name map, from a `passwd`-format file (see [`parse_passwd`]).
@@ -122,6 +136,7 @@ pub fn parse_passwd(text: &str) -> UserMap {
 fn parse_sysmon(text: &str) -> Result<Ingest, String> {
     let events = read_events(text)?;
     let mut observations: Vec<Observation> = Vec::new();
+    let mut event_observations: Vec<EventObservation> = Vec::new();
     // pid -> index of the most recent execution seen so far with that pid.
     // Correlating in file order to the latest prior execution attributes a
     // side-effect to the right process even when a pid is reused within the file
@@ -144,14 +159,24 @@ fn parse_sysmon(text: &str) -> Result<Ingest, String> {
                 });
             }
             None => {
-                // A non-process-creation record is still skipped (not analyzed as
-                // its own unit), but a recognized side-effect class is attached to
-                // the execution that most recently held its pid.
+                // A non-process-creation record is not analyzed as its own unit,
+                // but a recognized network/file/registry event is kept: attached to
+                // the execution that most recently held its pid, or — with no such
+                // execution — as a standalone event matched against the KB `event`
+                // axis.
                 skipped += 1;
-                if let Some((pid, effect)) = sysmon_side_effect(&fields)
-                    && let Some(&idx) = latest_by_pid.get(&pid)
-                {
-                    observations[idx].side_effects.push(effect);
+                if let Some((class, detail)) = sysmon_event(&fields) {
+                    match fields.get("ProcessId").and_then(|p| latest_by_pid.get(p)) {
+                        Some(&idx) => observations[idx]
+                            .side_effects
+                            .push(SideEffect { class, detail }),
+                        None => event_observations.push(EventObservation {
+                            record: i + 1,
+                            class,
+                            detail,
+                            event: Arc::new(fields),
+                        }),
+                    }
                 }
             }
         }
@@ -159,14 +184,13 @@ fn parse_sysmon(text: &str) -> Result<Ingest, String> {
     Ok(Ingest {
         observations,
         skipped,
+        event_observations,
     })
 }
 
-/// Extract a `(pid, SideEffect)` from a Sysmon network (EID 3), file-create
-/// (EID 11), or registry (EID 13) record, or `None` for any other event. The
-/// process id ties it back to the EID 1 execution that emitted it.
-fn sysmon_side_effect(fields: &HashMap<String, String>) -> Option<(String, SideEffect)> {
-    let pid = fields.get("ProcessId").filter(|p| !p.trim().is_empty())?;
+/// The class (`network` / `file` / `registry`) and human detail of a Sysmon
+/// network (EID 3), file-create (EID 11), or registry (EID 13) record, or `None`.
+fn sysmon_event(fields: &HashMap<String, String>) -> Option<(String, String)> {
     let get = |k: &str| fields.get(k).map(String::as_str).filter(|v| !v.is_empty());
     let (class, detail) = match fields.get("EventID").map(String::as_str) {
         Some("3") => {
@@ -181,13 +205,7 @@ fn sysmon_side_effect(fields: &HashMap<String, String>) -> Option<(String, SideE
         Some("13") => ("registry", format!("registry set {}", get("TargetObject")?)),
         _ => return None,
     };
-    Some((
-        pid.clone(),
-        SideEffect {
-            class: class.to_string(),
-            detail,
-        },
-    ))
+    Some((class.to_string(), detail))
 }
 
 /// Canonical Sysmon Event ID 1 field names. Ingested records arrive with varied
@@ -505,6 +523,7 @@ fn parse_auditd(text: &str, users: &UserMap) -> Result<Ingest, String> {
     Ok(Ingest {
         observations,
         skipped,
+        event_observations: Vec::new(),
     })
 }
 
@@ -697,6 +716,7 @@ fn parse_esf(text: &str) -> Result<Ingest, String> {
     Ok(Ingest {
         observations,
         skipped,
+        event_observations: Vec::new(),
     })
 }
 
@@ -824,7 +844,7 @@ mod tests {
     #[test]
     fn analyzes_ingested_sysmon_events_via_the_existing_matcher() {
         let ingest = parse(&fixture("sysmon-eid1.json"), Format::Sysmon).expect("parses");
-        let report = analyzer::analyze_telemetry(&ingest.observations, &win_kb());
+        let report = analyzer::analyze_telemetry(&ingest, &win_kb());
         let ids = ids(&report);
         // The malicious process-creation events map to their KB entries…
         assert!(ids.contains(&"certutil-download".to_string()));
@@ -836,6 +856,69 @@ mod tests {
             .find(|f| f.rule_id == "certutil-download")
             .unwrap();
         assert_eq!(certutil.line, 1);
+    }
+
+    // A minimal KB whose one entry matches a registry event by its `event` axis,
+    // used to exercise standalone non-execution matching without touching the
+    // embedded production KB.
+    fn event_kb() -> KnowledgeBase {
+        let json = r#"{
+            "platform": "windows-sysmon",
+            "entries": [{
+                "id": "registry-run-key-persistence",
+                "match": { "event": { "class": "registry", "field": "TargetObject",
+                                      "contains": "\\CurrentVersion\\Run" } },
+                "description": "Autorun value set under a Run key",
+                "techniques": [{"id": "T1547.001", "name": "Registry Run Keys / Startup Folder"}],
+                "telemetry": ["Sysmon EID 13 (registry value set) under a Run key"],
+                "noise": 60
+            }]
+        }"#;
+        let kb: KnowledgeBase = serde_json::from_str(json).expect("test KB parses");
+        kb.validate().expect("test KB valid");
+        kb
+    }
+
+    #[test]
+    fn standalone_registry_event_matches_the_event_axis() {
+        // A registry Run-key set whose causing process was not captured: no
+        // execution to correlate to, so it becomes a standalone event observation
+        // and is matched against the KB `event` axis.
+        let sysmon = r#"[{"EventID":13,"ProcessId":"7777",
+            "TargetObject":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\\Updater"}]"#;
+        let ingest = parse(sysmon, Format::Sysmon).expect("parses");
+        assert!(ingest.observations.is_empty());
+        assert_eq!(ingest.event_observations.len(), 1);
+        assert_eq!(ingest.event_observations[0].class, "registry");
+
+        let report = analyzer::analyze_telemetry(&ingest, &event_kb());
+        let f = report
+            .findings
+            .iter()
+            .find(|f| f.rule_id == "registry-run-key-persistence")
+            .expect("standalone registry finding");
+        assert_eq!(f.techniques[0].id, "T1547.001");
+        // The observed event detail rides along as a confirmed side-effect.
+        assert!(
+            f.observed_side_effects
+                .iter()
+                .any(|se| se.class == "registry" && se.detail.contains("registry set"))
+        );
+    }
+
+    #[test]
+    fn correlated_registry_event_is_not_also_matched_standalone() {
+        // When the causing execution IS captured, the registry event attaches to
+        // it as a side-effect and does not become a standalone observation — so it
+        // can't double-count.
+        let sysmon = r#"[
+            {"EventID":1,"ProcessId":"5555","Image":"C:\\Windows\\System32\\reg.exe","CommandLine":"reg add x"},
+            {"EventID":13,"ProcessId":"5555","TargetObject":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\\x"}
+        ]"#;
+        let ingest = parse(sysmon, Format::Sysmon).expect("parses");
+        assert_eq!(ingest.observations.len(), 1);
+        assert_eq!(ingest.observations[0].side_effects.len(), 1);
+        assert!(ingest.event_observations.is_empty());
     }
 
     #[test]
@@ -855,7 +938,7 @@ mod tests {
         let ingest = parse(&fixture("sysmon-eid1.jsonl"), Format::Sysmon).expect("parses");
         assert_eq!(ingest.observations.len(), 2);
         assert_eq!(ingest.skipped, 0);
-        let report = analyzer::analyze_telemetry(&ingest.observations, &win_kb());
+        let report = analyzer::analyze_telemetry(&ingest, &win_kb());
         let ids = ids(&report);
         assert!(ids.contains(&"vssadmin-delete".to_string()));
         assert!(ids.contains(&"net-user".to_string()));
@@ -888,7 +971,7 @@ mod tests {
     fn side_effects_reach_the_finding() {
         let ingest =
             parse(&fixture("sysmon-with-side-effects.json"), Format::Sysmon).expect("parses");
-        let report = analyzer::analyze_telemetry(&ingest.observations, &win_kb());
+        let report = analyzer::analyze_telemetry(&ingest, &win_kb());
         let certutil = report
             .findings
             .iter()
@@ -945,10 +1028,7 @@ mod tests {
             r#"{{"EventID":1,"Image":"C:\\Windows\\System32\\certutil.exe","CommandLine":"{cmdline}"}}"#
         );
         let ingest = parse(&ev, Format::Sysmon).expect("parses");
-        let observed = ids(&analyzer::analyze_telemetry(
-            &ingest.observations,
-            &win_kb(),
-        ));
+        let observed = ids(&analyzer::analyze_telemetry(&ingest, &win_kb()));
         let predicted = ids(&analyzer::analyze(cmdline, &win_kb()));
         let set = |v: Vec<String>| v.into_iter().collect::<std::collections::BTreeSet<_>>();
         assert_eq!(set(observed), set(predicted));
@@ -1029,7 +1109,7 @@ mod tests {
     #[test]
     fn analyzes_ingested_auditd_events_via_the_existing_matcher() {
         let ingest = parse(&fixture("auditd-execve.log"), Format::Auditd).expect("parses");
-        let report = analyzer::analyze_telemetry(&ingest.observations, &lnx_kb());
+        let report = analyzer::analyze_telemetry(&ingest, &lnx_kb());
         let ids = ids(&report);
         assert!(ids.contains(&"shadow-read".to_string()));
         assert!(ids.contains(&"wget".to_string()));
@@ -1174,7 +1254,7 @@ type=EXECVE msg=audit(1.0:1): argc=1 a0=\"whoami\"
     #[test]
     fn analyzes_ingested_esf_events_via_the_existing_matcher() {
         let ingest = parse(&fixture("esf-exec.jsonl"), Format::Esf).expect("parses");
-        let report = analyzer::analyze_telemetry(&ingest.observations, &mac_kb());
+        let report = analyzer::analyze_telemetry(&ingest, &mac_kb());
         let ids = ids(&report);
         assert!(ids.contains(&"curl".to_string()));
         assert!(ids.contains(&"whoami".to_string()));

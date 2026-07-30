@@ -216,6 +216,11 @@ Pass `--users <passwd-file>` to resolve numeric auditd uids to names (so
 `User`-keyed detections resolve); without it, a numeric uid is left unresolved
 rather than guessed.
 
+A non-execution event with no captured causing execution (e.g. a registry
+Run-key set by an uncaptured process) is matched directly against the KB's
+`event` axis, producing a standalone finding — so persistence written outside a
+captured command still surfaces.
+
 Because a real event carries more than a command line, pairing `--telemetry`
 with `--sigma` evaluates each detection against the **recorded event** — so a
 rule keyed on a field a command line can't supply resolves instead of reading

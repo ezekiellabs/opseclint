@@ -44,6 +44,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   left unresolved rather than guessed, so a rule expecting `root` stays
   `indeterminate` instead of getting a wrong `no-fire`.
 
+- **Standalone non-execution matching** — a non-execution event with no captured
+  causing execution (e.g. a registry Run-key set by an uncaptured process) is now
+  matched directly against a new `event` axis on the KB matcher (tests an event
+  `class` and a field, e.g. a registry `TargetObject`). An entry can carry both a
+  command `line` axis and an `event` axis, so it recognizes its action whether
+  seen as a command or a standalone event; the Windows `run-key-persist` entry is
+  seeded this way. Events that correlate to an execution attach as its side-effect
+  and are not also matched standalone. Linux/macOS event-scoped entries follow.
+
 - **`--verify-detections`** — prove the knowledge base's own Sigma detection
   claims against a real ruleset. For every entry that cites a Sigma detection,
   opseclint synthesizes a representative command and checks whether a genuine
