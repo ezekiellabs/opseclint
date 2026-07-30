@@ -138,7 +138,18 @@ fn collect_scalars(v: &Value, out: &mut HashMap<String, String>, depth: usize) {
         return;
     }
     let Some(map) = v.as_object() else { return };
+
+    // Two passes so precedence is by depth, not by key order: insert every
+    // scalar at this level first, then descend. With `or_insert` (first write
+    // wins), a shallower field always wins over an equivalent deeper one —
+    // regardless of the order the serializer yields keys in. That is what makes
+    // a flat top-level field win over the same field nested in `EventData`.
     for (k, val) in map {
+        if let Some(s) = value_scalar(val) {
+            out.entry(k.to_lowercase()).or_insert(s);
+        }
+    }
+    for val in map.values() {
         match val {
             Value::Object(_) => collect_scalars(val, out, depth + 1),
             Value::Array(items) => {
@@ -159,11 +170,7 @@ fn collect_scalars(v: &Value, out: &mut HashMap<String, String>, depth: usize) {
                     }
                 }
             }
-            scalar => {
-                if let Some(s) = value_scalar(scalar) {
-                    out.entry(k.to_lowercase()).or_insert(s);
-                }
-            }
+            _ => {}
         }
     }
 }
@@ -337,6 +344,28 @@ mod tests {
         let predicted = ids(&analyzer::analyze(cmdline, &win_kb()));
         let set = |v: Vec<String>| v.into_iter().collect::<std::collections::BTreeSet<_>>();
         assert_eq!(set(observed), set(predicted));
+    }
+
+    #[test]
+    fn top_level_field_wins_over_a_nested_duplicate() {
+        // When a record carries the same field both flat and nested, the
+        // top-level value wins — deterministically, regardless of key order.
+        let ev = r#"{
+            "EventData": { "Image": "C:\\nested\\reg.exe", "CommandLine": "reg query HKLM" },
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "EventID": 1
+        }"#;
+        let value: serde_json::Value = serde_json::from_str(ev).unwrap();
+        let fields = flatten_fields(&value);
+        assert_eq!(
+            fields.get("image").map(String::as_str),
+            Some("C:\\Windows\\System32\\certutil.exe")
+        );
+        // The nested-only field is still collected.
+        assert_eq!(
+            fields.get("commandline").map(String::as_str),
+            Some("reg query HKLM")
+        );
     }
 
     #[test]
