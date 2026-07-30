@@ -353,6 +353,7 @@ mod tests {
                 program: None,
                 args: None,
                 line: Some(LinePred::Contains("lsass".into())),
+                event: None,
             },
             example: None,
             description: "Dump credentials: full LSASS memory — credential access".into(),

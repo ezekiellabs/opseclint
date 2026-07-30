@@ -4,9 +4,9 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::model::{Finding, KnowledgeBase, Report, Severity};
+use crate::model::{Finding, KnowledgeBase, Report, Severity, SideEffect};
 use crate::parser::{self, Command, parse_line};
-use crate::telemetry::Observation;
+use crate::telemetry::{EventObservation, Ingest};
 
 fn finding_from_entry(
     entry: &crate::model::KbEntry,
@@ -119,9 +119,9 @@ pub fn analyze(input: &str, kb: &KnowledgeBase) -> Report {
 /// only difference is where the commands came from. The record's real event
 /// fields ride along on each finding so downstream Sigma evaluation can consult
 /// them (see [`crate::sigma_eval::evaluate_observed`]).
-pub fn analyze_telemetry(observations: &[Observation], kb: &KnowledgeBase) -> Report {
+pub fn analyze_telemetry(ingest: &Ingest, kb: &KnowledgeBase) -> Report {
     let mut findings = Vec::new();
-    for obs in observations {
+    for obs in &ingest.observations {
         match_unit(
             kb,
             obs.record,
@@ -132,7 +132,35 @@ pub fn analyze_telemetry(observations: &[Observation], kb: &KnowledgeBase) -> Re
             &mut findings,
         );
     }
-    finalize(findings, kb, observations.len())
+    // Non-execution events with no captured causing execution: match standalone
+    // against the KB's `event` axis (registry Run keys, etc.).
+    for ev in &ingest.event_observations {
+        match_event(kb, ev, &mut findings);
+    }
+    finalize(
+        findings,
+        kb,
+        ingest.observations.len() + ingest.event_observations.len(),
+    )
+}
+
+/// Match one standalone non-execution event against the KB's `event` axis,
+/// appending a finding per matching entry. The recorded fields ride along as the
+/// finding's `observed_event`, and the event's human detail as a confirmed
+/// side-effect so the report shows what was seen.
+fn match_event(kb: &KnowledgeBase, ev: &EventObservation, findings: &mut Vec<Finding>) {
+    let mut seen: HashSet<&str> = HashSet::new();
+    for entry in &kb.entries {
+        if entry.matcher.evaluate_event(&ev.class, &ev.event) && seen.insert(entry.id.as_str()) {
+            let mut f =
+                finding_from_entry(entry, ev.record, None, Some(ev.event.clone()), Vec::new());
+            f.observed_side_effects.push(SideEffect {
+                class: ev.class.clone(),
+                detail: ev.detail.clone(),
+            });
+            findings.push(f);
+        }
+    }
 }
 
 #[cfg(test)]

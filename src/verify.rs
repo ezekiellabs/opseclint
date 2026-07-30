@@ -378,6 +378,7 @@ mod tests {
             program: command.map(|c| ProgramMatch::Exact(c.to_string())),
             args: None,
             line: raw.map(|r| LinePred::Contains(r.to_string())),
+            event: None,
         };
         KbEntry {
             id: id.into(),

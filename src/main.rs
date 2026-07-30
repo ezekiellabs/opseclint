@@ -411,12 +411,22 @@ fn main() -> ExitCode {
             } else {
                 String::new()
             };
+            let standalone = if !ingest.event_observations.is_empty() {
+                // These are the standalone *candidates* evaluated against the
+                // event axis — not a count of findings, some may match nothing.
+                format!(
+                    " ({} evaluated as standalone event(s))",
+                    ingest.event_observations.len()
+                )
+            } else {
+                String::new()
+            };
             eprintln!(
-                "opseclint: telemetry — {} process-execution event(s) ingested{skipped}",
+                "opseclint: telemetry — {} process-execution event(s) ingested{skipped}{standalone}",
                 ingest.observations.len()
             );
         }
-        analyzer::analyze_telemetry(&ingest.observations, &kb)
+        analyzer::analyze_telemetry(&ingest, &kb)
     } else {
         let input = match read_input(&cli) {
             Ok(s) => s,

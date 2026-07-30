@@ -213,6 +213,37 @@ pid, `NOTIFY_OPEN`) as follow-ons. Pid reuse is the known caveat — correlation
 scoped to a single ingest file; tightening it with event timestamps / process
 start time is a future refinement.
 
+## Standalone non-execution matching
+
+Correlation attaches a non-execution event to the execution that caused it. But
+some non-execution events have **no captured causing execution** — the process
+that set a registry Run key wasn't in the export, or the action wasn't a process
+launch at all (a GUI, a service). Those events are not dropped: they become
+`EventObservation`s and are matched directly, by a new **`event` axis** on the KB
+matcher.
+
+The `event` axis (`matcher::EventMatch`) is orthogonal to the command axes: it
+tests a record's `class` (`network` / `file` / `registry`) and a single field
+(`contains` / `eq` on, e.g., a registry `TargetObject`). An entry can carry
+*both* — the command `line` axis and an `event` axis — so one KB entry recognizes
+its action whether seen as a command or as a standalone event. The Windows
+`run-key-persist` entry does exactly this:
+
+```
+opseclint --telemetry registry-events.json --platform windows-sysmon
+● HIGH  Writing a Run key — registry autostart persistence   (T1547.001)
+  ◉ observed: registry set HKLM\…\CurrentVersion\Run\Updater
+```
+
+Because it keeps its `line` axis, `representative_line` is still derived and
+`--verify-detections` / `--scaffold` treat it exactly as before; the `event` axis
+is additive. A non-execution event that correlates to an execution is attached as
+that execution's side-effect and is **not** also matched standalone, so it can't
+double-count. Broadening the `event` axis (more predicates, `regex`) and
+authoring event-scoped entries across the Linux and macOS KBs are the natural
+follow-ons — the mechanism is platform-general; only the Windows registry case is
+seeded so far.
+
 ## Scope and what comes next
 
 - **Process-execution events only.** The KB matches commands, so process launches
