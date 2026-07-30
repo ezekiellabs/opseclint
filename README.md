@@ -194,7 +194,7 @@ Three formats are supported, selected with `--format`:
   their `audit(…)` id, the argv rebuilt from the `EXECVE` fields (quoted and
   hex-encoded values decoded), and the program taken from the `exe` path.
 - `esf` — macOS **Endpoint Security** `NOTIFY_EXEC` events, as `eslogger exec`
-  JSON (array or JSONL). The image, argv, and working directory come from
+  JSON (array, single object, or JSONL). The image, argv, and working directory come from
   `event.exec.target`; the calling process supplies a real `ParentImage`.
 
 ```bash

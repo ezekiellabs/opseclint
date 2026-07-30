@@ -47,8 +47,8 @@ pub enum Format {
     /// reassembled by their `audit(…)` event id.
     Auditd,
     /// macOS Endpoint Security `NOTIFY_EXEC` events, as `eslogger exec` JSON — a
-    /// top-level array or JSONL. Carries the calling process, so it supplies a
-    /// real `ParentImage`.
+    /// top-level array, a single object, or JSONL. Carries the calling process,
+    /// so it supplies a real `ParentImage`.
     Esf,
 }
 
@@ -559,10 +559,10 @@ fn parse_kv(s: &str) -> HashMap<String, String> {
 // ---------------------------------------------------------------------------
 
 /// Ingest macOS Endpoint Security `NOTIFY_EXEC` telemetry, as produced by
-/// `eslogger exec` — a top-level JSON array or JSONL, read by the same
-/// [`read_events`] the Sysmon path uses. Every record carrying an `event.exec`
-/// object is a process execution; anything else (an `open`, a `fork`) is skipped
-/// and counted.
+/// `eslogger exec` — a top-level JSON array, a single object, or JSONL, read by
+/// the same [`read_events`] the Sysmon path uses. Every record carrying an
+/// `event.exec` object is a process execution; anything else (an `open`, a
+/// `fork`) is skipped and counted.
 ///
 /// ESF exec semantics: `event.exec.target` is the *new* process (its
 /// `executable.path` and `event.exec.args` are the launched image and argv),

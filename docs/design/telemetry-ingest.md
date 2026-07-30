@@ -123,8 +123,9 @@ limitation; the common single-token `aN` shape is handled.
 ## The reduction (macOS Endpoint Security)
 
 macOS emits one **`ES_EVENT_TYPE_NOTIFY_EXEC`** per launch. Exported with Apple's
-built-in `eslogger exec`, each is a self-contained JSON object (a top-level array
-or JSONL, read by the same reader the Sysmon path uses — no reassembly). A record
+built-in `eslogger exec`, each is a self-contained JSON object (a top-level array,
+a single object, or JSONL, read by the same reader the Sysmon path uses — no
+reassembly). A record
 is an execution when it carries an `event.exec` object; any other event class
 (`event.open`, `event.fork`) is **skipped and counted**.
 
