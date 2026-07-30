@@ -162,6 +162,12 @@ pub struct Finding {
     /// evaluation (coverage gaps). Not serialized.
     #[serde(skip)]
     pub matched_command: Option<crate::parser::Command>,
+    /// The real recorded event fields (canonically named) when this finding came
+    /// from ingested telemetry, so Sigma evaluation can consult fields a command
+    /// line cannot supply (`ParentImage`, `User`, `IntegrityLevel`, …). `None`
+    /// for predictive (text) analysis. Not serialized.
+    #[serde(skip)]
+    pub observed_event: Option<std::collections::HashMap<String, String>>,
 }
 
 /// The full report for an analyzed input.

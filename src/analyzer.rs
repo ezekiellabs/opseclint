@@ -1,7 +1,7 @@
 //! Walks parsed input, resolves each action against the knowledge base, and
 //! produces a [`Report`] of detection-coverage findings.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::model::{Finding, KnowledgeBase, Report, Severity};
 use crate::parser::{self, Command, parse_line};
@@ -11,6 +11,7 @@ fn finding_from_entry(
     entry: &crate::model::KbEntry,
     line: usize,
     matched_command: Option<crate::parser::Command>,
+    observed_event: Option<HashMap<String, String>>,
 ) -> Finding {
     Finding {
         line,
@@ -24,6 +25,7 @@ fn finding_from_entry(
         noise: entry.noise,
         severity: Severity::from_noise(entry.noise),
         matched_command,
+        observed_event,
     }
 }
 
@@ -37,6 +39,7 @@ fn match_unit(
     line: usize,
     commands: &[Command],
     raw: &str,
+    observed_event: Option<&HashMap<String, String>>,
     findings: &mut Vec<Finding>,
 ) {
     // Dedupe entries per unit so a rule matched by multiple segments (or by both
@@ -49,7 +52,12 @@ fn match_unit(
         if let Some(matched_command) = entry.matcher.evaluate(commands, raw)
             && seen.insert(entry.id.as_str())
         {
-            findings.push(finding_from_entry(entry, line, matched_command));
+            findings.push(finding_from_entry(
+                entry,
+                line,
+                matched_command,
+                observed_event.cloned(),
+            ));
         }
     }
 }
@@ -94,7 +102,7 @@ pub fn analyze(input: &str, kb: &KnowledgeBase) -> Report {
             commands.extend(parse_line(&sub));
         }
 
-        match_unit(kb, unit.line, &commands, trimmed, &mut findings);
+        match_unit(kb, unit.line, &commands, trimmed, None, &mut findings);
     }
 
     finalize(findings, kb, lines_analyzed)
@@ -103,11 +111,20 @@ pub fn analyze(input: &str, kb: &KnowledgeBase) -> Report {
 /// Analyze ingested telemetry: map each observed process-creation record's
 /// commands against the KB, exactly as [`analyze`] does for parsed source lines.
 /// The predictive and observed modes therefore share one matching core — the
-/// only difference is where the commands came from.
+/// only difference is where the commands came from. The record's real event
+/// fields ride along on each finding so downstream Sigma evaluation can consult
+/// them (see [`crate::sigma_eval::evaluate_observed`]).
 pub fn analyze_telemetry(observations: &[Observation], kb: &KnowledgeBase) -> Report {
     let mut findings = Vec::new();
     for obs in observations {
-        match_unit(kb, obs.record, &obs.commands, obs.raw.trim(), &mut findings);
+        match_unit(
+            kb,
+            obs.record,
+            &obs.commands,
+            obs.raw.trim(),
+            Some(&obs.event),
+            &mut findings,
+        );
     }
     finalize(findings, kb, observations.len())
 }

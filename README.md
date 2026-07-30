@@ -196,8 +196,20 @@ opseclint --telemetry sysmon-events.json --platform windows-sysmon --json
 Each record reduces to the same `Command` the analyzer already understands, so
 `--json`, `--sarif`, `--navigator`, and `--edr` all work on ingested events, and
 observed verdicts agree with the predictive ones. Only process-creation records
-are ingested; other event classes are skipped and counted. See
-[`docs/design/telemetry-ingest.md`](docs/design/telemetry-ingest.md).
+are ingested; other event classes are skipped and counted.
+
+Because a real event carries more than a command line, pairing `--telemetry`
+with `--sigma` evaluates each detection against the **recorded event** — so a
+rule keyed on a field a command line can't supply resolves instead of reading
+`indeterminate`:
+
+```bash
+opseclint --telemetry sysmon-events.json --platform windows-sysmon --sigma ./sigma
+# ◆ Sigma: Certutil Spawned By An Office Application (…) fires (high)
+#   — predictive mode would read: indeterminate (needs ParentImage)
+```
+
+See [`docs/design/telemetry-ingest.md`](docs/design/telemetry-ingest.md).
 
 ### Platforms
 
@@ -449,7 +461,7 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - [x] [Coverage diff](#coverage-diff---diff): compare a run against a saved report to see what coverage changed, via `--diff`
 - [x] ATT&CK Navigator layer export: visualize technique coverage on the MITRE matrix, via `--navigator`
 - [x] Gap-to-rule scaffolding: generate a starter Sigma rule for a modeled action (or a `--coverage-gaps` blind spot), via `--scaffold`
-- [x] [Ingest real telemetry](docs/design/telemetry-ingest.md): map recorded sensor events back to techniques and coverage, via `--telemetry` (first cut: Windows Sysmon Event ID 1, JSON)
+- [x] [Ingest real telemetry](docs/design/telemetry-ingest.md): map recorded sensor events back to techniques and coverage, via `--telemetry` (Windows Sysmon Event ID 1, JSON); with `--sigma`, evaluate detections against the real event so parent/user/integrity-keyed rules resolve instead of reading indeterminate
 
 See the [open issues][issues-url] for the full list, and
 [CHANGELOG.md](CHANGELOG.md) for release history.
