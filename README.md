@@ -173,7 +173,31 @@ opseclint script.sh --sigma ./sigma --coverage-gaps   # which actions no rule ca
 opseclint script.sh --scaffold       # starter Sigma rule per action (YAML)
 opseclint --sigma ./sigma --verify-detections --platform windows   # do the KB's Sigma claims fire?
 opseclint script.sh --ci --threshold 70   # exit 1 if loudest action >= 70
+
+opseclint --telemetry events.json --platform windows-sysmon   # ingest real Sysmon telemetry
 ```
+
+### Ingesting real telemetry
+
+The runs above are _predictive_: given a command, opseclint resolves the
+telemetry a sensor **would** emit. `--telemetry` flips the direction — it
+ingests the events a sensor **actually recorded** and maps each back to
+techniques, detectability, and coverage, answering "given what the sensor did
+record, which techniques does this represent?"
+
+The first supported format is Windows **Sysmon Event ID 1** (Process Create), as
+a JSON array of events or JSONL; select it with `--format sysmon` (the default).
+
+```bash
+opseclint --telemetry sysmon-events.json --platform windows-sysmon
+opseclint --telemetry sysmon-events.json --platform windows-sysmon --json
+```
+
+Each record reduces to the same `Command` the analyzer already understands, so
+`--json`, `--sarif`, `--navigator`, and `--edr` all work on ingested events, and
+observed verdicts agree with the predictive ones. Only process-creation records
+are ingested; other event classes are skipped and counted. See
+[`docs/design/telemetry-ingest.md`](docs/design/telemetry-ingest.md).
 
 ### Platforms
 
@@ -425,6 +449,7 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - [x] [Coverage diff](#coverage-diff---diff): compare a run against a saved report to see what coverage changed, via `--diff`
 - [x] ATT&CK Navigator layer export: visualize technique coverage on the MITRE matrix, via `--navigator`
 - [x] Gap-to-rule scaffolding: generate a starter Sigma rule for a modeled action (or a `--coverage-gaps` blind spot), via `--scaffold`
+- [x] [Ingest real telemetry](docs/design/telemetry-ingest.md): map recorded sensor events back to techniques and coverage, via `--telemetry` (first cut: Windows Sysmon Event ID 1, JSON)
 
 See the [open issues][issues-url] for the full list, and
 [CHANGELOG.md](CHANGELOG.md) for release history.
