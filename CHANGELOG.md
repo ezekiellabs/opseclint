@@ -10,14 +10,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **`--telemetry <FILE>`** — ingest recorded host telemetry (the events a sensor
   actually logged) and map it back to techniques, detectability, and coverage —
-  the observed-mode complement to opseclint's predictive analysis. Two formats
+  the observed-mode complement to opseclint's predictive analysis. Three formats
   are supported (`--format`): Windows **Sysmon Event ID 1** (Process Create), as
   a JSON array of events or JSONL (`sysmon`) — flat, `EventData`-nested, and
-  Elastic `winlog.event_data` shapes are all accepted; and Linux **auditd**
-  `execve` events, as raw `audit.log` text (`auditd`) — the multi-line `SYSCALL`
-  / `EXECVE` / `CWD` records of one event are reassembled by their `audit(…)` id,
+  Elastic `winlog.event_data` shapes are all accepted; Linux **auditd** `execve`
+  events, as raw `audit.log` text (`auditd`) — the multi-line `SYSCALL` /
+  `EXECVE` / `CWD` records of one event are reassembled by their `audit(…)` id,
   the argv rebuilt from the `EXECVE` fields (quoted and hex-encoded values
-  decoded), and the program taken from the `exe` path. Each record reduces to the
+  decoded), and the program taken from the `exe` path; and macOS **Endpoint
+  Security** `NOTIFY_EXEC` events, as `eslogger exec` JSON (`esf`) — the image,
+  argv, and working directory from `event.exec.target`, and a real `ParentImage`
+  from the calling process. Each record reduces to the
   same `Command` the analyzer already understands, so `--json` / `--sarif` /
   `--navigator` / `--edr` all work on ingested events, and observed verdicts
   agree with predicted ones by construction. Non-execution records are skipped
