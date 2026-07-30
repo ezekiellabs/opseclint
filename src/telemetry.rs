@@ -33,6 +33,7 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
+use crate::model::SideEffect;
 use crate::parser::{self, Command};
 
 /// A telemetry format opseclint can ingest. All three reduce to the same
@@ -68,6 +69,12 @@ pub struct Observation {
     pub commands: Vec<Command>,
     pub raw: String,
     pub event: Arc<HashMap<String, String>>,
+    /// The process id of this execution, when the format provides one — the key
+    /// non-execution records are correlated against.
+    pub pid: Option<String>,
+    /// Non-execution events (network / file / registry) correlated to this
+    /// execution by pid — confirmed secondary telemetry.
+    pub side_effects: Vec<SideEffect>,
 }
 
 /// The result of ingesting a telemetry file: the process-execution observations
@@ -91,23 +98,81 @@ pub fn parse(text: &str, format: Format) -> Result<Ingest, String> {
 fn parse_sysmon(text: &str) -> Result<Ingest, String> {
     let events = read_events(text)?;
     let mut observations = Vec::new();
+    let mut pending: Vec<(String, SideEffect)> = Vec::new();
     let mut skipped = 0;
     for (i, ev) in events.iter().enumerate() {
         let fields = flatten_fields(ev);
         match reduce_process_create(&fields) {
-            Some((commands, raw)) => observations.push(Observation {
-                record: i + 1,
-                commands,
-                raw,
-                event: Arc::new(fields),
-            }),
-            None => skipped += 1,
+            Some((commands, raw)) => {
+                let pid = fields.get("ProcessId").cloned();
+                observations.push(Observation {
+                    record: i + 1,
+                    commands,
+                    raw,
+                    event: Arc::new(fields),
+                    pid,
+                    side_effects: Vec::new(),
+                });
+            }
+            None => {
+                // A non-process-creation record is still skipped (not analyzed as
+                // its own unit), but if it is a recognized side-effect class we
+                // keep it to correlate back to the process that caused it.
+                skipped += 1;
+                if let Some(effect) = sysmon_side_effect(&fields) {
+                    pending.push(effect);
+                }
+            }
         }
     }
+    correlate_side_effects(&mut observations, pending);
     Ok(Ingest {
         observations,
         skipped,
     })
+}
+
+/// Extract a `(pid, SideEffect)` from a Sysmon network (EID 3), file-create
+/// (EID 11), or registry (EID 13) record, or `None` for any other event. The
+/// process id ties it back to the EID 1 execution that emitted it.
+fn sysmon_side_effect(fields: &HashMap<String, String>) -> Option<(String, SideEffect)> {
+    let pid = fields.get("ProcessId").filter(|p| !p.trim().is_empty())?;
+    let get = |k: &str| fields.get(k).map(String::as_str).filter(|v| !v.is_empty());
+    let (class, detail) = match fields.get("EventID").map(String::as_str) {
+        Some("3") => {
+            let host = get("DestinationIp").or_else(|| get("DestinationHostname"))?;
+            let detail = match get("DestinationPort") {
+                Some(port) => format!("network connection to {host}:{port}"),
+                None => format!("network connection to {host}"),
+            };
+            ("network", detail)
+        }
+        Some("11") => ("file", format!("file created {}", get("TargetFilename")?)),
+        Some("13") => ("registry", format!("registry set {}", get("TargetObject")?)),
+        _ => return None,
+    };
+    Some((
+        pid.clone(),
+        SideEffect {
+            class: class.to_string(),
+            detail,
+        },
+    ))
+}
+
+/// Attach each pending `(pid, effect)` to the observation whose `pid` matches,
+/// so a network/file/registry event surfaces under the execution that caused it.
+/// An effect with no matching execution in the same file is dropped (its causing
+/// process was not captured).
+fn correlate_side_effects(observations: &mut [Observation], pending: Vec<(String, SideEffect)>) {
+    for (pid, effect) in pending {
+        if let Some(obs) = observations
+            .iter_mut()
+            .find(|o| o.pid.as_deref() == Some(pid.as_str()))
+        {
+            obs.side_effects.push(effect);
+        }
+    }
 }
 
 /// Canonical Sysmon Event ID 1 field names. Ingested records arrive with varied
@@ -134,6 +199,13 @@ const SYSMON_FIELDS: &[&str] = &[
     "ProcessId",
     "LogonId",
     "TerminalSessionId",
+    // Non-execution fields used for side-effect correlation (EID 3 / 11 / 13).
+    "DestinationIp",
+    "DestinationPort",
+    "DestinationHostname",
+    "TargetFilename",
+    "TargetObject",
+    "EventType",
 ];
 
 /// Map an incoming field key to its canonical Sysmon name (case-insensitively),
@@ -362,11 +434,14 @@ fn parse_auditd(text: &str) -> Result<Ingest, String> {
         };
 
         let mut fields = HashMap::new();
+        let mut pid = None;
         let cmdline = build_execve_cmdline(&execve.fields);
         if !cmdline.is_empty() {
             fields.insert("CommandLine".to_string(), cmdline);
         }
         if let Some(syscall) = recs.iter().find(|r| r.kind == "SYSCALL") {
+            // `pid` is a bare numeric token — taken literally, never hex-decoded.
+            pid = syscall.fields.get("pid").cloned();
             if let Some(exe) = syscall.fields.get("exe") {
                 let exe = decode_value(exe);
                 if !exe.is_empty() {
@@ -403,6 +478,8 @@ fn parse_auditd(text: &str) -> Result<Ingest, String> {
                 commands,
                 raw,
                 event: Arc::new(fields),
+                pid,
+                side_effects: Vec::new(),
             }),
             None => skipped += 1,
         }
@@ -592,6 +669,10 @@ fn parse_esf(text: &str) -> Result<Ingest, String> {
                     commands,
                     raw,
                     event: Arc::new(fields),
+                    // ESF pid lives inside the audit token; correlating ESF
+                    // side-effects is a follow-on for this framework.
+                    pid: None,
+                    side_effects: Vec::new(),
                 }),
                 None => skipped += 1,
             },
@@ -763,6 +844,42 @@ mod tests {
         let ids = ids(&report);
         assert!(ids.contains(&"vssadmin-delete".to_string()));
         assert!(ids.contains(&"net-user".to_string()));
+    }
+
+    #[test]
+    fn sysmon_correlates_network_and_file_side_effects() {
+        let ingest =
+            parse(&fixture("sysmon-with-side-effects.json"), Format::Sysmon).expect("parses");
+        // One EID 1 execution; the three non-process records are skipped as units.
+        assert_eq!(ingest.observations.len(), 1);
+        assert_eq!(ingest.skipped, 3);
+        // The EID 3 / EID 11 events sharing the process's pid attach as confirmed
+        // side-effects; the EID 3 for an uncaptured pid (9999) is dropped.
+        let effects = &ingest.observations[0].side_effects;
+        assert_eq!(effects.len(), 2);
+        assert!(
+            effects
+                .iter()
+                .any(|e| e.class == "network" && e.detail == "network connection to 192.0.2.10:443")
+        );
+        assert!(
+            effects
+                .iter()
+                .any(|e| e.class == "file" && e.detail.contains("a.exe"))
+        );
+    }
+
+    #[test]
+    fn side_effects_reach_the_finding() {
+        let ingest =
+            parse(&fixture("sysmon-with-side-effects.json"), Format::Sysmon).expect("parses");
+        let report = analyzer::analyze_telemetry(&ingest.observations, &win_kb());
+        let certutil = report
+            .findings
+            .iter()
+            .find(|f| f.rule_id == "certutil-download")
+            .expect("certutil finding");
+        assert_eq!(certutil.observed_side_effects.len(), 2);
     }
 
     #[test]

@@ -31,7 +31,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `indeterminate` — the payoff of ingesting real telemetry. Each format carries
   the extra context it records: ESF the calling parent and the new image's
   code-signing (`signing_id` / `team_id` / `is_platform_binary`), auditd the
-  controlling `tty` and audit-rule `key`.
+  controlling `tty` and audit-rule `key`. Non-execution records (Sysmon EID 3 /
+  11 / 13) are **correlated by process id** back to the execution that emitted
+  them and shown as confirmed secondary telemetry — a green `◉ observed:` line
+  (e.g. `network connection to 192.0.2.10:443`) turning predicted telemetry into
+  recorded proof.
   See [`docs/design/telemetry-ingest.md`](docs/design/telemetry-ingest.md).
 
 - **`--verify-detections`** — prove the knowledge base's own Sigma detection
