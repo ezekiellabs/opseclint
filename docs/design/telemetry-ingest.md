@@ -108,8 +108,8 @@ downstream analysis are identical:
 - **`CurrentDirectory`** ← the `CWD` record — a field the command line can't
   supply, carried for observed Sigma evaluation.
 - **`tty`** / **`key`** ← the `SYSCALL` controlling tty and audit-rule tag — extra
-  always-present context a rule may key on (a `(none)` tty is a placeholder and is
-  dropped, not carried).
+  context a rule may key on, carried only when the record includes it (a `(none)`
+  tty is a placeholder and is dropped).
 
 Two fields are **deliberately not mapped**, because doing so would fabricate a
 wrong answer rather than an honest "can't tell":

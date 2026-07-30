@@ -374,8 +374,8 @@ fn parse_auditd(text: &str) -> Result<Ingest, String> {
                 }
             }
             // The controlling tty and the audit rule tag (`key`) — extra context
-            // auditd records that a rule may key on; both are always-present,
-            // no-cost additions to the observed event.
+            // auditd records that a rule may key on. Each is carried only when the
+            // SYSCALL record includes it; a `(none)` tty is dropped.
             for (src, dst) in [("tty", "tty"), ("key", "key")] {
                 if let Some(v) = syscall.fields.get(src) {
                     let v = decode_value(v);
