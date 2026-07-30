@@ -19,6 +19,7 @@
 //! counted** — surfaced to the user, never silently dropped.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use serde_json::Value;
 
@@ -36,17 +37,20 @@ pub enum Format {
 
 /// One ingested telemetry record reduced to the analyzer's unit shape: the
 /// commands resolved from the event, the raw command line the sensor recorded,
-/// and the full field map of the event (canonically named). `record` is the
-/// 1-based position of the source record (used as the finding's line number, so
-/// a finding points back at the record it came from). `event` carries the fields
-/// a command line can't supply — `ParentImage`, `User`, `IntegrityLevel`, … — so
-/// Sigma evaluation can resolve rules keyed on them against the real event.
+/// and the field map of the event. `record` is the 1-based position of the
+/// source record (used as the finding's line number, so a finding points back at
+/// the record it came from). `event` carries the fields a command line can't
+/// supply — `ParentImage`, `User`, `IntegrityLevel`, … — so Sigma evaluation can
+/// resolve rules keyed on them against the real event. Known Sysmon EID 1 fields
+/// are keyed by their canonical name (see `canonical_field`); any other keys
+/// keep their original casing. Wrapped in an `Arc` so the several findings a
+/// record produces share one map instead of each deep-cloning it.
 #[derive(Debug, Clone)]
 pub struct Observation {
     pub record: usize,
     pub commands: Vec<Command>,
     pub raw: String,
-    pub event: HashMap<String, String>,
+    pub event: Arc<HashMap<String, String>>,
 }
 
 /// The result of ingesting a telemetry file: the process-creation observations
@@ -76,7 +80,7 @@ fn parse_sysmon(text: &str) -> Result<Ingest, String> {
                 record: i + 1,
                 commands,
                 raw,
-                event: fields,
+                event: Arc::new(fields),
             }),
             None => skipped += 1,
         }

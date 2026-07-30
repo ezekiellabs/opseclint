@@ -2,6 +2,7 @@
 //! produces a [`Report`] of detection-coverage findings.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use crate::model::{Finding, KnowledgeBase, Report, Severity};
 use crate::parser::{self, Command, parse_line};
@@ -11,7 +12,7 @@ fn finding_from_entry(
     entry: &crate::model::KbEntry,
     line: usize,
     matched_command: Option<crate::parser::Command>,
-    observed_event: Option<HashMap<String, String>>,
+    observed_event: Option<Arc<HashMap<String, String>>>,
 ) -> Finding {
     Finding {
         line,
@@ -39,7 +40,7 @@ fn match_unit(
     line: usize,
     commands: &[Command],
     raw: &str,
-    observed_event: Option<&HashMap<String, String>>,
+    observed_event: Option<&Arc<HashMap<String, String>>>,
     findings: &mut Vec<Finding>,
 ) {
     // Dedupe entries per unit so a rule matched by multiple segments (or by both
