@@ -60,14 +60,25 @@ pub fn analyze(report: &Report, index: &SigmaIndex, platform: Platform) -> Vec<C
             let mut any_indet = false;
             for c in &candidates {
                 match &c.rule {
-                    Some(dr) => match sigma_eval::evaluate(dr, cmd, platform).outcome {
-                        Outcome::Fires => {
-                            any_fire = true;
-                            firing.push(c.title.clone());
+                    // Against real telemetry, evaluate on the recorded event so a
+                    // rule needing a field the command line can't supply can still
+                    // count as covered.
+                    Some(dr) => {
+                        let outcome = match &f.observed_event {
+                            Some(ev) => {
+                                sigma_eval::evaluate_observed(dr, cmd, platform, ev).outcome
+                            }
+                            None => sigma_eval::evaluate(dr, cmd, platform).outcome,
+                        };
+                        match outcome {
+                            Outcome::Fires => {
+                                any_fire = true;
+                                firing.push(c.title.clone());
+                            }
+                            Outcome::Indeterminate => any_indet = true,
+                            Outcome::NoFire => {}
                         }
-                        Outcome::Indeterminate => any_indet = true,
-                        Outcome::NoFire => {}
-                    },
+                    }
                     None => any_indet = true, // rule couldn't be lowered to logic
                 }
             }

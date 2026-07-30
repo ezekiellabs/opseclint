@@ -73,22 +73,39 @@ Requiring the command line in the id-less case keeps a network (EID 3) or file
 misread as a process launch. Non-process records are **skipped and counted**,
 and the count is reported to the user — never silently dropped.
 
+## Evaluating detections on the real event
+
+The command reduction drives *matching*, but a record carries more than a
+command line. `flatten_fields` keeps the whole event — canonically named
+(`ParentImage`, `User`, `IntegrityLevel`, …) — and it rides along on each
+`Finding` as `observed_event`. When `--telemetry` is paired with `--sigma` (or
+feeds `--coverage-gaps`), rule evaluation uses
+[`sigma_eval::evaluate_observed`](../../src/sigma_eval.rs) instead of the
+predictive `evaluate`: the recorded fields are overlaid on the synthesized base,
+so a rule keyed on a field a command line cannot supply resolves against the
+real event.
+
+The effect is that verdicts which are `INDETERMINATE` in predictive mode become
+definite. For a certutil download whose recorded `ParentImage` is `WINWORD.EXE`,
+a rule selecting on that parent reports:
+
+```
+predictive (text):        indeterminate (needs ParentImage)
+observed (real event):    fires
+```
+
+Evaluation stays honest: a field the record genuinely lacks is still
+`INDETERMINATE`, and an unsupported Sigma modifier (`re`, `cidr`, `base64`) is
+still `Unknown` — the real event resolves only the fields it actually carries.
+
 ## Scope and what comes next
 
-The first cut is deliberately one format, end-to-end:
+The cut is deliberately one format:
 
 - **Process-creation events only.** The KB matches commands, so process creation
   is the natural target. Other event classes (network / file / registry) tie
   into the `edr.rs` event-class taxonomy and are out of scope for now.
-- **Command reduction, not a richer event.** Each record reduces to a
-  `Command`, which makes the matcher, report, score, `--json` / `--sarif` /
-  `--navigator` / `--edr`, and `--diff` all work unchanged. The real event's
-  extra fields (`ParentImage`, `User`, `IntegrityLevel`, …) are not yet
-  consulted.
 
-The planned next increment threads those extra fields into a `sigma_eval`
-evaluation path so that `--telemetry … --sigma` can decide whether the expected
-detection fires on the *real* event — collapsing the `INDETERMINATE` verdicts
-that arise today only because `synthesize` cannot invent a `ParentImage` or
-`User`. auditd (`EXECVE`/`SYSCALL`) and macOS/ESF then follow as further formats
-behind the same `--telemetry` input path.
+auditd (`EXECVE`/`SYSCALL`) and macOS/ESF follow as further formats behind the
+same `--telemetry` input path, reusing this same reduction and observed-event
+evaluation.

@@ -17,7 +17,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the same `Command` the analyzer already understands, so `--json` / `--sarif` /
   `--navigator` / `--edr` all work on ingested events, and observed verdicts
   agree with predicted ones by construction. Non-process records are skipped and
-  counted. See [`docs/design/telemetry-ingest.md`](docs/design/telemetry-ingest.md).
+  counted. When paired with `--sigma`, detections are evaluated against the
+  **real recorded event**: a rule keyed on a field a command line can't supply
+  (`ParentImage`, `User`, `IntegrityLevel`, …) resolves to `fires` / `no-fire`
+  instead of `indeterminate` — the payoff of ingesting real telemetry. See
+  [`docs/design/telemetry-ingest.md`](docs/design/telemetry-ingest.md).
 
 - **`--verify-detections`** — prove the knowledge base's own Sigma detection
   claims against a real ruleset. For every entry that cites a Sigma detection,

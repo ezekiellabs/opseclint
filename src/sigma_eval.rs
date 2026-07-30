@@ -8,6 +8,11 @@
 //! cannot see (e.g. `ParentImage`, a hash, a registry value) evaluates to
 //! `INDETERMINATE` rather than a false claim. See
 //! `docs/design/rule-logic-evaluator.md`.
+//!
+//! When the input is *recorded* telemetry rather than a command line, the real
+//! event carries those extra fields; [`evaluate_observed`] overlays them onto
+//! the synthesized base, so a rule keyed on `ParentImage` / `User` /
+//! `IntegrityLevel` resolves to `FIRES` / `NO-FIRE` instead of `INDETERMINATE`.
 
 use std::collections::{HashMap, HashSet};
 
@@ -16,9 +21,6 @@ use serde_yaml::Value;
 
 use crate::kb::Platform;
 use crate::parser::Command;
-
-/// Fields opseclint can synthesize from a command line.
-const SYNTH_FIELDS: &[&str] = &["CommandLine", "Image", "OriginalFileName"];
 
 /// Kleene three-valued truth.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -498,10 +500,40 @@ fn referenced_fields(rule: &DetectionRule) -> HashSet<String> {
     out
 }
 
-/// Evaluate a rule against a command, returning a three-valued verdict.
+/// Evaluate a rule against a command using only the fields synthesizable from a
+/// command line (`CommandLine` / `Image` / `OriginalFileName`) — predictive
+/// mode. A rule keyed on a field a static command line cannot supply (a parent,
+/// a user, an integrity level, a hash) evaluates to `Indeterminate`.
 pub fn evaluate(rule: &DetectionRule, cmd: &Command, platform: Platform) -> Verdict {
-    let event = synthesize(cmd, platform);
-    let outcome = match eval_cond(&rule.condition, &rule.searches, &event) {
+    eval_event(rule, &synthesize(cmd, platform))
+}
+
+/// Evaluate a rule against a *real recorded* event: the synthesized base
+/// extended and overridden by the fields a sensor actually logged. Because the
+/// real event supplies the context a command line alone cannot — `ParentImage`,
+/// `User`, `IntegrityLevel`, … — verdicts that are `Indeterminate` in predictive
+/// mode resolve to `Fires` / `NoFire` here. `observed` keys must be the
+/// canonical field names a Sigma rule references (e.g. `ParentImage`); empty
+/// values are ignored so a blank field cannot mask the synthesized fallback.
+pub fn evaluate_observed(
+    rule: &DetectionRule,
+    cmd: &Command,
+    platform: Platform,
+    observed: &HashMap<String, String>,
+) -> Verdict {
+    let mut event = synthesize(cmd, platform);
+    for (k, v) in observed {
+        if !v.is_empty() {
+            event.insert(k.clone(), v.clone());
+        }
+    }
+    eval_event(rule, &event)
+}
+
+/// Evaluate a rule's condition against a fully-built event, reporting the fields
+/// it referenced but the event did not carry when the verdict is indeterminate.
+fn eval_event(rule: &DetectionRule, event: &HashMap<String, String>) -> Verdict {
+    let outcome = match eval_cond(&rule.condition, &rule.searches, event) {
         Ternary::True => Outcome::Fires,
         Ternary::False => Outcome::NoFire,
         Ternary::Unknown => Outcome::Indeterminate,
@@ -509,7 +541,7 @@ pub fn evaluate(rule: &DetectionRule, cmd: &Command, platform: Platform) -> Verd
     let missing_fields = if outcome == Outcome::Indeterminate {
         let mut m: Vec<String> = referenced_fields(rule)
             .into_iter()
-            .filter(|f| !f.is_empty() && !SYNTH_FIELDS.contains(&f.as_str()))
+            .filter(|f| !f.is_empty() && !event.contains_key(f))
             .collect();
         m.sort();
         m
@@ -624,6 +656,53 @@ detection:
     fn wildcard_value_matches() {
         let yaml = "title: t\nid: r6\ndetection:\n    selection:\n        Image: '*/cat'\n    condition: selection\n";
         assert_eq!(verdict(yaml, "cat /etc/passwd").outcome, Outcome::Fires);
+    }
+
+    #[test]
+    fn observed_parent_field_resolves_indeterminate_to_fires() {
+        // PARENT keys on ParentImage, which a command line cannot supply, so
+        // predictive evaluation is indeterminate…
+        let rule = parse_rule(PARENT).unwrap();
+        let c = cmd("whoami");
+        let pred = evaluate(&rule, &c, Platform::LinuxAuditd);
+        assert_eq!(pred.outcome, Outcome::Indeterminate);
+        assert!(pred.missing_fields.iter().any(|f| f == "ParentImage"));
+
+        // …but a recorded event carrying the real ParentImage fires the rule,
+        // with nothing left missing.
+        let mut observed = HashMap::new();
+        observed.insert("ParentImage".to_string(), "/usr/sbin/sshd".to_string());
+        let obs = evaluate_observed(&rule, &c, Platform::LinuxAuditd, &observed);
+        assert_eq!(obs.outcome, Outcome::Fires);
+        assert!(obs.missing_fields.is_empty());
+    }
+
+    #[test]
+    fn observed_parent_field_can_also_exclude_a_fire() {
+        // A recorded parent that does not match turns the same indeterminate
+        // into a definite no-fire — the point of consulting the real event.
+        let rule = parse_rule(PARENT).unwrap();
+        let c = cmd("whoami");
+        let mut observed = HashMap::new();
+        observed.insert("ParentImage".to_string(), "/usr/bin/bash".to_string());
+        assert_eq!(
+            evaluate_observed(&rule, &c, Platform::LinuxAuditd, &observed).outcome,
+            Outcome::NoFire
+        );
+    }
+
+    #[test]
+    fn empty_observed_value_does_not_mask_the_synthesized_base() {
+        // A blank observed field is ignored, leaving the synthesized fallback —
+        // a direct CommandLine match still fires.
+        let rule = parse_rule(SHADOW).unwrap();
+        let c = cmd("cat /etc/shadow");
+        let mut observed = HashMap::new();
+        observed.insert("CommandLine".to_string(), String::new());
+        assert_eq!(
+            evaluate_observed(&rule, &c, Platform::LinuxAuditd, &observed).outcome,
+            Outcome::Fires
+        );
     }
 
     #[test]
