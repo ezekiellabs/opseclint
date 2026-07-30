@@ -391,12 +391,12 @@ fn main() -> ExitCode {
         };
         if !cli.json && !cli.sarif && !cli.navigator {
             let skipped = if ingest.skipped > 0 {
-                format!(", {} non-process record(s) skipped", ingest.skipped)
+                format!(", {} non-execution record(s) skipped", ingest.skipped)
             } else {
                 String::new()
             };
             eprintln!(
-                "opseclint: telemetry — {} process-creation event(s) ingested{skipped}",
+                "opseclint: telemetry — {} process-execution event(s) ingested{skipped}",
                 ingest.observations.len()
             );
         }

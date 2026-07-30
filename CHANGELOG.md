@@ -10,18 +10,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **`--telemetry <FILE>`** — ingest recorded host telemetry (the events a sensor
   actually logged) and map it back to techniques, detectability, and coverage —
-  the observed-mode complement to opseclint's predictive analysis. The first
-  supported format is Windows **Sysmon Event ID 1** (Process Create), as a JSON
-  array of events or JSONL (`--format sysmon`); flat, `EventData`-nested, and
-  Elastic `winlog.event_data` shapes are all accepted. Each record reduces to
-  the same `Command` the analyzer already understands, so `--json` / `--sarif` /
+  the observed-mode complement to opseclint's predictive analysis. Two formats
+  are supported (`--format`): Windows **Sysmon Event ID 1** (Process Create), as
+  a JSON array of events or JSONL (`sysmon`) — flat, `EventData`-nested, and
+  Elastic `winlog.event_data` shapes are all accepted; and Linux **auditd**
+  `execve` events, as raw `audit.log` text (`auditd`) — the multi-line `SYSCALL`
+  / `EXECVE` / `CWD` records of one event are reassembled by their `audit(…)` id,
+  the argv rebuilt from the `EXECVE` fields (quoted and hex-encoded values
+  decoded), and the program taken from the `exe` path. Each record reduces to the
+  same `Command` the analyzer already understands, so `--json` / `--sarif` /
   `--navigator` / `--edr` all work on ingested events, and observed verdicts
-  agree with predicted ones by construction. Non-process records are skipped and
-  counted. When paired with `--sigma`, detections are evaluated against the
+  agree with predicted ones by construction. Non-execution records are skipped
+  and counted. When paired with `--sigma`, detections are evaluated against the
   **real recorded event**: a rule keyed on a field a command line can't supply
-  (`ParentImage`, `User`, `IntegrityLevel`, …) resolves to `fires` / `no-fire`
-  instead of `indeterminate` — the payoff of ingesting real telemetry. See
-  [`docs/design/telemetry-ingest.md`](docs/design/telemetry-ingest.md).
+  (`ParentImage`, `IntegrityLevel`, `CurrentDirectory`, …) resolves to `fires` /
+  `no-fire` instead of `indeterminate` — the payoff of ingesting real telemetry.
+  See [`docs/design/telemetry-ingest.md`](docs/design/telemetry-ingest.md).
 
 - **`--verify-detections`** — prove the knowledge base's own Sigma detection
   claims against a real ruleset. For every entry that cites a Sigma detection,

@@ -1,6 +1,6 @@
 # Reference: ingesting real telemetry
 
-**Status:** current (first cut — Windows Sysmon Event ID 1, JSON)
+**Status:** current (Windows Sysmon Event ID 1 JSON; Linux auditd `execve`)
 **Scope:** how opseclint maps recorded host telemetry back to the knowledge base.
 
 opseclint's original direction is *predictive*: given a command, resolve the
@@ -73,13 +73,61 @@ Requiring the command line in the id-less case keeps a network (EID 3) or file
 misread as a process launch. Non-process records are **skipped and counted**,
 and the count is reported to the user — never silently dropped.
 
+## The reduction (Linux auditd)
+
+auditd records one `execve` as **several single-line records sharing an event
+id** — `SYSCALL` (the call, `exe`, ids), `EXECVE` (the argv), `CWD` (the working
+directory), `PROCTITLE` (a hex cmdline). They may interleave with other events
+in the log, so ingestion first **reassembles** them:
+
+```
+audit(1700000000.101:801)  →  { SYSCALL, EXECVE, CWD, PROCTITLE }
+```
+
+grouping every parsed record by the `<ts>:<serial>` inside `audit(…)`, in
+first-seen order. An event is a process launch when it carries an **`EXECVE`**
+record — the kernel emits `EXECVE` only for `execve`/`execveat`, which makes this
+arch-independent (no matching on syscall number `59` vs `221`). Every other event
+class (a `connect`, an `open`) has no `EXECVE` and is **skipped and counted**.
+
+For a qualifying event the reduction fills the same canonical field map the
+Sysmon path produces, so `execution_from_fields` — the shared reducer — and all
+downstream analysis are identical:
+
+- **`CommandLine`** ← the `EXECVE` argv, rebuilt by joining `a0`, `a1`, … in
+  order. Each value is **decoded**: auditd double-quotes values, or hex-encodes
+  them when they contain spaces/quotes/control characters (`a0=6C73` → `ls`).
+  Decoding is applied only to string fields, never numeric ones, so `pid=5678`
+  is never mistaken for hex. Because auditd hands us the *exact* argv but the
+  shared reducer re-tokenizes the joined line, each element is **re-quoted** when
+  it holds anything the shell parser would act on (whitespace, a quote, a `;` /
+  `|` / `&`), so an argument that legitimately contains a space stays one token
+  instead of splitting into several.
+- **`Image`** ← the `SYSCALL` `exe` path (also decoded); its `basename` becomes
+  the primary command's program.
+- **`CurrentDirectory`** ← the `CWD` record — a field the command line can't
+  supply, carried for observed Sigma evaluation.
+
+Two fields are **deliberately not mapped**, because doing so would fabricate a
+wrong answer rather than an honest "can't tell":
+
+- **`ParentImage`** — auditd records only a numeric `ppid`, not the parent's
+  path. Parent-keyed rules stay `INDETERMINATE`.
+- **`User`** — auditd records a numeric `uid`; mapping `0` onto the name-based
+  `User` field would make a rule expecting `root` report a definite `no-fire`.
+  Left absent, such a rule stays `INDETERMINATE` (honest) instead.
+
+Reassembling oversized args split across `aN_len` + `aN[0]…` chunks is a known
+limitation; the common single-token `aN` shape is handled.
+
 ## Evaluating detections on the real event
 
 The command reduction drives *matching*, but a record carries more than a
-command line. `flatten_fields` keeps the whole event — canonically named
-(`ParentImage`, `User`, `IntegrityLevel`, …) — and it rides along on each
-`Finding` as `observed_event`. When `--telemetry` is paired with `--sigma` (or
-feeds `--coverage-gaps`), rule evaluation uses
+command line. Each format's reduction keeps the whole event field map — keyed by
+the canonical field names a Sigma rule references (`ParentImage`,
+`IntegrityLevel`, `CurrentDirectory`, …) — and it rides along on each `Finding`
+as `observed_event`. When `--telemetry` is paired with `--sigma` (or feeds
+`--coverage-gaps`), rule evaluation uses
 [`sigma_eval::evaluate_observed`](../../src/sigma_eval.rs) instead of the
 predictive `evaluate`: the recorded fields are overlaid on the synthesized base,
 so a rule keyed on a field a command line cannot supply resolves against the
@@ -100,12 +148,12 @@ still `Unknown` — the real event resolves only the fields it actually carries.
 
 ## Scope and what comes next
 
-The cut is deliberately one format:
+- **Process-execution events only.** The KB matches commands, so process launches
+  are the natural target across both formats. Other event classes (network /
+  file / registry) tie into the `edr.rs` event-class taxonomy and are out of
+  scope for now — they are skipped and counted.
 
-- **Process-creation events only.** The KB matches commands, so process creation
-  is the natural target. Other event classes (network / file / registry) tie
-  into the `edr.rs` event-class taxonomy and are out of scope for now.
-
-auditd (`EXECVE`/`SYSCALL`) and macOS/ESF follow as further formats behind the
-same `--telemetry` input path, reusing this same reduction and observed-event
-evaluation.
+**macOS/ESF** (`NOTIFY_EXEC`) follows as the next format behind the same
+`--telemetry` input path, reusing this same reduction and observed-event
+evaluation. Its `ES_EVENT_TYPE_NOTIFY_EXEC` carries `argv`, the executable path,
+and the parent — so, unlike auditd, it can supply a real `ParentImage`.
