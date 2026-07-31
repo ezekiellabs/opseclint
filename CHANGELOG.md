@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-31
+
 ### Added
 
 - **`--telemetry <FILE>`** — ingest recorded host telemetry (the events a sensor
@@ -206,7 +208,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Human / JSON / SARIF output; a `--ci` gate; `--sigma` enrichment from a real
   SigmaHQ checkout with an on-disk cache; a `--platform` selector.
 
-[Unreleased]: https://github.com/ezekiellabs/opseclint/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/ezekiellabs/opseclint/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/ezekiellabs/opseclint/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ezekiellabs/opseclint/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ezekiellabs/opseclint/compare/v0.1.2...v1.0.0
 [0.1.2]: https://github.com/ezekiellabs/opseclint/compare/v0.1.1...v0.1.2
