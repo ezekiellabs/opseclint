@@ -2,7 +2,15 @@
 
 ## Supported versions
 
-opseclint is pre-1.0. Security fixes land on the latest release and `main`.
+opseclint follows [Semantic Versioning](https://semver.org/). Security fixes land
+on `main` and in the next release on the current major.
+
+| Version | Supported |
+|---|---|
+| 1.x | ✅ |
+| 0.x | ❌ |
+
+Older majors are not backported — upgrade to the latest `1.x` release.
 
 ## Reporting a vulnerability
 

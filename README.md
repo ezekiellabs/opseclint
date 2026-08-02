@@ -66,7 +66,7 @@
         <li><a href="#how-it-works">How it works</a></li>
       </ul>
     </li>
-    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#whats-shipped">What's shipped</a></li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contact">Contact</a></li>
@@ -409,14 +409,14 @@ A composite action ([`action.yml`](action.yml)) downloads a released binary and
 analyzes a path in CI (Linux runners):
 
 ```yaml
-- uses: ezekiellabs/opseclint@v1
+- uses: ezekiellabs/opseclint@v1.2.0
   with:
     path: examples/
     platform: linux-auditd # or windows-sysmon | macos-es
     fail-threshold: "75" # optional: fail the job on a loud action
     sarif-file: opseclint.sarif # optional: emit SARIF...
 
-- uses: github/codeql-action/upload-sarif@v3 # ...then upload it
+- uses: github/codeql-action/upload-sarif@v4 # ...then upload it
   with:
     sarif_file: opseclint.sarif
 ```
@@ -468,26 +468,43 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<!-- ROADMAP -->
+<!-- WHAT'S SHIPPED -->
 
-## Roadmap
+## What's shipped
 
-- [x] Three platforms: Linux/auditd, Windows/Sysmon, macOS/Endpoint Security
-- [x] Real SigmaHQ enrichment with an on-disk cache
-- [x] SARIF output → GitHub code scanning
-- [x] Distribution: crates.io, prebuilt binaries, a GitHub Action, and a GHCR image
-- [x] [Sigma rule-logic evaluator](docs/design/rule-logic-evaluator.md): three-valued `FIRES` / `NO-FIRE` / `INDETERMINATE`, via `--check-rule`
-- [x] `--coverage-gaps`: flag actions whose techniques have rules but where none fire
-- [x] macOS/Endpoint Security KB deepened to breadth parity with Linux/Windows (66 entries)
-- [x] [EDR-specific telemetry mappings](#edr-telemetry---edr): CrowdStrike, Defender, SentinelOne, Elastic via `--edr`
-- [x] Linux/Windows KBs deepened with cloud, container/Kubernetes, LOLBin, and modern persistence/evasion coverage (83 / 83 entries)
-- [x] [Coverage diff](#coverage-diff---diff): compare a run against a saved report to see what coverage changed, via `--diff`
-- [x] ATT&CK Navigator layer export: visualize technique coverage on the MITRE matrix, via `--navigator`
-- [x] Gap-to-rule scaffolding: generate a starter Sigma rule for a modeled action (or a `--coverage-gaps` blind spot), via `--scaffold`
-- [x] [Ingest real telemetry](docs/design/telemetry-ingest.md): map recorded sensor events back to techniques and coverage, via `--telemetry` — Windows Sysmon Event ID 1 JSON, Linux auditd `execve` logs, and macOS Endpoint Security `NOTIFY_EXEC` (`eslogger`); with `--sigma`, evaluate detections against the real event so parent/integrity/working-directory-keyed rules resolve instead of reading indeterminate
+- Three platforms: Linux/auditd, Windows/Sysmon, macOS/Endpoint Security
+- Real SigmaHQ enrichment with an on-disk cache
+- SARIF output → GitHub code scanning
+- Distribution: crates.io, prebuilt binaries, a GitHub Action, and a GHCR image
+- [Sigma rule-logic evaluator](docs/design/rule-logic-evaluator.md): three-valued `FIRES` / `NO-FIRE` / `INDETERMINATE`, via `--check-rule`
+- `--coverage-gaps`: flag actions whose techniques have rules but where none fire
+- macOS/Endpoint Security KB at breadth parity with Linux/Windows (66 entries)
+- [EDR-specific telemetry mappings](#edr-telemetry---edr): CrowdStrike, Defender, SentinelOne, Elastic via `--edr`
+- Linux/Windows KBs with cloud, container/Kubernetes, LOLBin, and modern persistence/evasion coverage (83 / 84 entries)
+- [Coverage diff](#coverage-diff---diff): compare a run against a saved report to see what coverage changed, via `--diff`
+- ATT&CK Navigator layer export: visualize technique coverage on the MITRE matrix, via `--navigator`
+- Gap-to-rule scaffolding: generate a starter Sigma rule for a modeled action (or a `--coverage-gaps` blind spot), via `--scaffold`
+- [Ingest real telemetry](docs/design/telemetry-ingest.md): map recorded sensor events back to techniques and coverage, via `--telemetry` — Windows Sysmon Event ID 1 JSON, Linux auditd `execve` logs, and macOS Endpoint Security `NOTIFY_EXEC` (`eslogger`); with `--sigma`, evaluate detections against the real event so parent/integrity/working-directory-keyed rules resolve instead of reading indeterminate
 
-See the [open issues][issues-url] for the full list, and
-[CHANGELOG.md](CHANGELOG.md) for release history.
+### Next
+
+Honest about what isn't done yet:
+
+- **Sigma modifiers `re`, `cidr`, `base64`/`base64offset`, `windash`** still
+  evaluate to `Unknown` ([design note](docs/design/rule-logic-evaluator.md)).
+  They are common in SigmaHQ's Windows rules, which is why most Windows
+  knowledge-base claims currently read `INDETERMINATE` under
+  `--verify-detections`.
+- **Event-scoped knowledge-base entries for Linux and macOS.** The `event` match
+  axis is [platform-general](docs/design/telemetry-ingest.md) but only the
+  Windows registry case is seeded so far.
+- **Side-effect correlation beyond Sysmon.** Correlating non-execution events
+  back to the process that emitted them is wired for Sysmon EID 3/11/13; auditd
+  and ESF are the natural follow-ons.
+
+See [CHANGELOG.md](CHANGELOG.md) for release history. Have an idea or a gap to
+report? Open a [coverage request][coverage-url] or start a
+[discussion][discussions-url].
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -557,6 +574,8 @@ Project Link: [https://github.com/ezekiellabs/opseclint](https://github.com/ezek
 [stars-url]: https://github.com/ezekiellabs/opseclint/stargazers
 [issues-shield]: https://img.shields.io/github/issues/ezekiellabs/opseclint?style=flat-square&logo=github
 [issues-url]: https://github.com/ezekiellabs/opseclint/issues
+[coverage-url]: https://github.com/ezekiellabs/opseclint/issues/new?labels=detection-logic&template=coverage_request.yml
+[discussions-url]: https://github.com/ezekiellabs/opseclint/discussions
 [license-shield]: https://img.shields.io/github/license/ezekiellabs/opseclint?style=flat-square
 [license-url]: https://github.com/ezekiellabs/opseclint/blob/main/LICENSE
 [releases-url]: https://github.com/ezekiellabs/opseclint/releases

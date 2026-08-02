@@ -17,7 +17,7 @@ inputs:
     required: false
     default: "linux-auditd"
   version:
-    description: "opseclint release to use (a tag like v0.1.0, or 'latest')."
+    description: "opseclint release to use (a tag like v1.2.0, or 'latest')."
     required: false
     default: "latest"
   sarif-file:

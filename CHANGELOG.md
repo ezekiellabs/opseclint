@@ -16,6 +16,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   The Homebrew formula interpolates `#{version}` into its URLs and test
   assertion, so a future bump touches only `version` and the three `sha256`
   lines.
+- Documentation that contradicted the shipped tool. `SECURITY.md` claimed
+  opseclint was pre-1.0 and now carries a real supported-versions table.
+  `docs/design/rule-logic-evaluator.md` was still marked **proposed** although
+  it shipped in v1.0.0, and its non-goals listed `ParentImage` / `User` as
+  unresolvable without noting that v1.2.0's `--telemetry` and `--users` resolve
+  them from a recorded event; the section is now scoped to predictive mode. The
+  README's GitHub Action example referenced `ezekiellabs/opseclint@v1` — a tag
+  that does not exist — and taught `codeql-action/upload-sarif@v3` while CI uses
+  `@v4`; both are corrected. Stale `v0.1.0` version placeholders in the bug
+  report template and `action.yml` now name the current release.
+- The README pointed readers at an empty issue tracker for "the full list". It
+  now links the changelog, coverage requests, and Discussions, and the 13/13
+  checked Roadmap is a `What's shipped` list plus an honest `Next` section.
+- `.gitignore` covered only `/target`, leaving the SigmaHQ ruleset clones that
+  the README and CI both create (`sigma/`, `sigma-rules/`) and `*.sarif` output
+  untracked in the working tree.
+- Both `LICENSE` files named different copyright holders; standardized on
+  Ezekiel Labs.
 
 ## [1.2.0] - 2026-07-31
 

@@ -1,6 +1,6 @@
 # Design: Sigma rule-logic evaluator
 
-**Status:** proposed
+**Status:** current (shipped in v1.0.0 as `--check-rule` and `--coverage-gaps`)
 **Scope:** upgrade `--sigma` from technique-tag matching to real detection-logic
 evaluation, and add coverage-gap analysis.
 
@@ -26,13 +26,19 @@ Abstaining honestly (`INDETERMINATE`) is a feature: it keeps the tool truthful
 about the limits of static analysis, and it is exactly what makes the
 coverage-gap number trustworthy.
 
-## Non-goals (v1)
+## Non-goals (predictive mode)
+
+These bound what can be resolved from a **command line alone**. Since v1.2.0,
+`--telemetry` supplies `ParentImage`, `IntegrityLevel`, `CurrentDirectory`, and
+(with `--users`) `User` from a **recorded** event, so those fields resolve to
+`fires` / `no-fire` in observed mode rather than reading `INDETERMINATE`. See
+[telemetry-ingest.md](telemetry-ingest.md).
 
 - Fields opseclint cannot synthesize from a command line (`ParentImage`,
   `User`, `Hashes`, registry and network fields) → these branches evaluate to
   `Unknown` and surface as `INDETERMINATE`.
 - Modifiers `re`, `cidr`, `base64`/`base64offset`, `windash` → treated as
-  `Unknown` in v1 (documented), implemented later.
+  `Unknown` (documented), implemented later. Still open.
 - Aggregations (`| count() > N`, `near`, `timeframe`) and correlation rules →
   out of scope; opseclint evaluates a single command, not an event stream.
 
@@ -53,6 +59,10 @@ fn synthesize(cmd: &Command, platform: Platform) -> Event;
 | `ParentImage`, `User`, `Hashes`, registry/network | —                                  | no → drives `INDETERMINATE` |
 
 A `FieldMatch` on a field not in `available` evaluates to `Unknown`.
+
+With `--telemetry`, the event is **ingested rather than synthesized**, so the
+last row's fields are populated from what the sensor actually recorded and
+`available` grows accordingly — the same evaluator, given a real event.
 
 ### Data model (`src/sigma_eval.rs`)
 
