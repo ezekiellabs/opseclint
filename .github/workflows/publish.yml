@@ -3,7 +3,10 @@ name: Publish to crates.io
 on:
   push:
     tags:
-      - "v*"
+      # Full versions only. The moving major tag (`v1`) is a pointer, not a
+      # release — matching it here would try to re-publish a version already on
+      # crates.io every time the pointer moves.
+      - "v*.*.*"
 
 env:
   CARGO_TERM_COLOR: always

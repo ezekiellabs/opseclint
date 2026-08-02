@@ -3,7 +3,15 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      # Full versions only (v1.2.0, v1.3.0-rc.1) — never the moving major tag.
+      #
+      # `major-tag` below re-points `v1` at each release so the
+      # `ezekiellabs/opseclint@v1` pin resolves. That pointer is not a release:
+      # if `v*` matched it, pushing `v1` would build and publish a GitHub Release
+      # literally named "v1", which then becomes `releases/latest` and displaces
+      # the real one — breaking anything that resolves "latest", including this
+      # repo's own composite action.
+      - "v*.*.*"
 
 permissions:
   contents: write

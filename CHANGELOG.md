@@ -8,6 +8,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The three tag-triggered workflows matched `v*`, which also matches the moving
+  major tag (`v1`) that `release.yml` now re-points at each release. Pushing
+  that pointer therefore ran the full release pipeline: it built and published a
+  GitHub Release literally named **v1**, which became `releases/latest` and
+  displaced the real one — breaking every consumer that resolves "latest",
+  including this repository's own composite action (`action.yml` asks
+  `/releases/latest` for a tag and derives the asset name from it) and Scoop's
+  `checkver`. It also re-ran `cargo publish` against an already-published
+  version. All three now match `v*.*.*`, so a major-tag push is inert.
 - Packaging manifests (Homebrew, Scoop, AUR, winget) were still pinned to the
   v1.1.0 artifacts and hashes while the crate was at 1.2.0 — every one of the
   four staged channels would have installed the wrong version or failed its
