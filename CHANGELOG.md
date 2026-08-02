@@ -34,6 +34,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   untracked in the working tree.
 - Both `LICENSE` files named different copyright holders; standardized on
   Ezekiel Labs.
+- The release workflow ran `softprops/action-gh-release` from **all four**
+  matrix build jobs against the same tag, with no `needs:` and no concurrency
+  guard. The four concurrent create-release calls race, and a loser creates a
+  stray *untagged draft* release next to the real one — reproducibly, on every
+  release. `build` now uploads artifacts and a single `publish` job creates the
+  release from them.
+
+### Added
+
+- `scripts/sync-packaging.sh` — one implementation of "where the version lives",
+  used three ways: `--check` (offline parity against `Cargo.toml`), `--bump`
+  (move every version string), and `<version>` (fetch the published artifacts
+  and fill in real hashes). Because the fixer and the checker are the same code,
+  they cannot disagree.
+- CI gate asserting `packaging/` matches `Cargo.toml`, and a post-publish
+  release job that recomputes the four artifact hashes and fails if `packaging/`
+  does not carry them. The first is offline and cheap; the second runs at the
+  only moment the real hashes exist.
+- The release workflow now re-points the major tag (`v1`) at each release, so
+  the `ezekiellabs/opseclint@v1` pin that the README and Marketplace advertise
+  resolves. Pre-release tags are skipped.
 
 ## [1.2.0] - 2026-07-31
 

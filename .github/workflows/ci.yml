@@ -37,6 +37,18 @@ jobs:
       - name: Test
         run: cargo test --verbose
 
+  packaging:
+    name: packaging version parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Offline string comparison, so this is safe to require. It catches a
+      # Cargo.toml bump that forgets packaging/; the artifact hashes are
+      # verified separately after a release publishes, in release.yml.
+      - name: Check packaging/ against Cargo.toml
+        run: scripts/sync-packaging.sh --check
+
   scan:
     name: code scanning upload
     runs-on: ubuntu-latest

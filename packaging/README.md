@@ -4,17 +4,32 @@ Package-manager manifests for opseclint, staged here and version-controlled. Eac
 is copied into its real destination repo at submit time. All hashes are for the
 **v1.2.0** GitHub Release artifacts.
 
-The whole bump is scripted — prefer [`scripts/sync-packaging.sh`](../scripts/sync-packaging.sh),
-which fetches the release artifacts, computes the hashes, and rewrites every file
-here with the right per-ecosystem case convention:
+The whole bump is scripted — prefer
+[`scripts/sync-packaging.sh`](../scripts/sync-packaging.sh) over hand-editing.
+
+## Release order
+
+The artifact hashes only exist once the release publishes, so the version bump
+and the hash fill-in are two steps:
 
 ```sh
-scripts/sync-packaging.sh 1.2.0   # rewrite manifests for a released version
-scripts/sync-packaging.sh --check # offline: assert manifests match Cargo.toml
+scripts/sync-packaging.sh --bump 1.3.0   # 1. offline; Cargo.toml + every manifest
+                                         #    open the release PR, tag, publish
+scripts/sync-packaging.sh 1.3.0          # 2. online; real hashes from the release
 ```
 
-`--check` runs as a CI gate on every pull request, so a `Cargo.toml` bump that
-forgets this directory fails before it merges.
+Two gates keep this honest:
+
+- **`--check`** runs on every pull request (`.github/workflows/ci.yml`). It is an
+  offline version comparison against `Cargo.toml`, so a bump that forgets this
+  directory fails before it merges.
+- **`verify-packaging`** runs after a release publishes
+  (`.github/workflows/release.yml`). It recomputes the four hashes from the
+  published artifacts and fails if they are not present here — the reminder to
+  run step 2. It never writes.
+
+Neither gate can tell you whether a manifest was actually *submitted* to its
+destination registry; those four submissions are still manual (below).
 
 To regenerate the hashes by hand:
 
