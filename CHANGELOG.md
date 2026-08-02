@@ -6,6 +6,56 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Packaging manifests (Homebrew, Scoop, AUR, winget) were still pinned to the
+  v1.1.0 artifacts and hashes while the crate was at 1.2.0 — every one of the
+  four staged channels would have installed the wrong version or failed its
+  checksum. All are now on v1.2.0. The AUR `PKGBUILD` also shipped a
+  `you@example.com` maintainer placeholder; it now names the real maintainer.
+  The Homebrew formula interpolates `#{version}` into its URLs and test
+  assertion, so a future bump touches only `version` and the three `sha256`
+  lines.
+- Documentation that contradicted the shipped tool. `SECURITY.md` claimed
+  opseclint was pre-1.0 and now carries a real supported-versions table.
+  `docs/design/rule-logic-evaluator.md` was still marked **proposed** although
+  it shipped in v1.0.0, and its non-goals listed `ParentImage` / `User` as
+  unresolvable without noting that v1.2.0's `--telemetry` and `--users` resolve
+  them from a recorded event; the section is now scoped to predictive mode. The
+  README's GitHub Action example referenced `ezekiellabs/opseclint@v1` — a tag
+  that does not exist — and taught `codeql-action/upload-sarif@v3` while CI uses
+  `@v4`; both are corrected. Stale `v0.1.0` version placeholders in the bug
+  report template and `action.yml` now name the current release.
+- The README pointed readers at an empty issue tracker for "the full list". It
+  now links the changelog, coverage requests, and Discussions, and the 13/13
+  checked Roadmap is a `What's shipped` list plus an honest `Next` section.
+- `.gitignore` covered only `/target`, leaving the SigmaHQ ruleset clones that
+  the README and CI both create (`sigma/`, `sigma-rules/`) and `*.sarif` output
+  untracked in the working tree.
+- `LICENSE` named a different copyright holder than the organization's other
+  repositories; standardized on Ezekiel Labs.
+- The release workflow ran `softprops/action-gh-release` from **all four**
+  matrix build jobs against the same tag, with no `needs:` and no concurrency
+  guard. The four concurrent create-release calls race, and a loser creates a
+  stray *untagged draft* release next to the real one — reproducibly, on every
+  release. `build` now uploads artifacts and a single `publish` job creates the
+  release from them.
+
+### Added
+
+- `scripts/sync-packaging.sh` — one implementation of "where the version lives",
+  used three ways: `--check` (offline parity against `Cargo.toml`), `--bump`
+  (move every version string), and `<version>` (fetch the published artifacts
+  and fill in real hashes). Because the fixer and the checker are the same code,
+  they cannot disagree.
+- CI gate asserting `packaging/` matches `Cargo.toml`, and a post-publish
+  release job that recomputes the four artifact hashes and fails if `packaging/`
+  does not carry them. The first is offline and cheap; the second runs at the
+  only moment the real hashes exist.
+- The release workflow now re-points the major tag (`v1`) at each release, so
+  the `ezekiellabs/opseclint@v1` pin that the README and Marketplace advertise
+  resolves. Pre-release tags are skipped.
+
 ## [1.2.0] - 2026-07-31
 
 ### Added

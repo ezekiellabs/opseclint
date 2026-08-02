@@ -8,6 +8,12 @@ on:
 permissions:
   contents: write
 
+# One release run per tag. Without this, a re-pushed tag can have two runs
+# racing to create the same release.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -56,9 +62,103 @@ jobs:
             echo "ASSET=$staging.tar.gz" >> "$GITHUB_ENV"
           fi
 
+      # Hand the archive to a single publish job rather than uploading from
+      # here. Four matrix jobs each calling action-gh-release against the same
+      # tag race to create the release, and a loser creates a stray untagged
+      # draft alongside the real one.
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: ${{ env.ASSET }}
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la dist
+
       - name: Publish to the GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          files: ${{ env.ASSET }}
+          files: dist/*
           generate_release_notes: true
           draft: false
+          fail_on_unmatched_files: true
+
+  major-tag:
+    name: move the major tag
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Consumers pin the composite action as `ezekiellabs/opseclint@v1`, which
+      # only resolves if a `v1` ref keeps pace with the latest v1.x release.
+      - name: Re-point the major tag at this release
+        run: |
+          set -euo pipefail
+          case "${GITHUB_REF_NAME}" in
+            v*-*) echo "pre-release ${GITHUB_REF_NAME}; leaving the major tag alone"; exit 0 ;;
+          esac
+          major="${GITHUB_REF_NAME%%.*}"     # v1.2.0 -> v1
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f "$major" "${GITHUB_REF_NAME}"
+          git push -f origin "refs/tags/$major"
+          echo "moved $major to ${GITHUB_REF_NAME}"
+
+  verify-packaging:
+    name: verify packaging hashes
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The published artifacts are the only place the real hashes exist, so
+      # this is the one moment they can be checked. A failure here means
+      # packaging/ has not been synced for this release yet — expected until
+      # `scripts/sync-packaging.sh <version>` runs and lands. It never writes.
+      - name: Recompute hashes and compare against packaging/
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          fail=0
+          {
+            echo "## packaging/ hashes for v${version}"
+            echo
+            echo "| artifact | sha256 | in packaging/ |"
+            echo "|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for a in \
+            "opseclint-v${version}-x86_64-unknown-linux-gnu.tar.gz" \
+            "opseclint-v${version}-aarch64-apple-darwin.tar.gz" \
+            "opseclint-v${version}-x86_64-apple-darwin.tar.gz" \
+            "opseclint-v${version}-x86_64-pc-windows-msvc.zip"; do
+            h=$(curl -fsSL "$base/$a" | sha256sum | cut -d' ' -f1)
+            if grep -riq "$h" packaging/; then
+              echo "| \`$a\` | \`$h\` | ok |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| \`$a\` | \`$h\` | MISSING |" >> "$GITHUB_STEP_SUMMARY"
+              echo "::error::packaging/ does not carry the sha256 for $a"
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            {
+              echo
+              echo "Run \`scripts/sync-packaging.sh ${version}\` and push to fix."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $fail

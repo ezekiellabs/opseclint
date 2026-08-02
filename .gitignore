@@ -1,1 +1,11 @@
 /target
+
+# SigmaHQ ruleset clones — README.md and .github/workflows/ci.yml both fetch
+# the upstream ruleset into the working tree for --sigma enrichment.
+/sigma/
+/sigma-rules/
+
+# SARIF written by `--sarif` at the repo root (see the GitHub Action example).
+*.sarif
+
+.DS_Store
