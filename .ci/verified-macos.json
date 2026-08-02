@@ -585,7 +585,13 @@
       "claimed": [
         "File transfer via curl (proc_creation_macos)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "c-uri-extension",
+          "cs-host"
+        ]
+      }
     },
     {
       "id": "emond-persist",
@@ -596,7 +602,12 @@
       "claimed": [
         "Emond rule persistence (file_event_macos)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "networksetup",
@@ -607,7 +618,12 @@
       "claimed": [
         "Network configuration discovery (proc_creation_macos)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "ParentImage"
+        ]
+      }
     },
     {
       "id": "osascript",
@@ -618,7 +634,12 @@
       "claimed": [
         "Inline AppleScript execution (proc_creation_macos)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "ParentImage"
+        ]
+      }
     },
     {
       "id": "python-http-server",
@@ -630,7 +651,14 @@
       "claimed": [
         "Ad-hoc Python HTTP server (proc_creation_macos)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "c-uri-extension",
+          "cs-host",
+          "query"
+        ]
+      }
     },
     {
       "id": "scp-exfil",
@@ -642,7 +670,13 @@
       "claimed": [
         "File transfer via scp (proc_creation_macos)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "c-uri-extension",
+          "cs-host"
+        ]
+      }
     },
     {
       "id": "shadowhash-dump",
@@ -653,7 +687,12 @@
       "claimed": [
         "ShadowHashData dump via dscl (proc_creation_macos)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Signature"
+        ]
+      }
     },
     {
       "id": "creds-in-files",

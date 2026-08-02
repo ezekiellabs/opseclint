@@ -143,7 +143,12 @@
       "claimed": [
         "Accessibility feature hijack (registry_set_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "TargetObject"
+        ]
+      }
     },
     {
       "id": "adfind",
@@ -155,7 +160,19 @@
       "claimed": [
         "AdFind execution (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Company",
+          "Description",
+          "EventID",
+          "ObjectName",
+          "ObjectType",
+          "Product",
+          "SubjectUserName",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "arp",
@@ -166,7 +183,12 @@
       "claimed": [
         "Remote system discovery (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Hashes"
+        ]
+      }
     },
     {
       "id": "attrib-hidden",
@@ -177,7 +199,13 @@
       "claimed": [
         "Hidden file attribute set (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Details",
+          "TargetObject"
+        ]
+      }
     },
     {
       "id": "av-discovery",
@@ -188,7 +216,12 @@
       "claimed": [
         "Security software discovery (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "ScriptBlockText"
+        ]
+      }
     },
     {
       "id": "bcdedit-recovery",
@@ -199,7 +232,12 @@
       "claimed": [
         "Boot recovery tampering via bcdedit (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Data"
+        ]
+      }
     },
     {
       "id": "bitsadmin-transfer",
@@ -210,7 +248,16 @@
       "claimed": [
         "bitsadmin transfer (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "EventID",
+          "LocalName",
+          "RemoteName",
+          "c-useragent",
+          "cs-host"
+        ]
+      }
     },
     {
       "id": "certutil-decode",
@@ -222,7 +269,16 @@
       "claimed": [
         "certutil decode (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "re",
+          "windash"
+        ],
+        "missing_fields": [
+          "ScriptBlockText"
+        ]
+      }
     },
     {
       "id": "cmdkey-creds",
@@ -233,7 +289,12 @@
       "claimed": [
         "Credential Manager enumeration via cmdkey (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "FileName"
+        ]
+      }
     },
     {
       "id": "cmstp",
@@ -244,7 +305,16 @@
       "claimed": [
         "Proxy execution via CMSTP (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "CallTrace",
+          "IntegrityLevel",
+          "ParentCommandLine",
+          "ParentImage",
+          "TargetObject"
+        ]
+      }
     },
     {
       "id": "cscript-vbs",
@@ -255,7 +325,17 @@
       "claimed": [
         "Script execution via cscript (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "ParentImage",
+          "SourceImage",
+          "StartModule",
+          "TargetFilename",
+          "TargetImage"
+        ],
+        "null_value_match": true
+      }
     },
     {
       "id": "dcsync",
@@ -266,7 +346,19 @@
       "claimed": [
         "DCSync replication request (proc_creation_win / security)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "AccessMask",
+          "EventID",
+          "ImagePath",
+          "Properties",
+          "Provider_Name",
+          "ServiceFileName",
+          "SubjectDomainName",
+          "SubjectUserName"
+        ]
+      }
     },
     {
       "id": "domain-admins-enum",
@@ -277,7 +369,16 @@
       "claimed": [
         "Domain Admins enumeration (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Company",
+          "Description",
+          "Payload",
+          "Product",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "domain-discovery",
@@ -288,7 +389,20 @@
       "claimed": [
         "Domain account discovery (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Company",
+          "Description",
+          "EventID",
+          "ObjectName",
+          "ObjectType",
+          "Payload",
+          "Product",
+          "SubjectUserName",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "download-cradle",
@@ -300,7 +414,14 @@
       "claimed": [
         "PowerShell download cradle (ps_script / proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Payload",
+          "ScriptBlockText",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "dsquery",
@@ -311,7 +432,20 @@
       "claimed": [
         "dsquery enumeration (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Company",
+          "Description",
+          "EventID",
+          "ObjectName",
+          "ObjectType",
+          "Payload",
+          "Product",
+          "SubjectUserName",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "findstr-creds",
@@ -322,7 +456,13 @@
       "claimed": [
         "Credential search via findstr (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "ScriptBlockText",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "gpp-cpassword",
@@ -333,7 +473,15 @@
       "claimed": [
         "GPP cPassword access (proc_creation_win / ps_script)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "windash"
+        ],
+        "missing_fields": [
+          "FileName"
+        ]
+      }
     },
     {
       "id": "ifeo-debugger",
@@ -344,7 +492,13 @@
       "claimed": [
         "IFEO debugger persistence (registry_set_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Details",
+          "TargetObject"
+        ]
+      }
     },
     {
       "id": "impacket-exec",
@@ -356,7 +510,19 @@
       "claimed": [
         "Impacket lateral movement (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "base64offset",
+          "re"
+        ],
+        "missing_fields": [
+          "EventID",
+          "ImagePath",
+          "Provider_Name",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "invoke-expression",
@@ -367,7 +533,14 @@
       "claimed": [
         "Invoke-Expression usage (ps_script)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Payload",
+          "ScriptBlockText",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "ipconfig",
@@ -378,7 +551,15 @@
       "claimed": [
         "Network configuration discovery (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "re"
+        ],
+        "missing_fields": [
+          "DestinationHostname"
+        ]
+      }
     },
     {
       "id": "kerberoast-getuserspns",
@@ -389,7 +570,13 @@
       "claimed": [
         "Kerberoasting via GetUserSPNs (proc_creation_win / ps_script)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Description",
+          "ScriptBlockText"
+        ]
+      }
     },
     {
       "id": "kerberoast-invoke",
@@ -400,7 +587,13 @@
       "claimed": [
         "Invoke-Kerberoast usage (ps_script)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Description",
+          "ScriptBlockText"
+        ]
+      }
     },
     {
       "id": "klist",
@@ -411,7 +604,15 @@
       "claimed": [
         "Kerberos ticket listing via klist (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Description",
+          "DestinationPort",
+          "Initiated",
+          "ScriptBlockText"
+        ]
+      }
     },
     {
       "id": "lsadump",
@@ -422,7 +623,20 @@
       "claimed": [
         "mimikatz lsadump indicators (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "AccessMask",
+          "EventID",
+          "ImagePath",
+          "ObjectName",
+          "ObjectType",
+          "PipeName",
+          "Provider_Name",
+          "ServiceFileName",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "lsass-comsvcs",
@@ -433,7 +647,16 @@
       "claimed": [
         "LSASS dump via comsvcs MiniDump (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Description",
+          "Hashes",
+          "PipeName",
+          "Signature",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "mimikatz",
@@ -444,7 +667,16 @@
       "claimed": [
         "Mimikatz sekurlsa indicators (proc_creation_win / ps_script)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Description",
+          "Hashes",
+          "PipeName",
+          "Signature",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "msbuild-inline",
@@ -455,7 +687,13 @@
       "claimed": [
         "Inline task execution via MSBuild (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "DestinationPort",
+          "Initiated"
+        ]
+      }
     },
     {
       "id": "mshta-http",
@@ -466,7 +704,16 @@
       "claimed": [
         "mshta remote execution (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "ParentImage",
+          "SourceImage",
+          "StartModule",
+          "TargetImage"
+        ],
+        "null_value_match": true
+      }
     },
     {
       "id": "msiexec-remote",
@@ -477,7 +724,19 @@
       "claimed": [
         "Remote MSI install via msiexec (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "windash"
+        ],
+        "missing_fields": [
+          "Data",
+          "EventID",
+          "IntegrityLevel",
+          "ParentImage",
+          "Provider_Name"
+        ]
+      }
     },
     {
       "id": "net-account-create",
@@ -488,7 +747,14 @@
       "claimed": [
         "Local account creation via net (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "EventID",
+          "SamAccountName",
+          "TargetUserName"
+        ]
+      }
     },
     {
       "id": "net-localgroup",
@@ -499,7 +765,17 @@
       "claimed": [
         "Local group discovery via net (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Company",
+          "Description",
+          "Payload",
+          "Product",
+          "ScriptBlockText",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "net-localgroup-admin",
@@ -510,7 +786,18 @@
       "claimed": [
         "Local admin group modification (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "AllowedToDelegateTo",
+          "AttributeLDAPDisplayName",
+          "AttributeValue",
+          "EventID",
+          "ObjectClass",
+          "PrivilegeList"
+        ],
+        "null_value_match": true
+      }
     },
     {
       "id": "net-share",
@@ -521,7 +808,12 @@
       "claimed": [
         "Network share discovery (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Description"
+        ]
+      }
     },
     {
       "id": "net-user",
@@ -532,7 +824,17 @@
       "claimed": [
         "Account discovery via net (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Company",
+          "Description",
+          "Payload",
+          "Product",
+          "ScriptBlockText",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "netsh-portproxy",
@@ -543,7 +845,20 @@
       "claimed": [
         "Port forwarding via netsh portproxy (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Application",
+          "DestAddress",
+          "DestPort",
+          "EventID",
+          "FilterOrigin",
+          "Hashes",
+          "Product",
+          "SourceAddress",
+          "SourcePort"
+        ]
+      }
     },
     {
       "id": "netstat",
@@ -554,7 +869,13 @@
       "claimed": [
         "Network connection discovery (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "ContextInfo",
+          "Data"
+        ]
+      }
     },
     {
       "id": "nltest-trusts",
@@ -565,7 +886,16 @@
       "claimed": [
         "Domain trust discovery via nltest (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Company",
+          "Description",
+          "Payload",
+          "Product",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "ntds-dump",
@@ -576,7 +906,14 @@
       "claimed": [
         "NTDS.dit access (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "ParentImage",
+          "ScriptBlockText",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "pass-the-hash",
@@ -587,7 +924,21 @@
       "claimed": [
         "Pass-the-hash via mimikatz (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "AuthenticationPackageName",
+          "EventID",
+          "KeyLength",
+          "LogonProcessName",
+          "LogonType",
+          "Provider_Name",
+          "SubjectUserSid",
+          "TargetUserName",
+          "Workstation",
+          "WorkstationName"
+        ]
+      }
     },
     {
       "id": "powershell-encoded",
@@ -599,7 +950,14 @@
       "claimed": [
         "Encoded PowerShell command (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Payload",
+          "ScriptBlockText",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "powershell-hidden",
@@ -611,7 +969,14 @@
       "claimed": [
         "Hidden window process execution (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Payload",
+          "ScriptBlockText",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "powerview",
@@ -623,7 +988,20 @@
       "claimed": [
         "PowerView domain enumeration (ps_script)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Company",
+          "Description",
+          "EventID",
+          "ObjectName",
+          "ObjectType",
+          "Payload",
+          "Product",
+          "SubjectUserName",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "procdump-lsass",
@@ -634,7 +1012,16 @@
       "claimed": [
         "procdump lsass dump (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Description",
+          "Hashes",
+          "PipeName",
+          "Signature",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "psexec",
@@ -646,7 +1033,18 @@
       "claimed": [
         "PsExec execution (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "base64offset"
+        ],
+        "missing_fields": [
+          "Description",
+          "EventID",
+          "ImagePath",
+          "Provider_Name"
+        ]
+      }
     },
     {
       "id": "rdp-enable",
@@ -657,7 +1055,24 @@
       "claimed": [
         "RDP enabled via registry (registry_set_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Application",
+          "DestAddress",
+          "DestPort",
+          "DestinationPort",
+          "EventID",
+          "FilterOrigin",
+          "Initiated",
+          "IpAddress",
+          "LogonType",
+          "Protocol",
+          "SourceAddress",
+          "SourcePort"
+        ],
+        "null_value_match": true
+      }
     },
     {
       "id": "reg-query",
@@ -668,7 +1083,17 @@
       "claimed": [
         "Registry query via reg.exe (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Description",
+          "EventID",
+          "Hashes",
+          "ObjectName",
+          "ObjectType",
+          "ProcessName"
+        ]
+      }
     },
     {
       "id": "run-key-persist",
@@ -679,7 +1104,15 @@
       "claimed": [
         "Run key modification (registry_set_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Details",
+          "EventType",
+          "TargetObject"
+        ],
+        "null_value_match": true
+      }
     },
     {
       "id": "runas-netonly",
@@ -690,7 +1123,22 @@
       "claimed": [
         "runas /netonly usage (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "cidr"
+        ],
+        "missing_fields": [
+          "EventID",
+          "IpAddress",
+          "LogonType",
+          "SamAccountName",
+          "Status",
+          "SubStatus",
+          "SubjectUserSid",
+          "TargetUserName"
+        ]
+      }
     },
     {
       "id": "rundll32",
@@ -701,7 +1149,12 @@
       "claimed": [
         "Suspicious rundll32 execution (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "ParentImage"
+        ]
+      }
     },
     {
       "id": "sam-hive-dump",
@@ -712,7 +1165,14 @@
       "claimed": [
         "SAM hive export via reg.exe (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "PipeName",
+          "Signature",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "schtasks-create",
@@ -723,7 +1183,21 @@
       "claimed": [
         "Scheduled task creation (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "AccessList",
+          "AttributeLDAPDisplayName",
+          "AttributeValue",
+          "Details",
+          "EventID",
+          "RelativeTargetName",
+          "ShareName",
+          "SubjectUserName",
+          "TargetObject",
+          "TaskName"
+        ]
+      }
     },
     {
       "id": "service-create",
@@ -734,7 +1208,19 @@
       "claimed": [
         "Service creation via sc.exe (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "base64offset"
+        ],
+        "missing_fields": [
+          "EventID",
+          "ImagePath",
+          "Provider_Name",
+          "ServiceFileName",
+          "ServiceName"
+        ]
+      }
     },
     {
       "id": "setspn-kerberoast",
@@ -745,7 +1231,13 @@
       "claimed": [
         "SPN enumeration via setspn (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Description",
+          "ScriptBlockText"
+        ]
+      }
     },
     {
       "id": "systeminfo",
@@ -756,7 +1248,15 @@
       "claimed": [
         "systeminfo execution (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Description",
+          "Hashes",
+          "ParentCommandLine",
+          "ScriptBlockText"
+        ]
+      }
     },
     {
       "id": "tasklist",
@@ -767,7 +1267,14 @@
       "claimed": [
         "Process discovery via tasklist (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Description",
+          "Hashes",
+          "ScriptBlockText"
+        ]
+      }
     },
     {
       "id": "timestomp-ps",
@@ -778,7 +1285,15 @@
       "claimed": [
         "Timestomping via PowerShell (ps_script)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "EventID",
+          "ProcessName",
+          "ScriptBlockText",
+          "SubjectUserSid"
+        ]
+      }
     },
     {
       "id": "token-impersonation",
@@ -789,7 +1304,16 @@
       "claimed": [
         "Access token manipulation (ps_script)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "EventID",
+          "FilterName",
+          "PipeName",
+          "ProviderContextName",
+          "ServiceFileName"
+        ]
+      }
     },
     {
       "id": "uac-bypass-fodhelper",
@@ -800,7 +1324,13 @@
       "claimed": [
         "UAC bypass via fodhelper (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Details",
+          "TargetObject"
+        ]
+      }
     },
     {
       "id": "vssadmin-delete",
@@ -811,7 +1341,12 @@
       "claimed": [
         "Shadow copy deletion (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Data"
+        ]
+      }
     },
     {
       "id": "wbadmin-delete",
@@ -822,7 +1357,12 @@
       "claimed": [
         "Backup deletion via wbadmin (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Data"
+        ]
+      }
     },
     {
       "id": "whoami",
@@ -833,7 +1373,12 @@
       "claimed": [
         "Whoami utility execution (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Product"
+        ]
+      }
     },
     {
       "id": "winlogon-persist",
@@ -844,7 +1389,14 @@
       "claimed": [
         "Winlogon helper persistence (registry_set_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Details",
+          "ScriptBlockText",
+          "TargetObject"
+        ]
+      }
     },
     {
       "id": "winrm-remoting",
@@ -855,7 +1407,22 @@
       "claimed": [
         "PowerShell remoting execution (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "ContextInfo",
+          "DestinationIp",
+          "DestinationPort",
+          "GrantedAccess",
+          "Initiated",
+          "ScriptBlockText",
+          "SourceImage",
+          "SourceIp",
+          "SourceIsIpv6",
+          "TargetImage",
+          "User"
+        ]
+      }
     },
     {
       "id": "wmi-event-persist",
@@ -866,7 +1433,16 @@
       "claimed": [
         "WMI event subscription persistence (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "base64offset"
+        ],
+        "missing_fields": [
+          "Destination",
+          "ParentImage"
+        ]
+      }
     },
     {
       "id": "wmic-process-create",
@@ -877,7 +1453,16 @@
       "claimed": [
         "WMI process creation (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "re"
+        ],
+        "missing_fields": [
+          "ParentImage",
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "wmic-shadow-delete",
@@ -888,7 +1473,12 @@
       "claimed": [
         "Shadow copy deletion via wmic (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Data"
+        ]
+      }
     },
     {
       "id": "wscript-vbs",
@@ -899,7 +1489,17 @@
       "claimed": [
         "Script execution via wscript (proc_creation_win)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "ParentImage",
+          "SourceImage",
+          "StartModule",
+          "TargetFilename",
+          "TargetImage"
+        ],
+        "null_value_match": true
+      }
     },
     {
       "id": "rubeus",

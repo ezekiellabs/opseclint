@@ -9,7 +9,7 @@
 //! this audits the knowledge base itself, so it can run in CI as a regression
 //! gate: a claimed detection that stops firing is a real quality regression.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -59,6 +59,46 @@ impl Status {
     }
 }
 
+fn is_zero(n: &usize) -> bool {
+    *n == 0
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+/// Why an entry came out `Indeterminate`, unioned over its candidate rules.
+///
+/// `Indeterminate` is one status but it has several distinct causes, and until
+/// they are told apart the count says only "the evaluator abstained a lot" — not
+/// whether that is fixable, and if so by what. The two actionable causes are
+/// very different work: `modifiers` is evaluator features we could implement,
+/// `missing_fields` is host telemetry the tool would have to be handed.
+///
+/// Causes are not mutually exclusive; one entry can report several.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct IndeterminateCause {
+    /// Modifier tokens the evaluator does not implement (`re`, `windash`, …).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modifiers: Vec<String>,
+    /// Fields a rule keys on that a command line cannot supply.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub missing_fields: Vec<String>,
+    /// Candidate rules that could not be lowered to detection logic at all.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub unparsed_rules: usize,
+    /// A rule asserted a field is absent (`field: null`). Abstaining is
+    /// arguably correct, so this is reported apart from the fixable causes.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub null_value_match: bool,
+}
+
+impl IndeterminateCause {
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerifyResult {
     pub id: String,
@@ -70,6 +110,10 @@ pub struct VerifyResult {
     /// Titles of the real rules that fire (when `Verified`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub firing: Vec<String>,
+    /// Populated only for `Indeterminate`. Absent from older baselines, which
+    /// still deserialize — `--diff` compares `status` by `id` and ignores this.
+    #[serde(default, skip_serializing_if = "IndeterminateCause::is_empty")]
+    pub because: IndeterminateCause,
 }
 
 /// A saveable verification run: platform, ruleset size, and per-entry results.
@@ -116,35 +160,67 @@ fn representative_command(entry: &KbEntry) -> Option<Command> {
 
 /// Classify a single entry against the ruleset. Mirrors the fire/indeterminate/
 /// gap logic used by coverage analysis so the two stay consistent.
-fn classify(entry: &KbEntry, index: &SigmaIndex, platform: Platform) -> (Status, Vec<String>) {
+fn classify(
+    entry: &KbEntry,
+    index: &SigmaIndex,
+    platform: Platform,
+) -> (Status, Vec<String>, IndeterminateCause) {
     let tids: Vec<String> = entry.techniques.iter().map(|t| t.id.clone()).collect();
     let candidates = index.rules_for(&tids);
     if candidates.is_empty() {
-        return (Status::NoRule, Vec::new());
+        return (Status::NoRule, Vec::new(), IndeterminateCause::default());
     }
     let Some(cmd) = representative_command(entry) else {
-        return (Status::Indeterminate, Vec::new());
+        // No representative line to evaluate against — not a rule-side cause,
+        // so it stays uncategorized rather than being blamed on a rule.
+        return (
+            Status::Indeterminate,
+            Vec::new(),
+            IndeterminateCause::default(),
+        );
     };
 
     let mut firing = Vec::new();
     let mut any_indet = false;
+    let mut mods: BTreeSet<String> = BTreeSet::new();
+    let mut fields: BTreeSet<String> = BTreeSet::new();
+    let mut cause = IndeterminateCause::default();
     for c in &candidates {
         match &c.rule {
-            Some(dr) => match sigma_eval::evaluate(dr, &cmd, platform).outcome {
-                Outcome::Fires => firing.push(c.title.clone()),
-                Outcome::Indeterminate => any_indet = true,
-                Outcome::NoFire => {}
-            },
-            None => any_indet = true, // rule couldn't be lowered to logic
+            Some(dr) => {
+                let v = sigma_eval::evaluate(dr, &cmd, platform);
+                match v.outcome {
+                    Outcome::Fires => firing.push(c.title.clone()),
+                    Outcome::Indeterminate => {
+                        any_indet = true;
+                        mods.extend(v.blocking_modifiers);
+                        fields.extend(v.missing_fields);
+                        cause.null_value_match |= v.null_value_match;
+                    }
+                    Outcome::NoFire => {}
+                }
+            }
+            None => {
+                // The rule could not be lowered to logic at all — a parser gap,
+                // not an evaluation gap. Counted apart from the rest.
+                any_indet = true;
+                cause.unparsed_rules += 1;
+            }
         }
     }
 
     if !firing.is_empty() {
-        (Status::Verified, firing)
+        (Status::Verified, firing, IndeterminateCause::default())
     } else if any_indet {
-        (Status::Indeterminate, Vec::new())
+        cause.modifiers = mods.into_iter().collect();
+        cause.missing_fields = fields.into_iter().collect();
+        (Status::Indeterminate, Vec::new(), cause)
     } else {
-        (Status::Unverified, Vec::new())
+        (
+            Status::Unverified,
+            Vec::new(),
+            IndeterminateCause::default(),
+        )
     }
 }
 
@@ -155,7 +231,7 @@ pub fn verify(kb: &KnowledgeBase, index: &SigmaIndex, platform: Platform) -> Ver
         .iter()
         .filter(|e| claims_sigma(e))
         .map(|e| {
-            let (status, firing) = classify(e, index, platform);
+            let (status, firing, because) = classify(e, index, platform);
             VerifyResult {
                 id: e.id.clone(),
                 description: e.description.clone(),
@@ -163,6 +239,7 @@ pub fn verify(kb: &KnowledgeBase, index: &SigmaIndex, platform: Platform) -> Ver
                 claimed: claimed_rules(e),
                 status,
                 firing,
+                because,
             }
         })
         .collect();
@@ -173,6 +250,84 @@ pub fn verify(kb: &KnowledgeBase, index: &SigmaIndex, platform: Platform) -> Ver
         rules_indexed: index.rules_indexed,
         results,
     }
+}
+
+/// Rank a histogram by count, then name, and render the top few as
+/// `name N, name N, …` with a tail marker when it is truncated.
+fn top_n(hist: &BTreeMap<String, usize>, n: usize) -> String {
+    let mut v: Vec<(&String, &usize)> = hist.iter().collect();
+    v.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+    let shown: Vec<String> = v.iter().take(n).map(|(k, c)| format!("{k} {c}")).collect();
+    let mut s = shown.join(", ");
+    if v.len() > n {
+        s.push_str(&format!(", +{} more", v.len() - n));
+    }
+    s
+}
+
+/// `(label, entries affected, detail)` per cause, worst first. Counts are of
+/// *entries*, and overlap: one entry blocked by both a modifier and a missing
+/// field is counted in both rows.
+fn summarize_causes(report: &VerifyReport) -> Vec<(&'static str, usize, String)> {
+    let mut by_mod: BTreeMap<String, usize> = BTreeMap::new();
+    let mut by_field: BTreeMap<String, usize> = BTreeMap::new();
+    let (mut n_mods, mut n_fields, mut n_unparsed, mut n_null, mut n_none) = (0, 0, 0, 0, 0);
+
+    for r in report
+        .results
+        .iter()
+        .filter(|r| r.status == Status::Indeterminate)
+    {
+        let b = &r.because;
+        if !b.modifiers.is_empty() {
+            n_mods += 1;
+            for m in &b.modifiers {
+                *by_mod.entry(m.clone()).or_default() += 1;
+            }
+        }
+        if !b.missing_fields.is_empty() {
+            n_fields += 1;
+            for f in &b.missing_fields {
+                *by_field.entry(f.clone()).or_default() += 1;
+            }
+        }
+        if b.unparsed_rules > 0 {
+            n_unparsed += 1;
+        }
+        if b.null_value_match {
+            n_null += 1;
+        }
+        if b.is_empty() {
+            n_none += 1;
+        }
+    }
+
+    let mut rows: Vec<(&'static str, usize, String)> = Vec::new();
+    if n_mods > 0 {
+        rows.push(("modifiers", n_mods, top_n(&by_mod, 5)));
+    }
+    if n_fields > 0 {
+        rows.push(("missing fields", n_fields, top_n(&by_field, 5)));
+    }
+    if n_unparsed > 0 {
+        rows.push(("unparsed rules", n_unparsed, String::new()));
+    }
+    if n_null > 0 {
+        rows.push((
+            "field-absent",
+            n_null,
+            "rule asserts a field is null".into(),
+        ));
+    }
+    if n_none > 0 {
+        rows.push((
+            "no representative",
+            n_none,
+            "entry has no line to evaluate".into(),
+        ));
+    }
+    rows.sort_by(|a, b| b.1.cmp(&a.1));
+    rows
 }
 
 pub fn render_json(report: &VerifyReport) -> String {
@@ -211,6 +366,33 @@ pub fn render(report: &VerifyReport, color: bool) -> String {
         norule,
         total,
     ));
+
+    // Break the indeterminate bucket down by cause. Without this the count says
+    // only "the evaluator abstained a lot"; with it, it says what to go fix and
+    // roughly what that would buy.
+    if indet > 0 {
+        let causes = summarize_causes(report);
+        if !causes.is_empty() {
+            out.push_str(&format!(
+                "\n{}why indeterminate{} ({} entries; an entry can have more than one cause)\n",
+                c(theme::BOLD),
+                reset,
+                indet,
+            ));
+            for (label, count, detail) in causes {
+                out.push_str(&format!(
+                    "  {:<16} {:>4}{}\n",
+                    label,
+                    count,
+                    if detail.is_empty() {
+                        String::new()
+                    } else {
+                        format!("  {}{}{}", c(theme::COMMENT), detail, reset)
+                    },
+                ));
+            }
+        }
+    }
 
     // Only the actionable buckets get listed: unverified (contradicted claims)
     // and no-rule (unbacked claims). Verified/indeterminate are summarized above.
@@ -510,6 +692,7 @@ mod tests {
             claimed: vec!["some rule".into()],
             status,
             firing: vec![],
+            because: IndeterminateCause::default(),
         };
         let baseline = VerifyReport {
             platform: "linux".into(),
@@ -548,6 +731,7 @@ mod tests {
             claimed: vec!["some rule".into()],
             status,
             firing: vec![],
+            because: IndeterminateCause::default(),
         };
         let baseline = VerifyReport {
             platform: "linux".into(),
