@@ -58,7 +58,7 @@ manifest_version() {
     aur/PKGBUILD)                     sed -n 's/^pkgver=\(.*\)/\1/p' "$pkg/$1" ;;
     aur/.SRCINFO)                     sed -n 's/^\tpkgver = \(.*\)/\1/p' "$pkg/$1" ;;
     winget/*.yaml)                    sed -n 's/^PackageVersion: \(.*\)/\1/p' "$pkg/$1" ;;
-    README.md)                        sed -n 's/.*\*\*v\([0-9][0-9.]*\)\*\* GitHub Release.*/\1/p' "$pkg/$1" ;;
+    README.md)                        sed -n 's/.*\*\*v\([0-9][0-9A-Za-z.+-]*\)\*\* GitHub Release.*/\1/p' "$pkg/$1" ;;
     *) die "no version rule for $1" ;;
   esac
 }
@@ -105,11 +105,13 @@ EOF
   return "$rc"
 }
 
+# Full SemVer, so `1.3.0-rc.1` is accepted (release.yml already special-cases
+# pre-release tags) while `1.2.3foo` and `1x.2.3` are not. A `case` glob cannot
+# express this: `*` would swallow arbitrary trailing characters, and a bad
+# version silently propagates into URLs, filenames, and every manifest.
 require_semver() {
-  case "$1" in
-    [0-9]*.[0-9]*.[0-9]*) ;;
-    *) die "expected a bare version like 1.2.0, got '$1'" ;;
-  esac
+  local re='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+  [[ "$1" =~ $re ]] || die "expected a semver like 1.2.0 or 1.3.0-rc.1, got '$1'"
 }
 
 # Move every version string, leaving hashes alone. Each manifest declares its
@@ -126,7 +128,7 @@ bump_versions() {
       rm -f "$pkg/$m.bak"
     fi
   done
-  sed -i.bak -E "s/^## v[0-9.]+ artifact hashes/## v$new artifact hashes/" \
+  sed -i.bak -E "s/^## v[0-9A-Za-z.+-]+ artifact hashes/## v$new artifact hashes/" \
     "$pkg/README.md"
   rm -f "$pkg/README.md.bak"
 }
@@ -136,8 +138,14 @@ bump() {
   require_semver "$new"
   old=$(crate_version)
   if [ "$old" != "$new" ]; then
-    sed -i.bak "0,/^version = \"$old\"/s//version = \"$new\"/" "$repo_root/Cargo.toml"
-    rm -f "$repo_root/Cargo.toml.bak"
+    # First match only, and awk rather than sed: the `0,/re/` address range is a
+    # GNU extension that BSD sed (macOS) rejects, and release work happens on
+    # both. Exact string compare, so no regex escaping to get wrong either.
+    scratch=${scratch:-$(mktemp -d)}
+    awk -v old="version = \"$old\"" -v new="version = \"$new\"" '
+      !done && $0 == old { print new; done = 1; next } { print }
+    ' "$repo_root/Cargo.toml" > "$scratch/Cargo.toml"
+    mv "$scratch/Cargo.toml" "$repo_root/Cargo.toml"
     printf 'Cargo.toml %s -> %s\n' "$old" "$new"
   fi
   bump_versions "$new"
