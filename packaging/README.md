@@ -2,9 +2,21 @@
 
 Package-manager manifests for opseclint, staged here and version-controlled. Each
 is copied into its real destination repo at submit time. All hashes are for the
-**v1.1.0** GitHub Release artifacts.
+**v1.2.0** GitHub Release artifacts.
 
-Regenerate hashes for a new release with:
+The whole bump is scripted — prefer [`scripts/sync-packaging.sh`](../scripts/sync-packaging.sh),
+which fetches the release artifacts, computes the hashes, and rewrites every file
+here with the right per-ecosystem case convention:
+
+```sh
+scripts/sync-packaging.sh 1.2.0   # rewrite manifests for a released version
+scripts/sync-packaging.sh --check # offline: assert manifests match Cargo.toml
+```
+
+`--check` runs as a CI gate on every pull request, so a `Cargo.toml` bump that
+forgets this directory fails before it merges.
+
+To regenerate the hashes by hand:
 
 ```sh
 base="https://github.com/ezekiellabs/opseclint/releases/download/vX.Y.Z"
@@ -17,14 +29,14 @@ for a in \
 done
 ```
 
-## v1.1.0 artifact hashes
+## v1.2.0 artifact hashes
 
 | target | archive | SHA256 |
 |---|---|---|
-| x86_64-unknown-linux-gnu | .tar.gz | `18307d5fb97a15b60e0232d650676d82e00f20bc458525f91cd286c110a997e6` |
-| aarch64-apple-darwin | .tar.gz | `1f82161b5f366532ce83699ff162868e4dc3f00933aa6215e7e924606b3c05e6` |
-| x86_64-apple-darwin | .tar.gz | `f1633728c91a5d68bd412d3442446be8b6fd9287a37353c1ed1b47a1e2febc66` |
-| x86_64-pc-windows-msvc | .zip | `5fba423f8246ec26af4651d5f9fd7eda087d27edc6023769840bc910eb39cead` |
+| x86_64-unknown-linux-gnu | .tar.gz | `a2898439b8df630d49249ffa4748f821abe351f06d286d9ed8a216c582ba8179` |
+| aarch64-apple-darwin | .tar.gz | `338d5abd7a80b47f8d522e6dc576ef3aa78be6580c83352ea43939bcfa59a97b` |
+| x86_64-apple-darwin | .tar.gz | `362ebf63ee34d859781103b466573cf3f607f079781e6e348c7bc47104bbcdfd` |
+| x86_64-pc-windows-msvc | .zip | `1edde8dcb4f2f46c70ff0089454ce5a35147ed209900e577ed463b1634c207b7` |
 
 ## Homebrew — `homebrew/opseclint.rb`
 
@@ -54,15 +66,13 @@ Install: `scoop bucket add ezekiellabs https://github.com/ezekiellabs/scoop-buck
 
 `opseclint-bin` (prebuilt Linux x86_64 binary).
 
-- **Set the maintainer line** in `PKGBUILD` to your real name/email before pushing
-  (currently a `you@example.com` placeholder).
 - If you edit `PKGBUILD`, regenerate `.SRCINFO` with `makepkg --printsrcinfo > .SRCINFO`.
 
 ```sh
 git clone ssh://aur@aur.archlinux.org/opseclint-bin.git
 cp PKGBUILD .SRCINFO opseclint-bin/ && cd opseclint-bin
 namcap PKGBUILD && makepkg -si   # local test
-git add PKGBUILD .SRCINFO && git commit -m "opseclint-bin 1.1.0" && git push
+git add PKGBUILD .SRCINFO && git commit -m "opseclint-bin X.Y.Z" && git push
 ```
 
 ## winget — `winget/EzekielLabs.opseclint.*.yaml`
@@ -74,7 +84,7 @@ Note the `InstallerSha256` is **uppercase** (winget convention).
 ```sh
 winget validate --manifest .\winget\
 # then PR the three files to microsoft/winget-pkgs under
-# manifests/e/EzekielLabs/opseclint/1.1.0/
+# manifests/e/EzekielLabs/opseclint/X.Y.Z/
 ```
 
 Install: `winget install EzekielLabs.opseclint`

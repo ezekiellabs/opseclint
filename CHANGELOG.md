@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Packaging manifests (Homebrew, Scoop, AUR, winget) were still pinned to the
+  v1.1.0 artifacts and hashes while the crate was at 1.2.0 — every one of the
+  four staged channels would have installed the wrong version or failed its
+  checksum. All are now on v1.2.0. The AUR `PKGBUILD` also shipped a
+  `you@example.com` maintainer placeholder; it now names the real maintainer.
+  The Homebrew formula interpolates `#{version}` into its URLs and test
+  assertion, so a future bump touches only `version` and the three `sha256`
+  lines.
+
 ## [1.2.0] - 2026-07-31
 
 ### Added
