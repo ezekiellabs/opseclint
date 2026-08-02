@@ -683,6 +683,61 @@ mod tests {
         assert_eq!(sum, report.results.len());
     }
 
+    /// The cause breakdown drives what someone works on next, so it has to be
+    /// stable run to run. `sort_by_key` is a *stable* sort (`sort_unstable_by`
+    /// is the reordering one), and rows are pushed in a fixed sequence, so ties
+    /// keep that sequence rather than varying. Asserted rather than assumed.
+    #[test]
+    fn cause_breakdown_is_ranked_and_deterministic_on_ties() {
+        let mk = |id: &str, because: IndeterminateCause| VerifyResult {
+            id: id.into(),
+            description: format!("{id} desc"),
+            techniques: vec!["T1000".into()],
+            claimed: vec!["some rule".into()],
+            status: Status::Indeterminate,
+            firing: vec![],
+            because,
+        };
+        let modifier_only = IndeterminateCause {
+            modifiers: vec!["windash".into()],
+            ..Default::default()
+        };
+        let field_only = IndeterminateCause {
+            missing_fields: vec!["ParentImage".into()],
+            ..Default::default()
+        };
+        let report = VerifyReport {
+            platform: "windows".into(),
+            rules_indexed: 10,
+            // One entry per cause: a deliberate tie at 1 each.
+            results: vec![mk("a", modifier_only), mk("b", field_only)],
+        };
+
+        let first = summarize_causes(&report);
+        assert_eq!(
+            first.iter().map(|r| (r.0, r.1)).collect::<Vec<_>>(),
+            vec![("modifiers", 1), ("missing fields", 1)],
+            "tied rows keep their push order"
+        );
+        // Same input must give the same answer every time.
+        for _ in 0..8 {
+            assert_eq!(summarize_causes(&report), first);
+        }
+
+        // And a clear winner must actually outrank a tie.
+        let mut skewed = report.clone();
+        skewed.results.push(mk(
+            "c",
+            IndeterminateCause {
+                missing_fields: vec!["ParentImage".into()],
+                ..Default::default()
+            },
+        ));
+        let ranked = summarize_causes(&skewed);
+        assert_eq!(ranked[0].0, "missing fields");
+        assert_eq!(ranked[0].1, 2);
+    }
+
     #[test]
     fn delta_flags_regression_and_improvement() {
         let mk = |id: &str, status: Status| VerifyResult {

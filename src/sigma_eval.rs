@@ -530,7 +530,7 @@ fn referenced_fields(rule: &DetectionRule) -> HashSet<String> {
 }
 
 fn collect_unsupported(s: &Search, mods: &mut HashSet<String>, null_values: &mut bool) {
-    let mut scan = |fms: &Vec<FieldMatch>| {
+    let mut scan = |fms: &[FieldMatch]| {
         for f in fms {
             mods.extend(f.unsupported_mods.iter().cloned());
             *null_values |= f.null_values;
@@ -538,7 +538,7 @@ fn collect_unsupported(s: &Search, mods: &mut HashSet<String>, null_values: &mut
     };
     match s {
         Search::Fields(fms) => scan(fms),
-        Search::OneOfMaps(groups) => groups.iter().for_each(scan),
+        Search::OneOfMaps(groups) => groups.iter().for_each(|g| scan(g)),
         Search::Keywords(_) => {}
     }
 }
