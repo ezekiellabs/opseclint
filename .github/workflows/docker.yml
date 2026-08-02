@@ -5,7 +5,9 @@ on:
     branches: [main]
   push:
     tags:
-      - "v*"
+      # Full versions only — see the note in release.yml. The moving major tag
+      # (`v1`) is a pointer at an already-built release, not a new one.
+      - "v*.*.*"
 
 permissions:
   contents: read
