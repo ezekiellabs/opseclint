@@ -326,7 +326,7 @@ fn summarize_causes(report: &VerifyReport) -> Vec<(&'static str, usize, String)>
             "entry has no line to evaluate".into(),
         ));
     }
-    rows.sort_by(|a, b| b.1.cmp(&a.1));
+    rows.sort_by_key(|r| std::cmp::Reverse(r.1));
     rows
 }
 
