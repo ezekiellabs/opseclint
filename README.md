@@ -491,16 +491,20 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 Honest about what isn't done yet:
 
 - **Sigma modifiers `re`, `cidr`, `base64`/`base64offset`, `windash`** still
-  evaluate to `Unknown` ([design note](docs/design/rule-logic-evaluator.md)).
-  They are common in SigmaHQ's Windows rules, which is why most Windows
-  knowledge-base claims currently read `INDETERMINATE` under
-  `--verify-detections`.
-- **Event-scoped knowledge-base entries for Linux and macOS.** The `event` match
-  axis is [platform-general](docs/design/telemetry-ingest.md) but only the
-  Windows registry case is seeded so far.
-- **Side-effect correlation beyond Sysmon.** Correlating non-execution events
-  back to the process that emitted them is wired for Sysmon EID 3/11/13; auditd
-  and ESF are the natural follow-ons.
+  evaluate to `Unknown` ([design note](docs/design/rule-logic-evaluator.md),
+  [#56][issue-56]). Most Windows knowledge-base claims currently read
+  `INDETERMINATE` under `--verify-detections`; how much of that these modifiers
+  account for is not yet measured, because the evaluator does not distinguish
+  "unsupported modifier" from "field the event doesn't carry".
+- **Event-scoped matching on Linux and macOS** ([#57][issue-57]). The `event`
+  axis is platform-general, but `--telemetry` only produces standalone
+  non-execution events for Sysmon — the auditd and ESF paths return none at
+  all, so this is blocked on ingest before it is a knowledge-base question.
+- **Side-effect correlation beyond Sysmon** ([#57][issue-57]). Correlating
+  non-execution events back to the process that emitted them is wired for
+  Sysmon EID 3/11/13; auditd and ESF are the natural follow-ons.
+- **[`serde_yaml` is deprecated][issue-58]** and sits on the `--sigma` and
+  `--check-rule` paths.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Have an idea or a gap to
 report? Open a [coverage request][coverage-url] or start a
@@ -576,6 +580,9 @@ Project Link: [https://github.com/ezekiellabs/opseclint](https://github.com/ezek
 [issues-url]: https://github.com/ezekiellabs/opseclint/issues
 [coverage-url]: https://github.com/ezekiellabs/opseclint/issues/new?labels=detection-logic&template=coverage_request.yml
 [discussions-url]: https://github.com/ezekiellabs/opseclint/discussions
+[issue-56]: https://github.com/ezekiellabs/opseclint/issues/56
+[issue-57]: https://github.com/ezekiellabs/opseclint/issues/57
+[issue-58]: https://github.com/ezekiellabs/opseclint/issues/58
 [license-shield]: https://img.shields.io/github/license/ezekiellabs/opseclint?style=flat-square
 [license-url]: https://github.com/ezekiellabs/opseclint/blob/main/LICENSE
 [releases-url]: https://github.com/ezekiellabs/opseclint/releases

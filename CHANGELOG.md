@@ -32,8 +32,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `.gitignore` covered only `/target`, leaving the SigmaHQ ruleset clones that
   the README and CI both create (`sigma/`, `sigma-rules/`) and `*.sarif` output
   untracked in the working tree.
-- Both `LICENSE` files named different copyright holders; standardized on
-  Ezekiel Labs.
+- `LICENSE` named a different copyright holder than the organization's other
+  repositories; standardized on Ezekiel Labs.
 - The release workflow ran `softprops/action-gh-release` from **all four**
   matrix build jobs against the same tag, with no `needs:` and no concurrency
   guard. The four concurrent create-release calls race, and a loser creates a
