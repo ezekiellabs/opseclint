@@ -92,14 +92,25 @@ git add PKGBUILD .SRCINFO && git commit -m "opseclint-bin X.Y.Z" && git push
 
 ## winget — `winget/EzekielLabs.opseclint.*.yaml`
 
-Three manifests (version + installer + locale), schema 1.6.0. The installer is the
+Three manifests (version + installer + locale), schema 1.12.0. The installer is the
 release `.zip` treated as a `portable` nested installer aliased to `opseclint`.
 Note the `InstallerSha256` is **uppercase** (winget convention).
 
 ```sh
 winget validate --manifest .\winget\
+winget install --manifest .\winget\   # the PR checklist asks for this too
 # then PR the three files to microsoft/winget-pkgs under
 # manifests/e/EzekielLabs/opseclint/X.Y.Z/
 ```
+
+Submitting to `microsoft/winget-pkgs` needs three things this repo cannot
+provide: a signed [Contributor License Agreement](https://cla.opensource.microsoft.com),
+a Windows machine to run the two commands above, and a PR titled
+`New package: EzekielLabs.opseclint version X.Y.Z` (or `Update: ... to X.Y.Z`)
+touching exactly one manifest directory.
+
+`ManifestVersion` tracks the **winget schema**, not opseclint. It moves only
+when Microsoft publishes a new schema and the manifests are migrated to it —
+`sync-packaging.sh` deliberately holds that line back from a version bump.
 
 Install: `winget install EzekielLabs.opseclint`
