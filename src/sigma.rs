@@ -11,8 +11,8 @@
 //! The ruleset is read at runtime and never bundled, so the binary stays
 //! self-contained and no detection-rule licensing is redistributed.
 
-use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
@@ -209,10 +209,14 @@ impl SigmaIndex {
     /// set — what any verdict must be drawn from.
     pub fn candidate_rules(&self, technique_ids: &[String]) -> Vec<SigmaRule> {
         let mut out: Vec<SigmaRule> = Vec::new();
+        // Dedup through a set rather than rescanning `out`: the candidate set is
+        // no longer bounded by the display cap, and a broadly-tagged technique
+        // like T1059.001 carries ~180 rules upstream.
+        let mut seen: HashSet<&str> = HashSet::new();
         for tid in technique_ids {
             if let Some(rules) = self.by_technique.get(tid) {
                 for r in rules {
-                    if !out.iter().any(|e| e.id == r.id) {
+                    if seen.insert(r.id.as_str()) {
                         out.push(r.clone());
                     }
                 }
