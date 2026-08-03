@@ -500,7 +500,12 @@
       "claimed": [
         "S3 data transfer via aws CLI (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "c-useragent"
+        ]
+      }
     },
     {
       "id": "chattr-immutable",
@@ -512,7 +517,14 @@
       "claimed": [
         "chattr immutable/append attribute change (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "a0",
+          "a1",
+          "type"
+        ]
+      }
     },
     {
       "id": "chmod-exec",
@@ -523,7 +535,14 @@
       "claimed": [
         "chmod +x on file in tmp/user dir (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "a0",
+          "a1",
+          "type"
+        ]
+      }
     },
     {
       "id": "creds-in-files",
@@ -534,7 +553,12 @@
       "claimed": [
         "Credential keyword search (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "type"
+        ]
+      }
     },
     {
       "id": "cron-persist",
@@ -545,7 +569,12 @@
       "claimed": [
         "System cron persistence (file_event_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "crontab-l",
@@ -556,7 +585,12 @@
       "claimed": [
         "Cron enumeration (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "dd-wipe",
@@ -567,7 +601,14 @@
       "claimed": [
         "Disk overwrite via dd (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "a0",
+          "a1",
+          "type"
+        ]
+      }
     },
     {
       "id": "dnscat",
@@ -578,7 +619,14 @@
       "claimed": [
         "DNS tunneling C2 (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "answer",
+          "query",
+          "record_type"
+        ]
+      }
     },
     {
       "id": "find-exec-shell",
@@ -601,7 +649,14 @@
       "claimed": [
         "Kernel module load via insmod (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "comm",
+          "exe",
+          "type"
+        ]
+      }
     },
     {
       "id": "kernel-module-modprobe",
@@ -612,7 +667,14 @@
       "claimed": [
         "Kernel module load via modprobe (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "comm",
+          "exe",
+          "type"
+        ]
+      }
     },
     {
       "id": "ld-preload",
@@ -623,7 +685,13 @@
       "claimed": [
         "ld.so.preload modification (file_event_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "name",
+          "type"
+        ]
+      }
     },
     {
       "id": "masscan",
@@ -634,7 +702,17 @@
       "claimed": [
         "Mass port scanner execution (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "re"
+        ],
+        "missing_fields": [
+          "exe",
+          "key",
+          "type"
+        ]
+      }
     },
     {
       "id": "pipe-to-sh",
@@ -669,7 +747,14 @@
       "claimed": [
         "Process discovery utility execution (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "SYSCALL",
+          "exe",
+          "type"
+        ]
+      }
     },
     {
       "id": "python-http-server",
@@ -681,7 +766,15 @@
       "claimed": [
         "Python http.server execution (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "DestinationHostname",
+          "c-uri-extension",
+          "cs-host",
+          "query"
+        ]
+      }
     },
     {
       "id": "rclone-exfil",
@@ -692,7 +785,12 @@
       "claimed": [
         "Data exfiltration via rclone (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "c-useragent"
+        ]
+      }
     },
     {
       "id": "reverse-shell-devtcp",
@@ -716,7 +814,13 @@
       "claimed": [
         "File transfer via scp (proc_creation_lnx / network)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "c-uri-extension",
+          "cs-host"
+        ]
+      }
     },
     {
       "id": "shell-profile-persist",
@@ -727,7 +831,13 @@
       "claimed": [
         "Shell rc file modification (file_event_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "name",
+          "type"
+        ]
+      }
     },
     {
       "id": "ssh-socks-proxy",
@@ -738,7 +848,13 @@
       "claimed": [
         "SSH dynamic port forwarding (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "DestinationHostname",
+          "Initiated"
+        ]
+      }
     },
     {
       "id": "sudoers-tamper",
@@ -749,7 +865,12 @@
       "claimed": [
         "Sudoers file modification (file_event_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "TargetFilename"
+        ]
+      }
     },
     {
       "id": "systemd-persistence",
@@ -760,7 +881,16 @@
       "claimed": [
         "Systemd service persistence (proc_creation_lnx / file_event_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "a0",
+          "a1",
+          "name",
+          "nametype",
+          "type"
+        ]
+      }
     },
     {
       "id": "tar-archive",
@@ -771,7 +901,14 @@
       "claimed": [
         "Bulk archive creation (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "a0",
+          "a1",
+          "type"
+        ]
+      }
     },
     {
       "id": "tcpdump",
@@ -782,7 +919,15 @@
       "claimed": [
         "Packet capture utility execution (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "a0",
+          "a1",
+          "a3",
+          "type"
+        ]
+      }
     },
     {
       "id": "timestomp-touch",
@@ -793,7 +938,12 @@
       "claimed": [
         "Timestomping via touch (proc_creation_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "type"
+        ]
+      }
     },
     {
       "id": "useradd",
@@ -804,7 +954,13 @@
       "claimed": [
         "Local account creation (proc_creation_lnx / file_event_lnx)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "exe",
+          "type"
+        ]
+      }
     },
     {
       "id": "wget",
@@ -815,7 +971,14 @@
       "claimed": [
         "File download via wget (proc_creation_lnx / network)"
       ],
-      "status": "indeterminate"
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "TargetFilename",
+          "c-uri-extension",
+          "cs-host"
+        ]
+      }
     },
     {
       "id": "at-job",

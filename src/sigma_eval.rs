@@ -78,15 +78,30 @@ enum Modifier {
     All,
 }
 
-/// A `field|mods: values` match. `supported` is false when the field carries a
-/// modifier we don't implement yet (`re`, `cidr`, `base64`, …), which makes it
-/// evaluate to `Unknown`.
+/// A `field|mods: values` match.
+///
+/// Two distinct things make a match unevaluable, and they are recorded
+/// separately so a caller can tell them apart: a modifier we don't implement
+/// yet (`re`, `cidr`, `base64`, `windash`, …), and an empty value list — Sigma's
+/// field-absent (`null`) semantics. Both evaluate to `Unknown`, but only the
+/// first is work we could do.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct FieldMatch {
     field: String,
     mods: Vec<Modifier>,
     values: Vec<String>,
-    supported: bool,
+    /// Modifier tokens as written in the rule, for the ones we cannot evaluate.
+    #[serde(default)]
+    unsupported_mods: Vec<String>,
+    /// `field|…: null` — the rule asserts the field is absent.
+    #[serde(default)]
+    null_values: bool,
+}
+
+impl FieldMatch {
+    fn supported(&self) -> bool {
+        self.unsupported_mods.is_empty() && !self.null_values
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,6 +146,18 @@ pub struct Verdict {
     pub outcome: Outcome,
     /// For `Indeterminate`: referenced fields opseclint cannot synthesize.
     pub missing_fields: Vec<String>,
+    /// For `Indeterminate`: modifier tokens the evaluator does not implement
+    /// (`re`, `base64offset`, `windash`, …), sorted and deduplicated.
+    ///
+    /// This and `missing_fields` are the two *actionable* causes of abstention
+    /// and they are very different work: one is evaluator features, the other is
+    /// telemetry the tool would have to be given. Reporting them apart is what
+    /// makes the indeterminate count diagnosable rather than just large.
+    pub blocking_modifiers: Vec<String>,
+    /// For `Indeterminate`: the rule asserts a field is absent (`field: null`).
+    /// Abstaining is arguably correct here, so this is tracked separately from
+    /// the two causes above rather than counted alongside them.
+    pub null_value_match: bool,
 }
 
 // --- parsing ---------------------------------------------------------------
@@ -148,28 +175,30 @@ fn parse_field_match(key: &str, val: &Value) -> FieldMatch {
     let mut parts = key.split('|');
     let field = parts.next().unwrap_or("").to_string();
     let mut mods = Vec::new();
-    let mut supported = true;
+    let mut unsupported_mods = Vec::new();
     for m in parts {
         match m {
             "contains" => mods.push(Modifier::Contains),
             "startswith" => mods.push(Modifier::StartsWith),
             "endswith" => mods.push(Modifier::EndsWith),
             "all" => mods.push(Modifier::All),
-            _ => supported = false, // re, cidr, base64, windash, lt/gt, …
+            // re, cidr, base64, base64offset, windash, lt/gt, … Recorded by name
+            // so `--verify-detections` can report which ones are actually
+            // costing coverage, rather than just that something was unknown.
+            other => unsupported_mods.push(other.to_string()),
         }
     }
     let values: Vec<String> = match val {
         Value::Sequence(seq) => seq.iter().filter_map(value_to_string).collect(),
         other => value_to_string(other).into_iter().collect(),
     };
-    if values.is_empty() {
-        supported = false; // e.g. a `null` value (field-absent semantics)
-    }
+    let null_values = values.is_empty();
     FieldMatch {
         field,
         mods,
         values,
-        supported,
+        unsupported_mods,
+        null_values,
     }
 }
 
@@ -370,7 +399,7 @@ fn synthesize(cmd: &Command, platform: Platform) -> HashMap<String, String> {
 }
 
 fn eval_field(fm: &FieldMatch, event: &HashMap<String, String>) -> Ternary {
-    if !fm.supported {
+    if !fm.supported() {
         return Ternary::Unknown;
     }
     let Some(raw) = event.get(&fm.field) else {
@@ -500,6 +529,34 @@ fn referenced_fields(rule: &DetectionRule) -> HashSet<String> {
     out
 }
 
+fn collect_unsupported(s: &Search, mods: &mut HashSet<String>, null_values: &mut bool) {
+    let mut scan = |fms: &[FieldMatch]| {
+        for f in fms {
+            mods.extend(f.unsupported_mods.iter().cloned());
+            *null_values |= f.null_values;
+        }
+    };
+    match s {
+        Search::Fields(fms) => scan(fms),
+        Search::OneOfMaps(groups) => groups.iter().for_each(|g| scan(g)),
+        Search::Keywords(_) => {}
+    }
+}
+
+/// Modifiers the rule uses that this evaluator does not implement, and whether
+/// it asserts a field is absent. Same semantics as [`referenced_fields`]: these
+/// are *present in the rule*, not proven to be the branch that forced `Unknown`.
+fn unsupported_features(rule: &DetectionRule) -> (Vec<String>, bool) {
+    let mut mods = HashSet::new();
+    let mut null_values = false;
+    for s in rule.searches.values() {
+        collect_unsupported(s, &mut mods, &mut null_values);
+    }
+    let mut mods: Vec<String> = mods.into_iter().collect();
+    mods.sort();
+    (mods, null_values)
+}
+
 /// Evaluate a rule against a command using only the fields synthesizable from a
 /// command line (`CommandLine` / `Image` / `OriginalFileName`) — predictive
 /// mode. A rule keyed on a field a static command line cannot supply (a parent,
@@ -538,19 +595,25 @@ fn eval_event(rule: &DetectionRule, event: &HashMap<String, String>) -> Verdict 
         Ternary::False => Outcome::NoFire,
         Ternary::Unknown => Outcome::Indeterminate,
     };
-    let missing_fields = if outcome == Outcome::Indeterminate {
-        let mut m: Vec<String> = referenced_fields(rule)
-            .into_iter()
-            .filter(|f| !f.is_empty() && !event.contains_key(f))
-            .collect();
-        m.sort();
-        m
-    } else {
-        Vec::new()
-    };
+    if outcome != Outcome::Indeterminate {
+        return Verdict {
+            outcome,
+            missing_fields: Vec::new(),
+            blocking_modifiers: Vec::new(),
+            null_value_match: false,
+        };
+    }
+    let mut missing_fields: Vec<String> = referenced_fields(rule)
+        .into_iter()
+        .filter(|f| !f.is_empty() && !event.contains_key(f))
+        .collect();
+    missing_fields.sort();
+    let (blocking_modifiers, null_value_match) = unsupported_features(rule);
     Verdict {
         outcome,
         missing_fields,
+        blocking_modifiers,
+        null_value_match,
     }
 }
 
@@ -650,6 +713,69 @@ detection:
             verdict(yaml, "cat /etc/shadow").outcome,
             Outcome::Indeterminate
         );
+    }
+
+    /// The two actionable causes of abstention must be distinguishable: an
+    /// unimplemented modifier is evaluator work, a missing field is telemetry
+    /// the tool would have to be handed. Collapsing them makes the
+    /// indeterminate count undiagnosable.
+    #[test]
+    fn modifier_block_is_reported_and_distinct_from_a_missing_field() {
+        let by_modifier = verdict(
+            "title: t\nid: m1\ndetection:\n    selection:\n        CommandLine|re: '.*shadow.*'\n    condition: selection\n",
+            "cat /etc/shadow",
+        );
+        assert_eq!(by_modifier.outcome, Outcome::Indeterminate);
+        assert_eq!(by_modifier.blocking_modifiers, vec!["re".to_string()]);
+        // CommandLine *is* synthesizable, so nothing is missing — only the
+        // modifier is in the way.
+        assert!(by_modifier.missing_fields.is_empty());
+
+        // The mirror case: a field a command line cannot supply, no exotic
+        // modifier anywhere.
+        let by_field = verdict(PARENT, "whoami");
+        assert_eq!(by_field.outcome, Outcome::Indeterminate);
+        assert!(by_field.blocking_modifiers.is_empty());
+        assert_eq!(by_field.missing_fields, vec!["ParentImage".to_string()]);
+    }
+
+    #[test]
+    fn every_unsupported_modifier_in_a_rule_is_named() {
+        // Chained modifiers: `base64offset` is unimplemented, `contains` is not.
+        // Only the unimplemented one should be reported, and the chain must not
+        // hide it behind the one we do support.
+        let v = verdict(
+            "title: t\nid: m2\ndetection:\n    selection:\n        CommandLine|base64offset|contains: 'whoami'\n        Image|windash: '-enc'\n    condition: selection\n",
+            "cat /etc/shadow",
+        );
+        assert_eq!(v.outcome, Outcome::Indeterminate);
+        assert_eq!(
+            v.blocking_modifiers,
+            vec!["base64offset".to_string(), "windash".to_string()],
+            "sorted, deduplicated, and excluding the supported `contains`"
+        );
+    }
+
+    #[test]
+    fn field_absent_semantics_are_tracked_apart_from_modifiers() {
+        // `field: null` asserts absence. Abstaining is defensible, so it must
+        // not inflate the modifier bucket that drives implementation priority.
+        let v = verdict(
+            "title: t\nid: m3\ndetection:\n    selection:\n        ParentImage: null\n    condition: selection\n",
+            "whoami",
+        );
+        assert_eq!(v.outcome, Outcome::Indeterminate);
+        assert!(v.null_value_match);
+        assert!(v.blocking_modifiers.is_empty());
+    }
+
+    #[test]
+    fn a_resolved_verdict_reports_no_causes() {
+        let fires = verdict(SHADOW, "cat /etc/shadow");
+        assert_eq!(fires.outcome, Outcome::Fires);
+        assert!(fires.blocking_modifiers.is_empty());
+        assert!(fires.missing_fields.is_empty());
+        assert!(!fires.null_value_match);
     }
 
     #[test]

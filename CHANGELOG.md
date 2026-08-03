@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`--verify-detections` now reports *why* an entry is indeterminate**, not just
+  that it is. `INDETERMINATE` had several distinct causes collapsed into one
+  status, so the count said only "the evaluator abstained a lot" — not whether
+  that was fixable, or by what. Each entry now carries the modifier tokens the
+  evaluator does not implement, the fields a rule keys on that a command line
+  cannot supply, rules that could not be lowered to logic at all, and
+  field-absent (`null`) assertions — reported per entry in `--json` and as a
+  ranked breakdown in the human summary. The distinction matters because the
+  causes are entirely different work: modifiers are evaluator features, missing
+  fields are telemetry the tool would have to be handed.
+
 ### Fixed
 
 - The three tag-triggered workflows matched `v*`, which also matches the moving
