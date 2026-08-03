@@ -6,6 +6,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **`--verify-detections` and `--coverage-gaps` no longer count rules that were
+  never addressed to a command line.** Candidate rules are selected by ATT&CK
+  technique tag, and a technique's rules span event classes — `ps_script`,
+  `file_event`, `registry_set`, `proxy`. Those cannot fire on a synthesized
+  process-execution event no matter what the evaluator implements, so counting
+  them as `INDETERMINATE` conflated "I might answer this given more data" with
+  "this question was not for me". A rule whose `logsource.category` is an
+  explicit non-process class is now set aside, and an entry whose candidates are
+  all set aside reports a new `NOT-APPLICABLE` status. Only an explicit foreign
+  category disqualifies a rule; one with no category is still evaluated.
+
+  Measured against live SigmaHQ, the honest consequence is that the numbers get
+  **worse where it counts**. Indeterminate falls (windows 69 → 47, linux 30 →
+  20, macos 7 → 2), but most of that moves to **unverified** — windows 3 → 21,
+  linux 15 → 20, macos 24 → 27. Those were always claims the ruleset does not
+  substantiate; they were hidden behind an abstention that included rules which
+  could never have fired. Verified counts are unchanged on all three platforms,
+  and the verified *entry sets* are identical, so no claim was resting on an
+  inapplicable rule.
+
 ### Fixed
 
 - **`sync-packaging.sh` could corrupt the winget manifests.** The version bump

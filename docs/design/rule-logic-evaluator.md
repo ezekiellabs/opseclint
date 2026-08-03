@@ -26,6 +26,21 @@ Abstaining honestly (`INDETERMINATE`) is a feature: it keeps the tool truthful
 about the limits of static analysis, and it is exactly what makes the
 coverage-gap number trustworthy.
 
+That only holds if `INDETERMINATE` means one thing. Rules are selected by ATT&CK
+technique tag, and a technique's rules span event classes — `ps_script`,
+`file_event`, `registry_set`, `proxy`. Those were never addressed to a command
+line, so counting them as abstentions inflated the number with questions we were
+not asked. Since the logsource pass, a candidate whose `logsource.category` is
+an explicit non-process class is **set aside** rather than evaluated, and an
+entry whose candidates are *all* set aside reports `NOT-APPLICABLE`. Only an
+explicit foreign category disqualifies a rule; a rule with no category is still
+evaluated, because we cannot show it inapplicable.
+
+The distinction is about the event *class*, not the fields. A `process_creation`
+rule keyed on `Hashes` or `Description` stays evaluable and correctly reads
+indeterminate — Sysmon Event ID 1 carries those, so richer telemetry really
+could resolve it.
+
 ## Non-goals (predictive mode)
 
 These bound what can be resolved from a **command line alone**. Since v1.2.0,

@@ -50,7 +50,15 @@ pub fn analyze(report: &Report, index: &SigmaIndex, platform: Platform) -> Vec<C
     let mut out = Vec::new();
     for f in &report.findings {
         let tids: Vec<String> = f.techniques.iter().map(|t| t.id.clone()).collect();
-        let candidates = index.rules_for(&tids);
+        // Same partition as verify::classify, so the two stay consistent: a
+        // rule declaring a different event class can never fire on a process
+        // execution, and counting it would misreport coverage in both
+        // directions.
+        let candidates: Vec<_> = index
+            .rules_for(&tids)
+            .into_iter()
+            .filter(|r| r.applies_to_process_execution())
+            .collect();
         let mut firing = Vec::new();
 
         let coverage = if candidates.is_empty() {
@@ -520,11 +528,13 @@ mod tests {
     }
 
     #[test]
-    fn indeterminate_when_rule_needs_unavailable_field() {
-        // The shadow fixture keys on TargetFilename, which we can't synthesize.
+    fn a_rule_for_another_event_class_does_not_count_as_coverage() {
+        // The shadow fixture is `category: file_event`; it can never fire on a
+        // process execution, so it is set aside and the technique reads as
+        // having no applicable rule rather than as indeterminate coverage.
         assert_eq!(
             coverage_of("cat /etc/shadow", "shadow-read"),
-            Coverage::Indeterminate
+            Coverage::NoRules
         );
     }
 

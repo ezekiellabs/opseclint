@@ -32,6 +32,12 @@ pub enum Status {
     Indeterminate,
     /// No rule in the ruleset covers the entry's technique(s) at all.
     NoRule,
+    /// Rules exist for the technique(s), but every one of them declares a
+    /// logsource this analysis can never satisfy — a PowerShell script block, a
+    /// file or registry event, a proxy log. Not an abstention: the question was
+    /// never addressed to a command line. Reported apart from `Indeterminate`
+    /// so that count keeps its meaning of "answerable with more data".
+    NotApplicable,
     /// Delta-only: a previously-verified entry vanished from the current run
     /// (its entry or Sigma claim was removed). Never produced by classify.
     Removed,
@@ -44,6 +50,7 @@ impl Status {
             Status::Unverified => "UNVERIFIED",
             Status::Indeterminate => "INDETERMINATE",
             Status::NoRule => "NO-RULE",
+            Status::NotApplicable => "NOT-APPLICABLE",
             Status::Removed => "REMOVED",
         }
     }
@@ -52,6 +59,7 @@ impl Status {
         match self {
             Status::Unverified => 0,
             Status::NoRule => 1,
+            Status::NotApplicable => 1,
             Status::Indeterminate => 2,
             Status::Verified => 3,
             Status::Removed => 0,
@@ -87,6 +95,10 @@ pub struct IndeterminateCause {
     /// Candidate rules that could not be lowered to detection logic at all.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub unparsed_rules: usize,
+    /// Candidate rules set aside because their logsource is a different event
+    /// class. Never evaluated, so they contribute to no other cause here.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub inapplicable_rules: usize,
     /// A rule asserted a field is absent (`field: null`). Abstaining is
     /// arguably correct, so this is reported apart from the fixable causes.
     #[serde(default, skip_serializing_if = "is_false")]
@@ -166,9 +178,26 @@ fn classify(
     platform: Platform,
 ) -> (Status, Vec<String>, IndeterminateCause) {
     let tids: Vec<String> = entry.techniques.iter().map(|t| t.id.clone()).collect();
-    let candidates = index.rules_for(&tids);
-    if candidates.is_empty() {
+    let all_candidates = index.rules_for(&tids);
+    if all_candidates.is_empty() {
         return (Status::NoRule, Vec::new(), IndeterminateCause::default());
+    }
+    // Set aside rules whose logsource is a different event class. They cannot
+    // fire on a synthesized process-execution event, so evaluating them would
+    // only manufacture abstentions — or worse, a spurious `Fires` for a
+    // file/registry rule that happens to key on `CommandLine`.
+    let (candidates, inapplicable): (Vec<_>, Vec<_>) = all_candidates
+        .into_iter()
+        .partition(|r| r.applies_to_process_execution());
+    if candidates.is_empty() {
+        return (
+            Status::NotApplicable,
+            Vec::new(),
+            IndeterminateCause {
+                inapplicable_rules: inapplicable.len(),
+                ..Default::default()
+            },
+        );
     }
     let Some(cmd) = representative_command(entry) else {
         // No representative line to evaluate against — not a rule-side cause,
@@ -214,6 +243,7 @@ fn classify(
     } else if any_indet {
         cause.modifiers = mods.into_iter().collect();
         cause.missing_fields = fields.into_iter().collect();
+        cause.inapplicable_rules = inapplicable.len();
         (Status::Indeterminate, Vec::new(), cause)
     } else {
         (
@@ -272,6 +302,7 @@ fn summarize_causes(report: &VerifyReport) -> Vec<(&'static str, usize, String)>
     let mut by_mod: BTreeMap<String, usize> = BTreeMap::new();
     let mut by_field: BTreeMap<String, usize> = BTreeMap::new();
     let (mut n_mods, mut n_fields, mut n_unparsed, mut n_null, mut n_none) = (0, 0, 0, 0, 0);
+    let mut n_inapp = 0;
 
     for r in report
         .results
@@ -294,6 +325,9 @@ fn summarize_causes(report: &VerifyReport) -> Vec<(&'static str, usize, String)>
         if b.unparsed_rules > 0 {
             n_unparsed += 1;
         }
+        if b.inapplicable_rules > 0 {
+            n_inapp += 1;
+        }
         if b.null_value_match {
             n_null += 1;
         }
@@ -311,6 +345,13 @@ fn summarize_causes(report: &VerifyReport) -> Vec<(&'static str, usize, String)>
     }
     if n_unparsed > 0 {
         rows.push(("unparsed rules", n_unparsed, String::new()));
+    }
+    if n_inapp > 0 {
+        rows.push((
+            "other logsource",
+            n_inapp,
+            "candidate rules set aside, not counted above".into(),
+        ));
     }
     if n_null > 0 {
         rows.push((
@@ -344,6 +385,7 @@ pub fn render(report: &VerifyReport, color: bool) -> String {
     let unverified = report.count(Status::Unverified);
     let indet = report.count(Status::Indeterminate);
     let norule = report.count(Status::NoRule);
+    let napp = report.count(Status::NotApplicable);
     let total = report.results.len();
 
     let mut out = String::new();
@@ -355,7 +397,7 @@ pub fn render(report: &VerifyReport, color: bool) -> String {
         reset
     ));
     out.push_str(&format!(
-        "  {}{} verified{}  ·  {}{} unverified{}  ·  {} indeterminate  ·  {} no-rule  ({} claimed)\n",
+        "  {}{} verified{}  ·  {}{} unverified{}  ·  {} indeterminate  ·  {} no-rule  ·  {} n/a  ({} claimed)\n",
         c(theme::GREEN),
         verified,
         reset,
@@ -364,6 +406,7 @@ pub fn render(report: &VerifyReport, color: bool) -> String {
         reset,
         indet,
         norule,
+        napp,
         total,
     ));
 
@@ -627,10 +670,14 @@ mod tests {
         assert_eq!(result_for(&report, "nc-revsh").status, Status::Unverified);
     }
 
+    /// The distinction the `NotApplicable` status exists to draw. Both rules
+    /// key on a field a command line cannot supply, but only one of them was
+    /// ever asking about a process execution.
     #[test]
-    fn indeterminate_when_rule_needs_unavailable_field() {
-        // The shadow fixture keys on TargetFilename, which opseclint cannot
-        // synthesize → neither confirmed nor refuted.
+    fn a_rule_for_another_event_class_is_not_applicable_not_indeterminate() {
+        // The shadow fixture is `category: file_event`. No amount of extra
+        // process telemetry would let it fire on a command, so calling it
+        // indeterminate overstates what we are abstaining from.
         let kb = kb_of(vec![entry(
             "shadow",
             None,
@@ -638,7 +685,22 @@ mod tests {
             "T1003.008",
         )]);
         let report = verify(&kb, &index(), kb::Platform::LinuxAuditd);
-        assert_eq!(result_for(&report, "shadow").status, Status::Indeterminate);
+        let r = result_for(&report, "shadow");
+        assert_eq!(r.status, Status::NotApplicable);
+        assert_eq!(r.because.inapplicable_rules, 1);
+    }
+
+    #[test]
+    fn a_process_creation_rule_needing_a_field_stays_indeterminate() {
+        // The sshd fixture IS `category: process_creation`; it just needs
+        // ParentImage, which real telemetry could supply. That is a genuine
+        // abstention and must not be swept into "not applicable".
+        let kb = kb_of(vec![entry("whoami", None, Some("whoami"), "T1552.001")]);
+        let report = verify(&kb, &index(), kb::Platform::LinuxAuditd);
+        let r = result_for(&report, "whoami");
+        assert_eq!(r.status, Status::Indeterminate);
+        assert_eq!(r.because.missing_fields, vec!["ParentImage".to_string()]);
+        assert_eq!(r.because.inapplicable_rules, 0);
     }
 
     #[test]
@@ -679,7 +741,8 @@ mod tests {
         let sum = report.count(Status::Verified)
             + report.count(Status::Unverified)
             + report.count(Status::Indeterminate)
-            + report.count(Status::NoRule);
+            + report.count(Status::NoRule)
+            + report.count(Status::NotApplicable);
         assert_eq!(sum, report.results.len());
     }
 
