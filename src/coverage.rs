@@ -54,8 +54,10 @@ pub fn analyze(report: &Report, index: &SigmaIndex, platform: Platform) -> Vec<C
         // rule declaring a different event class can never fire on a process
         // execution, and counting it would misreport coverage in both
         // directions.
+        // Also the full candidate set — a blind spot reported because the rule
+        // that fires happened to sort sixth is a false alarm, not a gap.
         let candidates: Vec<_> = index
-            .rules_for(&tids)
+            .candidate_rules(&tids)
             .into_iter()
             .filter(|r| r.applies_to_process_execution())
             .collect();
@@ -121,6 +123,23 @@ pub fn gap_count(results: &[CoverageResult]) -> usize {
         .count()
 }
 
+/// Rules per line when listing what fires. The verdict is drawn from the whole
+/// candidate set, so a well-covered action can fire a dozen rules; the JSON
+/// keeps them all, the terminal shows the first few and counts the rest.
+const MAX_FIRING_SHOWN: usize = 3;
+
+/// Join firing rule titles for display, trimming a long tail to `+N more`.
+fn summarize_firing(firing: &[String]) -> String {
+    if firing.len() <= MAX_FIRING_SHOWN {
+        return firing.join("; ");
+    }
+    format!(
+        "{}; +{} more",
+        firing[..MAX_FIRING_SHOWN].join("; "),
+        firing.len() - MAX_FIRING_SHOWN
+    )
+}
+
 /// Render a human-readable coverage report in the Tokyo Night palette.
 pub fn render(
     results: &[CoverageResult],
@@ -163,7 +182,7 @@ pub fn render(
                     "✓",
                     theme::GREEN,
                     "COVERED ",
-                    format!("fires: {}", r.firing.join("; ")),
+                    format!("fires: {}", summarize_firing(&r.firing)),
                 )
             }
             Coverage::Indeterminate => {

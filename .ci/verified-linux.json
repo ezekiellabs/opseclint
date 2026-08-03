@@ -36,18 +36,6 @@
       "status": "unverified"
     },
     {
-      "id": "capabilities-enum",
-      "description": "Enumerating file capabilities — privilege-escalation recon",
-      "techniques": [
-        "T1083",
-        "T1548.001"
-      ],
-      "claimed": [
-        "Capabilities enumeration via getcap (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
       "id": "cron-persist",
       "description": "Writing to system cron locations — scheduled-task persistence",
       "techniques": [
@@ -70,51 +58,6 @@
       "status": "unverified"
     },
     {
-      "id": "find-generic",
-      "description": "File and directory discovery",
-      "techniques": [
-        "T1083"
-      ],
-      "claimed": [
-        "Filesystem discovery utility (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "find-suid",
-      "description": "SUID/SGID binary hunting — privilege-escalation recon",
-      "techniques": [
-        "T1083",
-        "T1548.001"
-      ],
-      "claimed": [
-        "SUID/SGID discovery via find -perm (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "hostname",
-      "description": "Host name discovery",
-      "techniques": [
-        "T1082"
-      ],
-      "claimed": [
-        "System information discovery utility (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "id",
-      "description": "User and group identity discovery",
-      "techniques": [
-        "T1033"
-      ],
-      "claimed": [
-        "Local system reconnaissance utility execution (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
       "id": "login-discovery",
       "description": "Login history enumeration",
       "techniques": [
@@ -122,17 +65,6 @@
       ],
       "claimed": [
         "Login history discovery (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "os-release",
-      "description": "OS distribution/version fingerprinting via release files",
-      "techniques": [
-        "T1082"
-      ],
-      "claimed": [
-        "Read of OS release/version files (file_event_lnx)"
       ],
       "status": "unverified"
     },
@@ -183,17 +115,6 @@
       "status": "unverified"
     },
     {
-      "id": "uname",
-      "description": "Kernel / OS version discovery",
-      "techniques": [
-        "T1082"
-      ],
-      "claimed": [
-        "System information discovery utility (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
       "id": "usermod-group",
       "description": "Modifying user group membership — privilege escalation / account manipulation",
       "techniques": [
@@ -212,17 +133,6 @@
       ],
       "claimed": [
         "File download via wget (proc_creation_lnx / network)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "whoami",
-      "description": "System owner / current user discovery",
-      "techniques": [
-        "T1033"
-      ],
-      "claimed": [
-        "Local system reconnaissance utility execution (proc_creation_lnx)"
       ],
       "status": "unverified"
     },
@@ -618,6 +528,33 @@
       ],
       "status": "indeterminate",
       "because": {
+        "missing_fields": [
+          "a0",
+          "a1",
+          "name",
+          "type"
+        ],
+        "inapplicable_rules": 2
+      }
+    },
+    {
+      "id": "capabilities-enum",
+      "description": "Enumerating file capabilities — privilege-escalation recon",
+      "techniques": [
+        "T1083",
+        "T1548.001"
+      ],
+      "claimed": [
+        "Capabilities enumeration via getcap (proc_creation_lnx)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "a0",
+          "a1",
+          "a2",
+          "type"
+        ],
         "inapplicable_rules": 1
       }
     },
@@ -704,7 +641,30 @@
       ],
       "status": "indeterminate",
       "because": {
-        "inapplicable_rules": 1
+        "missing_fields": [
+          "a0",
+          "a1",
+          "name",
+          "type"
+        ],
+        "inapplicable_rules": 2
+      }
+    },
+    {
+      "id": "id",
+      "description": "User and group identity discovery",
+      "techniques": [
+        "T1033"
+      ],
+      "claimed": [
+        "Local system reconnaissance utility execution (proc_creation_lnx)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "a0",
+          "type"
+        ]
       }
     },
     {
@@ -782,6 +742,27 @@
       }
     },
     {
+      "id": "os-release",
+      "description": "OS distribution/version fingerprinting via release files",
+      "techniques": [
+        "T1082"
+      ],
+      "claimed": [
+        "Read of OS release/version files (file_event_lnx)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "SYSCALL",
+          "a0",
+          "a1",
+          "exe",
+          "name",
+          "type"
+        ]
+      }
+    },
+    {
       "id": "pipe-to-sh",
       "description": "Piping downloaded content directly into a shell interpreter",
       "techniques": [
@@ -793,7 +774,13 @@
       ],
       "status": "indeterminate",
       "because": {
-        "inapplicable_rules": 1
+        "missing_fields": [
+          "a0",
+          "a1",
+          "name",
+          "type"
+        ],
+        "inapplicable_rules": 4
       }
     },
     {
@@ -808,7 +795,13 @@
       ],
       "status": "indeterminate",
       "because": {
-        "inapplicable_rules": 1
+        "missing_fields": [
+          "a0",
+          "a1",
+          "name",
+          "type"
+        ],
+        "inapplicable_rules": 4
       }
     },
     {
@@ -841,7 +834,13 @@
       ],
       "status": "indeterminate",
       "because": {
-        "inapplicable_rules": 1
+        "missing_fields": [
+          "a0",
+          "a1",
+          "name",
+          "type"
+        ],
+        "inapplicable_rules": 2
       }
     },
     {
@@ -952,6 +951,23 @@
       }
     },
     {
+      "id": "whoami",
+      "description": "System owner / current user discovery",
+      "techniques": [
+        "T1033"
+      ],
+      "claimed": [
+        "Local system reconnaissance utility execution (proc_creation_lnx)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "a0",
+          "type"
+        ]
+      }
+    },
+    {
       "id": "at-job",
       "description": "One-off scheduled job via at — execution / persistence",
       "techniques": [
@@ -980,6 +996,35 @@
       ]
     },
     {
+      "id": "find-generic",
+      "description": "File and directory discovery",
+      "techniques": [
+        "T1083"
+      ],
+      "claimed": [
+        "Filesystem discovery utility (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "File and Directory Discovery - Linux"
+      ]
+    },
+    {
+      "id": "find-suid",
+      "description": "SUID/SGID binary hunting — privilege-escalation recon",
+      "techniques": [
+        "T1083",
+        "T1548.001"
+      ],
+      "claimed": [
+        "SUID/SGID discovery via find -perm (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "File and Directory Discovery - Linux"
+      ]
+    },
+    {
       "id": "group-discovery",
       "description": "Enumeration of local groups via /etc/group",
       "techniques": [
@@ -1005,6 +1050,20 @@
       "status": "verified",
       "firing": [
         "Linux Command History Tampering"
+      ]
+    },
+    {
+      "id": "hostname",
+      "description": "Host name discovery",
+      "techniques": [
+        "T1082"
+      ],
+      "claimed": [
+        "System information discovery utility (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "System Information Discovery"
       ]
     },
     {
@@ -1090,6 +1149,20 @@
       "status": "verified",
       "firing": [
         "File Deletion"
+      ]
+    },
+    {
+      "id": "uname",
+      "description": "Kernel / OS version discovery",
+      "techniques": [
+        "T1082"
+      ],
+      "claimed": [
+        "System information discovery utility (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "System Information Discovery"
       ]
     }
   ]

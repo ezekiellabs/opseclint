@@ -183,7 +183,9 @@ fn classify(
     platform: Platform,
 ) -> (Status, Vec<String>, IndeterminateCause) {
     let tids: Vec<String> = entry.techniques.iter().map(|t| t.id.clone()).collect();
-    let all_candidates = index.rules_for(&tids);
+    // The full candidate set, not the display-capped one: a claim is only
+    // honestly contradicted once every rule for its technique has been asked.
+    let all_candidates = index.candidate_rules(&tids);
     if all_candidates.is_empty() {
         return (Status::NoRule, Vec::new(), IndeterminateCause::default());
     }
@@ -678,6 +680,24 @@ mod tests {
         )]);
         let report = verify(&kb, &index(), kb::Platform::LinuxAuditd);
         assert_eq!(result_for(&report, "nc-revsh").status, Status::Unverified);
+    }
+
+    /// The display cap must not reach the verdict. Six same-level rules share
+    /// T1490 in the fixtures, and only the sixth — ordered last on title —
+    /// fires. Drawing candidates from the capped list would report this claim
+    /// as contradicted while the rule proving it sat one slot out of view.
+    #[test]
+    fn a_rule_past_the_display_cap_still_verifies_the_claim() {
+        let kb = kb_of(vec![entry(
+            "lv-remove",
+            None,
+            Some("lvremove --force /dev/vg0/snap"),
+            "T1490",
+        )]);
+        let report = verify(&kb, &index(), kb::Platform::LinuxAuditd);
+        let r = result_for(&report, "lv-remove");
+        assert_eq!(r.status, Status::Verified);
+        assert_eq!(r.firing, vec!["Zebra Snapshot Deletion".to_string()]);
     }
 
     /// The distinction the `NotApplicable` status exists to draw. Both rules

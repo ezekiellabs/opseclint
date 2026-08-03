@@ -1,0 +1,105 @@
+---
+# Six rules for one technique, all the same level, so `rules_for`'s
+# severity-then-title ranking degenerates to alphabetical. Five decoys sort
+# ahead of the only rule that actually fires, which is exactly how a display
+# cap of five turned a real detection into a contradicted claim. Verification
+# and coverage must reach the sixth.
+title: Aardvark Decoy Rule
+id: 51111111-0000-4000-8000-000000000001
+status: test
+description: Decoy — keys on a string the crowded-technique command never contains.
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: "decoy-aardvark"
+  condition: selection
+level: high
+tags:
+  - attack.impact
+  - attack.t1490
+---
+title: Beaver Decoy Rule
+id: 51111111-0000-4000-8000-000000000002
+status: test
+description: Decoy — keys on a string the crowded-technique command never contains.
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: "decoy-beaver"
+  condition: selection
+level: high
+tags:
+  - attack.impact
+  - attack.t1490
+---
+title: Coyote Decoy Rule
+id: 51111111-0000-4000-8000-000000000003
+status: test
+description: Decoy — keys on a string the crowded-technique command never contains.
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: "decoy-coyote"
+  condition: selection
+level: high
+tags:
+  - attack.impact
+  - attack.t1490
+---
+title: Dingo Decoy Rule
+id: 51111111-0000-4000-8000-000000000004
+status: test
+description: Decoy — keys on a string the crowded-technique command never contains.
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: "decoy-dingo"
+  condition: selection
+level: high
+tags:
+  - attack.impact
+  - attack.t1490
+---
+title: Egret Decoy Rule
+id: 51111111-0000-4000-8000-000000000005
+status: test
+description: Decoy — keys on a string the crowded-technique command never contains.
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: "decoy-egret"
+  condition: selection
+level: high
+tags:
+  - attack.impact
+  - attack.t1490
+---
+title: Zebra Snapshot Deletion
+id: 51111111-0000-4000-8000-000000000006
+status: test
+description: >
+  The one rule of the six that fires. Same level as the decoys, so it is
+  ordered last on title alone — past a cap of five.
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains|all:
+      - "lvremove"
+      - "--force"
+  condition: selection
+level: high
+tags:
+  - attack.impact
+  - attack.t1490
