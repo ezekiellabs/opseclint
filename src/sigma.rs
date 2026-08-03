@@ -23,6 +23,7 @@ use crate::kb::Platform;
 use crate::model::{Detection, Report};
 
 /// Maximum real Sigma rules to attach per finding, to keep output readable.
+/// A presentation limit only — see `rules_for` vs `candidate_rules`.
 const MAX_RULES_PER_FINDING: usize = 5;
 
 /// Bump when the cached rule shape changes, to invalidate stale cache files.
@@ -203,9 +204,10 @@ impl SigmaIndex {
         }
     }
 
-    /// All Sigma rules matching any of the given technique ids, deduplicated by
-    /// rule id, ranked by severity then title, capped for readability.
-    pub fn rules_for(&self, technique_ids: &[String]) -> Vec<SigmaRule> {
+    /// Every Sigma rule matching any of the given technique ids, deduplicated
+    /// by rule id and ranked by severity then title. The complete candidate
+    /// set — what any verdict must be drawn from.
+    pub fn candidate_rules(&self, technique_ids: &[String]) -> Vec<SigmaRule> {
         let mut out: Vec<SigmaRule> = Vec::new();
         for tid in technique_ids {
             if let Some(rules) = self.by_technique.get(tid) {
@@ -221,6 +223,21 @@ impl SigmaIndex {
                 .cmp(&level_rank(&a.level))
                 .then(a.title.cmp(&b.title))
         });
+        out
+    }
+
+    /// The same candidates, truncated for display: a widely-tagged technique
+    /// can carry dozens of rules, and attaching them all to one finding drowns
+    /// the report.
+    ///
+    /// Never derive a verdict from this. The cut is by severity then *title*,
+    /// so the one rule that would fire can sort past the cap on nothing but
+    /// its first letter — which is exactly how T1490's
+    /// `Shadow Copies Deletion Using Operating Systems Utilities` sat unseen
+    /// behind four rules beginning A, B, C and D. Verification and coverage
+    /// analysis call [`candidate_rules`](Self::candidate_rules) instead.
+    pub fn rules_for(&self, technique_ids: &[String]) -> Vec<SigmaRule> {
+        let mut out = self.candidate_rules(technique_ids);
         out.truncate(MAX_RULES_PER_FINDING);
         out
     }
@@ -562,6 +579,26 @@ mod tests {
         assert_eq!(
             verdict_for(&predicted).as_deref(),
             Some("indeterminate (needs is_platform_binary)")
+        );
+    }
+
+    /// `rules_for` is a display helper and `candidate_rules` is the source of
+    /// truth. The crowded-technique fixture has six same-level rules, so the
+    /// ranking falls back to title and the sixth is the one that would fire.
+    #[test]
+    fn the_display_cap_hides_a_rule_the_candidate_set_keeps() {
+        let index = SigmaIndex::load_dir(&fixtures(), "linux").expect("fixtures load");
+        let tids = vec!["T1490".to_string()];
+
+        let all = index.candidate_rules(&tids);
+        assert_eq!(all.len(), 6, "every rule for the technique is a candidate");
+        assert!(all.iter().any(|r| r.title == "Zebra Snapshot Deletion"));
+
+        let shown = index.rules_for(&tids);
+        assert_eq!(shown.len(), MAX_RULES_PER_FINDING);
+        assert!(
+            !shown.iter().any(|r| r.title == "Zebra Snapshot Deletion"),
+            "the firing rule sorts last on title and falls off the display cap"
         );
     }
 

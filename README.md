@@ -309,7 +309,7 @@ opseclint — coverage gaps (linux-auditd) vs 251 rule(s)
   ? INDET    L6   System owner / current user discovery   [T1033]
         needs host fields to confirm
 
-summary  1 gap(s), 10 covered, 3 indeterminate, 1 no-rules
+summary  1 gap(s), 10 covered, 3 indeterminate, 2 no-rules
 ```
 
 `GAP` = a rule for that technique exists but wouldn't trigger on this action;

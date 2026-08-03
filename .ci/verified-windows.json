@@ -47,17 +47,6 @@
       "status": "unverified"
     },
     {
-      "id": "certutil-download",
-      "description": "certutil used to download a file — LOLBin tool ingress",
-      "techniques": [
-        "T1105"
-      ],
-      "claimed": [
-        "certutil file download (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
       "id": "cmdkey-creds",
       "description": "Enumerating stored credentials via cmdkey — Credential Manager access",
       "techniques": [
@@ -65,51 +54,6 @@
       ],
       "claimed": [
         "Credential Manager enumeration via cmdkey (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "download-cradle",
-      "description": "PowerShell download cradle (Net.WebClient.DownloadString) — in-memory tool ingress",
-      "techniques": [
-        "T1059.001",
-        "T1105"
-      ],
-      "claimed": [
-        "PowerShell download cradle (ps_script / proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "download-file",
-      "description": "PowerShell DownloadFile — tool ingress to disk",
-      "techniques": [
-        "T1105"
-      ],
-      "claimed": [
-        "PowerShell DownloadFile (ps_script)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "findstr-creds",
-      "description": "Searching files for passwords via findstr — credential hunting",
-      "techniques": [
-        "T1552.001"
-      ],
-      "claimed": [
-        "Credential search via findstr (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "invoke-expression",
-      "description": "Invoke-Expression (IEX) — dynamic code execution",
-      "techniques": [
-        "T1059.001"
-      ],
-      "claimed": [
-        "Invoke-Expression usage (ps_script)"
       ],
       "status": "unverified"
     },
@@ -125,41 +69,6 @@
       "status": "unverified"
     },
     {
-      "id": "ntds-dump",
-      "description": "Access to NTDS.dit — domain credential database dumping",
-      "techniques": [
-        "T1003.003"
-      ],
-      "claimed": [
-        "NTDS.dit access (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "powershell-encoded",
-      "description": "Encoded PowerShell command — obfuscated execution",
-      "techniques": [
-        "T1059.001",
-        "T1027"
-      ],
-      "claimed": [
-        "Encoded PowerShell command (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "powershell-hidden",
-      "description": "Hidden-window PowerShell — defense evasion",
-      "techniques": [
-        "T1564.003",
-        "T1059.001"
-      ],
-      "claimed": [
-        "Hidden window process execution (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
       "id": "regsvr32-squiblydoo",
       "description": "regsvr32 scrobj.dll (Squiblydoo) — LOLBin proxy execution",
       "techniques": [
@@ -171,35 +80,13 @@
       "status": "unverified"
     },
     {
-      "id": "sam-hive-dump",
-      "description": "Dumping the SAM registry hive — credential access",
+      "id": "run-key-persist",
+      "description": "Writing a Run key — registry autostart persistence",
       "techniques": [
-        "T1003.002"
+        "T1547.001"
       ],
       "claimed": [
-        "SAM hive export via reg.exe (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "uac-bypass-fodhelper",
-      "description": "UAC bypass via fodhelper.exe auto-elevation",
-      "techniques": [
-        "T1548.002"
-      ],
-      "claimed": [
-        "UAC bypass via fodhelper (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "vssadmin-delete",
-      "description": "Deleting volume shadow copies — inhibit system recovery",
-      "techniques": [
-        "T1490"
-      ],
-      "claimed": [
-        "Shadow copy deletion (proc_creation_win)"
+        "Run key modification (registry_set_win)"
       ],
       "status": "unverified"
     },
@@ -211,17 +98,6 @@
       ],
       "claimed": [
         "Backup deletion via wbadmin (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "winrm-remoting",
-      "description": "PowerShell remoting (Invoke-Command / Enter-PSSession) — lateral movement",
-      "techniques": [
-        "T1021.006"
-      ],
-      "claimed": [
-        "PowerShell remoting execution (proc_creation_win)"
       ],
       "status": "unverified"
     },
@@ -364,20 +240,6 @@
       "status": "no-rule"
     },
     {
-      "id": "run-key-persist",
-      "description": "Writing a Run key — registry autostart persistence",
-      "techniques": [
-        "T1547.001"
-      ],
-      "claimed": [
-        "Run key modification (registry_set_win)"
-      ],
-      "status": "not-applicable",
-      "because": {
-        "inapplicable_rules": 5
-      }
-    },
-    {
       "id": "winlogon-persist",
       "description": "Modifying Winlogon Shell/Userinit — logon persistence",
       "techniques": [
@@ -389,30 +251,6 @@
       "status": "not-applicable",
       "because": {
         "inapplicable_rules": 2
-      }
-    },
-    {
-      "id": "adfind",
-      "description": "AdFind — Active Directory enumeration",
-      "techniques": [
-        "T1087.002",
-        "T1482"
-      ],
-      "claimed": [
-        "AdFind execution (proc_creation_win)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "Company",
-          "Description",
-          "EventID",
-          "ObjectName",
-          "ObjectType",
-          "Product",
-          "SubjectUserName"
-        ],
-        "inapplicable_rules": 1
       }
     },
     {
@@ -428,7 +266,8 @@
       "because": {
         "missing_fields": [
           "Hashes"
-        ]
+        ],
+        "inapplicable_rules": 3
       }
     },
     {
@@ -445,7 +284,8 @@
         "missing_fields": [
           "EventID",
           "LocalName",
-          "RemoteName"
+          "RemoteName",
+          "processPath"
         ],
         "inapplicable_rules": 2
       }
@@ -463,9 +303,42 @@
       "status": "indeterminate",
       "because": {
         "modifiers": [
+          "base64offset",
+          "re",
           "windash"
         ],
-        "inapplicable_rules": 1
+        "missing_fields": [
+          "EventID",
+          "Hashes",
+          "ImagePath",
+          "IntegrityLevel",
+          "ParentCommandLine",
+          "ParentImage",
+          "Provider_Name",
+          "ServiceFileName",
+          "TargetName",
+          "User"
+        ],
+        "inapplicable_rules": 28
+      }
+    },
+    {
+      "id": "certutil-download",
+      "description": "certutil used to download a file — LOLBin tool ingress",
+      "techniques": [
+        "T1105"
+      ],
+      "claimed": [
+        "certutil file download (proc_creation_win)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "EventID",
+          "Hashes",
+          "TargetName"
+        ],
+        "inapplicable_rules": 18
       }
     },
     {
@@ -484,7 +357,7 @@
           "ParentCommandLine",
           "ParentImage"
         ],
-        "inapplicable_rules": 2
+        "inapplicable_rules": 4
       }
     },
     {
@@ -498,10 +371,15 @@
       ],
       "status": "indeterminate",
       "because": {
+        "modifiers": [
+          "windash"
+        ],
         "missing_fields": [
+          "EventID",
+          "Hashes",
           "ParentImage"
         ],
-        "inapplicable_rules": 2
+        "inapplicable_rules": 8
       }
     },
     {
@@ -524,7 +402,8 @@
           "ServiceFileName",
           "SubjectDomainName",
           "SubjectUserName"
-        ]
+        ],
+        "inapplicable_rules": 1
       }
     },
     {
@@ -539,11 +418,18 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
+          "AccessMask",
           "Company",
           "Description",
-          "Product"
+          "DistinguishedName",
+          "EventID",
+          "Hashes",
+          "ObjectName",
+          "ObjectType",
+          "Product",
+          "SearchFilter"
         ],
-        "inapplicable_rules": 2
+        "inapplicable_rules": 5
       }
     },
     {
@@ -558,15 +444,73 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
+          "AccessMask",
           "Company",
           "Description",
+          "DistinguishedName",
           "EventID",
+          "Hashes",
           "ObjectName",
           "ObjectType",
           "Product",
+          "SearchFilter",
           "SubjectUserName"
         ],
-        "inapplicable_rules": 2
+        "inapplicable_rules": 5
+      }
+    },
+    {
+      "id": "download-cradle",
+      "description": "PowerShell download cradle (Net.WebClient.DownloadString) — in-memory tool ingress",
+      "techniques": [
+        "T1059.001",
+        "T1105"
+      ],
+      "claimed": [
+        "PowerShell download cradle (ps_script / proc_creation_win)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "base64offset",
+          "re"
+        ],
+        "missing_fields": [
+          "Company",
+          "Data",
+          "Description",
+          "DestPort",
+          "EventID",
+          "Hashes",
+          "ImagePath",
+          "LayerRTID",
+          "ParentCommandLine",
+          "ParentImage",
+          "Product",
+          "Provider_Name",
+          "ServiceFileName",
+          "TargetName"
+        ],
+        "inapplicable_rules": 94
+      }
+    },
+    {
+      "id": "download-file",
+      "description": "PowerShell DownloadFile — tool ingress to disk",
+      "techniques": [
+        "T1105"
+      ],
+      "claimed": [
+        "PowerShell DownloadFile (ps_script)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "EventID",
+          "Hashes",
+          "TargetName"
+        ],
+        "inapplicable_rules": 18
       }
     },
     {
@@ -581,15 +525,36 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
+          "AccessMask",
           "Company",
           "Description",
+          "DistinguishedName",
           "EventID",
+          "Hashes",
           "ObjectName",
           "ObjectType",
           "Product",
+          "SearchFilter",
           "SubjectUserName"
         ],
-        "inapplicable_rules": 2
+        "inapplicable_rules": 5
+      }
+    },
+    {
+      "id": "findstr-creds",
+      "description": "Searching files for passwords via findstr — credential hunting",
+      "techniques": [
+        "T1552.001"
+      ],
+      "claimed": [
+        "Credential search via findstr (proc_creation_win)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "windash"
+        ],
+        "inapplicable_rules": 3
       }
     },
     {
@@ -622,14 +587,72 @@
       "status": "indeterminate",
       "because": {
         "modifiers": [
-          "base64offset"
+          "base64offset",
+          "cidr",
+          "re",
+          "windash"
         ],
         "missing_fields": [
+          "AccessList",
+          "AccessMask",
+          "AuthenticationPackageName",
+          "ClientAddress",
+          "EncyptionUsed",
+          "EventID",
+          "Hashes",
+          "ImagePath",
+          "IpAddress",
+          "LogonId",
+          "LogonType",
+          "ParentImage",
+          "ProcessName",
+          "Provider_Name",
+          "RelativeTargetName",
+          "ServiceFileName",
+          "ServiceName",
+          "ServiceStartType",
+          "ServiceType",
+          "ShareName",
+          "SigningUsed",
+          "SubjectUserName",
+          "User",
+          "Workstation",
+          "WorkstationName"
+        ],
+        "inapplicable_rules": 14,
+        "null_value_match": true
+      }
+    },
+    {
+      "id": "invoke-expression",
+      "description": "Invoke-Expression (IEX) — dynamic code execution",
+      "techniques": [
+        "T1059.001"
+      ],
+      "claimed": [
+        "Invoke-Expression usage (ps_script)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "base64offset",
+          "re"
+        ],
+        "missing_fields": [
+          "Company",
+          "Data",
+          "Description",
+          "DestPort",
           "EventID",
           "ImagePath",
-          "Provider_Name"
+          "LayerRTID",
+          "ParentCommandLine",
+          "ParentImage",
+          "Product",
+          "Provider_Name",
+          "ServiceFileName"
         ],
-        "inapplicable_rules": 4
+        "inapplicable_rules": 77
       }
     },
     {
@@ -661,9 +684,21 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
-          "Description"
+          "Application",
+          "Description",
+          "DestPort",
+          "EventID",
+          "Keywords",
+          "LogonProcessName",
+          "Provider_Name",
+          "Service",
+          "ServiceName",
+          "Status",
+          "TargetUserName",
+          "TicketEncryptionType",
+          "TicketOptions"
         ],
-        "inapplicable_rules": 1
+        "inapplicable_rules": 2
       }
     },
     {
@@ -678,9 +713,21 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
-          "Description"
+          "Application",
+          "Description",
+          "DestPort",
+          "EventID",
+          "Keywords",
+          "LogonProcessName",
+          "Provider_Name",
+          "Service",
+          "ServiceName",
+          "Status",
+          "TargetUserName",
+          "TicketEncryptionType",
+          "TicketOptions"
         ],
-        "inapplicable_rules": 1
+        "inapplicable_rules": 2
       }
     },
     {
@@ -718,7 +765,9 @@
           "ObjectName",
           "ObjectType",
           "Provider_Name",
-          "ServiceFileName"
+          "RelativeTargetName",
+          "ServiceFileName",
+          "ShareName"
         ],
         "inapplicable_rules": 2
       }
@@ -734,11 +783,29 @@
       ],
       "status": "indeterminate",
       "because": {
-        "missing_fields": [
-          "Description",
-          "Hashes"
+        "modifiers": [
+          "re"
         ],
-        "inapplicable_rules": 3
+        "missing_fields": [
+          "AccessList",
+          "AccessMask",
+          "AppName",
+          "Description",
+          "EventID",
+          "ExceptionCode",
+          "Hashes",
+          "ImagePath",
+          "ObjectName",
+          "ObjectType",
+          "ParentImage",
+          "Path",
+          "ProcessName",
+          "Provider_Name",
+          "RelativeTargetName",
+          "ServiceFileName",
+          "SubjectUserName"
+        ],
+        "inapplicable_rules": 33
       }
     },
     {
@@ -752,11 +819,29 @@
       ],
       "status": "indeterminate",
       "because": {
-        "missing_fields": [
-          "Description",
-          "Hashes"
+        "modifiers": [
+          "re"
         ],
-        "inapplicable_rules": 3
+        "missing_fields": [
+          "AccessList",
+          "AccessMask",
+          "AppName",
+          "Description",
+          "EventID",
+          "ExceptionCode",
+          "Hashes",
+          "ImagePath",
+          "ObjectName",
+          "ObjectType",
+          "ParentImage",
+          "Path",
+          "ProcessName",
+          "Provider_Name",
+          "RelativeTargetName",
+          "ServiceFileName",
+          "SubjectUserName"
+        ],
+        "inapplicable_rules": 33
       }
     },
     {
@@ -796,7 +881,8 @@
           "IntegrityLevel",
           "ParentImage",
           "Provider_Name"
-        ]
+        ],
+        "inapplicable_rules": 1
       }
     },
     {
@@ -815,7 +901,7 @@
           "SamAccountName",
           "TargetUserName"
         ],
-        "inapplicable_rules": 1
+        "inapplicable_rules": 2
       }
     },
     {
@@ -834,7 +920,7 @@
           "Description",
           "Product"
         ],
-        "inapplicable_rules": 3
+        "inapplicable_rules": 9
       }
     },
     {
@@ -854,8 +940,12 @@
           "AttributeValue",
           "EventID",
           "ObjectClass",
-          "PrivilegeList"
+          "PrivilegeList",
+          "SubjectUserName",
+          "TargetSid",
+          "TargetUserName"
         ],
+        "inapplicable_rules": 3,
         "null_value_match": true
       }
     },
@@ -873,25 +963,6 @@
         "missing_fields": [
           "Description"
         ]
-      }
-    },
-    {
-      "id": "net-user",
-      "description": "Local/domain account enumeration via net user",
-      "techniques": [
-        "T1087.001"
-      ],
-      "claimed": [
-        "Account discovery via net (proc_creation_win)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "Company",
-          "Description",
-          "Product"
-        ],
-        "inapplicable_rules": 3
       }
     },
     {
@@ -932,9 +1003,35 @@
         "missing_fields": [
           "Company",
           "Description",
-          "Product"
+          "DistinguishedName",
+          "EventID",
+          "Hashes",
+          "Product",
+          "SearchFilter"
         ],
-        "inapplicable_rules": 2
+        "inapplicable_rules": 5
+      }
+    },
+    {
+      "id": "ntds-dump",
+      "description": "Access to NTDS.dit — domain credential database dumping",
+      "techniques": [
+        "T1003.003"
+      ],
+      "claimed": [
+        "NTDS.dit access (proc_creation_win)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "Data",
+          "EventID",
+          "ParentImage",
+          "Provider_Name",
+          "RelativeTargetName",
+          "ShareName"
+        ],
+        "inapplicable_rules": 7
       }
     },
     {
@@ -963,6 +1060,78 @@
       }
     },
     {
+      "id": "powershell-encoded",
+      "description": "Encoded PowerShell command — obfuscated execution",
+      "techniques": [
+        "T1059.001",
+        "T1027"
+      ],
+      "claimed": [
+        "Encoded PowerShell command (proc_creation_win)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "base64offset",
+          "re"
+        ],
+        "missing_fields": [
+          "Company",
+          "CurrentDirectory",
+          "Data",
+          "Description",
+          "DestPort",
+          "EventID",
+          "Hashes",
+          "ImagePath",
+          "IntegrityLevel",
+          "LayerRTID",
+          "ParentCommandLine",
+          "ParentImage",
+          "Product",
+          "Provider_Name",
+          "ServiceFileName",
+          "TargetName",
+          "User"
+        ],
+        "inapplicable_rules": 79
+      }
+    },
+    {
+      "id": "powershell-hidden",
+      "description": "Hidden-window PowerShell — defense evasion",
+      "techniques": [
+        "T1564.003",
+        "T1059.001"
+      ],
+      "claimed": [
+        "Hidden window process execution (proc_creation_win)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "modifiers": [
+          "base64offset",
+          "re"
+        ],
+        "missing_fields": [
+          "Company",
+          "CurrentDirectory",
+          "Data",
+          "Description",
+          "DestPort",
+          "EventID",
+          "ImagePath",
+          "LayerRTID",
+          "ParentCommandLine",
+          "ParentImage",
+          "Product",
+          "Provider_Name",
+          "ServiceFileName"
+        ],
+        "inapplicable_rules": 78
+      }
+    },
+    {
       "id": "powerview",
       "description": "PowerView domain enumeration (Get-Net* / Get-Domain*)",
       "techniques": [
@@ -975,33 +1144,19 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
+          "AccessMask",
           "Company",
           "Description",
+          "DistinguishedName",
           "EventID",
+          "Hashes",
           "ObjectName",
           "ObjectType",
           "Product",
+          "SearchFilter",
           "SubjectUserName"
         ],
-        "inapplicable_rules": 2
-      }
-    },
-    {
-      "id": "procdump-lsass",
-      "description": "procdump against lsass — credential access",
-      "techniques": [
-        "T1003.001"
-      ],
-      "claimed": [
-        "procdump lsass dump (proc_creation_win)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "Description",
-          "Hashes"
-        ],
-        "inapplicable_rules": 3
+        "inapplicable_rules": 6
       }
     },
     {
@@ -1017,15 +1172,36 @@
       "status": "indeterminate",
       "because": {
         "modifiers": [
-          "base64offset"
+          "base64offset",
+          "cidr",
+          "re"
         ],
         "missing_fields": [
+          "AccessList",
+          "AccessMask",
+          "AccountName",
+          "AuthenticationPackageName",
+          "ClientAddress",
           "Description",
+          "EncyptionUsed",
           "EventID",
           "ImagePath",
-          "Provider_Name"
+          "IpAddress",
+          "LogonType",
+          "ProcessName",
+          "Provider_Name",
+          "RelativeTargetName",
+          "ServiceFileName",
+          "ServiceName",
+          "ServiceStartType",
+          "ServiceType",
+          "ShareName",
+          "SigningUsed",
+          "SubjectUserName",
+          "Workstation",
+          "WorkstationName"
         ],
-        "inapplicable_rules": 3
+        "inapplicable_rules": 16
       }
     },
     {
@@ -1050,7 +1226,7 @@
           "SourceAddress",
           "SourcePort"
         ],
-        "inapplicable_rules": 2
+        "inapplicable_rules": 3
       }
     },
     {
@@ -1092,12 +1268,17 @@
           "EventID",
           "IpAddress",
           "LogonType",
+          "ProcessName",
           "SamAccountName",
           "Status",
           "SubStatus",
+          "SubjectUserName",
           "SubjectUserSid",
+          "TargetServerName",
+          "TargetSid",
           "TargetUserName"
-        ]
+        ],
+        "inapplicable_rules": 1
       }
     },
     {
@@ -1112,8 +1293,36 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
+          "ParentCommandLine",
           "ParentImage"
-        ]
+        ],
+        "inapplicable_rules": 6,
+        "null_value_match": true
+      }
+    },
+    {
+      "id": "sam-hive-dump",
+      "description": "Dumping the SAM registry hive — credential access",
+      "techniques": [
+        "T1003.002"
+      ],
+      "claimed": [
+        "SAM hive export via reg.exe (proc_creation_win)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "AuditSourceName",
+          "DeviceName",
+          "EventID",
+          "HiveName",
+          "ImagePath",
+          "Provider_Name",
+          "RelativeTargetName",
+          "ServiceFileName",
+          "ShareName"
+        ],
+        "inapplicable_rules": 7
       }
     },
     {
@@ -1132,12 +1341,15 @@
           "AttributeLDAPDisplayName",
           "AttributeValue",
           "EventID",
+          "Path",
           "RelativeTargetName",
           "ShareName",
           "SubjectUserName",
+          "TaskContent",
+          "TaskContentNew",
           "TaskName"
         ],
-        "inapplicable_rules": 1
+        "inapplicable_rules": 3
       }
     },
     {
@@ -1152,15 +1364,19 @@
       "status": "indeterminate",
       "because": {
         "modifiers": [
-          "base64offset"
+          "base64offset",
+          "re",
+          "windash"
         ],
         "missing_fields": [
+          "AccountName",
           "EventID",
           "ImagePath",
           "Provider_Name",
           "ServiceFileName",
           "ServiceName"
-        ]
+        ],
+        "inapplicable_rules": 10
       }
     },
     {
@@ -1175,28 +1391,21 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
-          "Description"
-        ],
-        "inapplicable_rules": 1
-      }
-    },
-    {
-      "id": "systeminfo",
-      "description": "System information / patch-level discovery",
-      "techniques": [
-        "T1082"
-      ],
-      "claimed": [
-        "systeminfo execution (proc_creation_win)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
+          "Application",
           "Description",
-          "Hashes",
-          "ParentCommandLine"
+          "DestPort",
+          "EventID",
+          "Keywords",
+          "LogonProcessName",
+          "Provider_Name",
+          "Service",
+          "ServiceName",
+          "Status",
+          "TargetUserName",
+          "TicketEncryptionType",
+          "TicketOptions"
         ],
-        "inapplicable_rules": 1
+        "inapplicable_rules": 2
       }
     },
     {
@@ -1248,28 +1457,59 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
+          "AuthenticationPackageName",
           "EventID",
           "FilterName",
+          "Hashes",
+          "ImagePath",
+          "ImpersonationLevel",
+          "LogonProcessName",
+          "LogonType",
           "ProviderContextName",
+          "Provider_Name",
           "ServiceFileName"
         ],
         "inapplicable_rules": 1
       }
     },
     {
-      "id": "whoami",
-      "description": "Current user discovery",
+      "id": "uac-bypass-fodhelper",
+      "description": "UAC bypass via fodhelper.exe auto-elevation",
       "techniques": [
-        "T1033"
+        "T1548.002"
       ],
       "claimed": [
-        "Whoami utility execution (proc_creation_win)"
+        "UAC bypass via fodhelper (proc_creation_win)"
       ],
       "status": "indeterminate",
       "because": {
         "missing_fields": [
+          "Company",
+          "Description",
+          "Hashes",
+          "IntegrityLevel",
+          "ParentCommandLine",
+          "ParentImage",
           "Product"
-        ]
+        ],
+        "inapplicable_rules": 26
+      }
+    },
+    {
+      "id": "winrm-remoting",
+      "description": "PowerShell remoting (Invoke-Command / Enter-PSSession) — lateral movement",
+      "techniques": [
+        "T1021.006"
+      ],
+      "claimed": [
+        "PowerShell remoting execution (proc_creation_win)"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "missing_fields": [
+          "ParentImage"
+        ],
+        "inapplicable_rules": 6
       }
     },
     {
@@ -1284,26 +1524,16 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
-          "ParentImage"
+          "EventID",
+          "ObjectName",
+          "ObjectType",
+          "ParentImage",
+          "PossibleCause",
+          "Provider",
+          "Query",
+          "User"
         ],
-        "inapplicable_rules": 3
-      }
-    },
-    {
-      "id": "wmic-process-create",
-      "description": "Process creation via WMI",
-      "techniques": [
-        "T1047"
-      ],
-      "claimed": [
-        "WMI process creation (proc_creation_win)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "ParentImage"
-        ],
-        "inapplicable_rules": 2
+        "inapplicable_rules": 6
       }
     },
     {
@@ -1317,11 +1547,59 @@
       ],
       "status": "indeterminate",
       "because": {
+        "modifiers": [
+          "windash"
+        ],
         "missing_fields": [
+          "EventID",
+          "Hashes",
           "ParentImage"
         ],
-        "inapplicable_rules": 2
+        "inapplicable_rules": 8
       }
+    },
+    {
+      "id": "adfind",
+      "description": "AdFind — Active Directory enumeration",
+      "techniques": [
+        "T1087.002",
+        "T1482"
+      ],
+      "claimed": [
+        "AdFind execution (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "PUA - AdFind.EXE Execution"
+      ]
+    },
+    {
+      "id": "net-user",
+      "description": "Local/domain account enumeration via net user",
+      "techniques": [
+        "T1087.001"
+      ],
+      "claimed": [
+        "Account discovery via net (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Local Accounts Discovery"
+      ]
+    },
+    {
+      "id": "procdump-lsass",
+      "description": "procdump against lsass — credential access",
+      "techniques": [
+        "T1003.001"
+      ],
+      "claimed": [
+        "procdump lsass dump (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Procdump Execution"
+      ]
     },
     {
       "id": "rubeus",
@@ -1353,6 +1631,48 @@
       ]
     },
     {
+      "id": "systeminfo",
+      "description": "System information / patch-level discovery",
+      "techniques": [
+        "T1082"
+      ],
+      "claimed": [
+        "systeminfo execution (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Suspicious Execution of Systeminfo"
+      ]
+    },
+    {
+      "id": "vssadmin-delete",
+      "description": "Deleting volume shadow copies — inhibit system recovery",
+      "techniques": [
+        "T1490"
+      ],
+      "claimed": [
+        "Shadow copy deletion (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Shadow Copies Deletion Using Operating Systems Utilities"
+      ]
+    },
+    {
+      "id": "whoami",
+      "description": "Current user discovery",
+      "techniques": [
+        "T1033"
+      ],
+      "claimed": [
+        "Whoami utility execution (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Local Accounts Discovery"
+      ]
+    },
+    {
       "id": "whoami-priv",
       "description": "Privilege enumeration via whoami /priv",
       "techniques": [
@@ -1363,7 +1683,22 @@
       ],
       "status": "verified",
       "firing": [
-        "Security Privileges Enumeration Via Whoami.EXE"
+        "Security Privileges Enumeration Via Whoami.EXE",
+        "Local Accounts Discovery"
+      ]
+    },
+    {
+      "id": "wmic-process-create",
+      "description": "Process creation via WMI",
+      "techniques": [
+        "T1047"
+      ],
+      "claimed": [
+        "WMI process creation (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Process Creation Attempt via Wmic.EXE"
       ]
     }
   ]

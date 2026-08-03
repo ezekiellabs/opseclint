@@ -41,6 +41,15 @@ rule keyed on `Hashes` or `Description` stays evaluable and correctly reads
 indeterminate — Sysmon Event ID 1 carries those, so richer telemetry really
 could resolve it.
 
+The same argument fixes which rules get asked in the first place. Rules for a
+technique are ranked by severity then title and truncated for display, because a
+widely-tagged technique carries more rules than a report can show. That cap must
+not reach a verdict: it would exclude a rule on nothing but its first letter, and
+`NO-FIRE` / `GAP` would then mean "none of the five we looked at" while claiming
+to mean "none". `SigmaIndex::candidate_rules` returns the full set and is what
+verification and coverage evaluate; `rules_for` keeps the cap and is used only
+where rules are rendered.
+
 ## Non-goals (predictive mode)
 
 These bound what can be resolved from a **command line alone**. Since v1.2.0,

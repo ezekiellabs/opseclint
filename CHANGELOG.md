@@ -39,6 +39,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A display cap was deciding verdicts.** `SigmaIndex::rules_for` truncated its
+  result to five rules per technique — the right call for a terminal report,
+  where a widely-tagged technique would otherwise drown a finding. But
+  `--verify-detections` and `--coverage-gaps` drew their candidates from the same
+  function, so both reasoned over at most five rules, ranked by severity and then
+  *alphabetically by title*. A rule could be excluded from a verdict on nothing
+  but its first letter.
+
+  It was not hypothetical. `Shadow Copies Deletion Using Operating Systems
+  Utilities` is the SigmaHQ rule for T1490 and fires on
+  `vssadmin.exe delete shadows /all /quiet`; it sorts under **S**, behind four
+  same-level T1490 rules beginning A, B, C and D, and was never evaluated. Four
+  Windows entries were reported as contradicted claims because of it. The same
+  cut could report a coverage gap when the rule that fires happened to sort
+  sixth — a false blind spot in the tool's headline feature.
+
+  `candidate_rules` now returns the full set and is what verification and
+  coverage analyze; `rules_for` keeps the cap and is used only where rules are
+  rendered. Regenerated against SigmaHQ `master` @ `1aacbed`, verified rises
+  windows 3 → 10 and linux 10 → 14, with unverified falling 21 → 10 and 20 → 12.
+  macOS is unchanged, because no macOS technique in the knowledge base carries
+  more than five rules — which is why this survived three releases.
 - **`sync-packaging.sh` could corrupt the winget manifests.** The version bump
   replaced every occurrence of the crate's version in each manifest, and the
   winget files carry a second version-shaped string that means something else
