@@ -119,25 +119,35 @@ require_semver() {
 # together (URLs, extract_dir, RelativeFilePath, ...). A hash can never contain
 # a version string: hashes are hex, versions contain dots.
 #
-# Two lines are held back from the substitution, because they carry a *different*
-# version — the winget manifest schema — that happens to be the same shape:
+# Some lines are held back, because they carry a version belonging to something
+# other than opseclint — the winget manifest schema — that happens to be the
+# same shape:
 #
 #     # yaml-language-server: $schema=...winget-manifest.version.1.12.0.schema.json
 #     ManifestVersion: 1.12.0
+#     ...in packaging/README.md: "schema 1.12.0"
 #
 # Without the guard, the day opseclint's own version reaches the schema version,
 # a routine bump silently rewrites the schema reference and every winget manifest
-# becomes invalid. That is not hypothetical: the schema was 1.6.0 and this crate
-# is on its way there.
-SCHEMA_LINES='^(ManifestVersion:|# yaml-language-server:)'
-
+# becomes invalid. Not hypothetical: the schema was 1.6.0 and this crate is on
+# its way there.
+#
+# Deliberately BRE, not `sed -E`. In ERE `+` is a quantifier, so a version
+# carrying build metadata (`1.2.0+build.5`, which require_semver accepts) would
+# silently fail to match. BRE treats `+` as a literal, so escaping `.` is
+# sufficient for every string SemVer permits. `b` skips a line portably without
+# needing ERE alternation in the address.
 bump_versions() {
   local new="$1" old m
   for m in "${MANIFESTS[@]}"; do
     old=$(manifest_version "$m" | head -1)
     [ -n "$old" ] || die "no version found in packaging/$m"
     if [ "$old" != "$new" ]; then
-      sed -i.bak -E "/$SCHEMA_LINES/!s/${old//./\\.}/$new/g" "$pkg/$m"
+      sed -i.bak \
+        -e '/^ManifestVersion:/b' \
+        -e '/schema/b' \
+        -e "s/${old//./\\.}/$new/g" \
+        "$pkg/$m"
       rm -f "$pkg/$m.bak"
     fi
   done
