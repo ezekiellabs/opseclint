@@ -103,6 +103,11 @@ pub struct IndeterminateCause {
     /// arguably correct, so this is reported apart from the fixable causes.
     #[serde(default, skip_serializing_if = "is_false")]
     pub null_value_match: bool,
+    /// The entry has no representative line to evaluate against — a
+    /// knowledge-base gap, not a rule-side one. Explicit rather than inferred
+    /// from an otherwise-empty cause, so it survives other fields being set.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub no_representative: bool,
 }
 
 impl IndeterminateCause {
@@ -200,12 +205,17 @@ fn classify(
         );
     }
     let Some(cmd) = representative_command(entry) else {
-        // No representative line to evaluate against — not a rule-side cause,
-        // so it stays uncategorized rather than being blamed on a rule.
+        // No representative line to evaluate against — a knowledge-base gap,
+        // not a rule-side cause. Rules were still set aside on the way here, so
+        // report that too rather than dropping it.
         return (
             Status::Indeterminate,
             Vec::new(),
-            IndeterminateCause::default(),
+            IndeterminateCause {
+                no_representative: true,
+                inapplicable_rules: inapplicable.len(),
+                ..Default::default()
+            },
         );
     };
 
@@ -331,7 +341,7 @@ fn summarize_causes(report: &VerifyReport) -> Vec<(&'static str, usize, String)>
         if b.null_value_match {
             n_null += 1;
         }
-        if b.is_empty() {
+        if b.no_representative {
             n_none += 1;
         }
     }
