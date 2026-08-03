@@ -118,13 +118,26 @@ require_semver() {
 # own current version, and within these small files every occurrence of it moves
 # together (URLs, extract_dir, RelativeFilePath, ...). A hash can never contain
 # a version string: hashes are hex, versions contain dots.
+#
+# Two lines are held back from the substitution, because they carry a *different*
+# version — the winget manifest schema — that happens to be the same shape:
+#
+#     # yaml-language-server: $schema=...winget-manifest.version.1.12.0.schema.json
+#     ManifestVersion: 1.12.0
+#
+# Without the guard, the day opseclint's own version reaches the schema version,
+# a routine bump silently rewrites the schema reference and every winget manifest
+# becomes invalid. That is not hypothetical: the schema was 1.6.0 and this crate
+# is on its way there.
+SCHEMA_LINES='^(ManifestVersion:|# yaml-language-server:)'
+
 bump_versions() {
   local new="$1" old m
   for m in "${MANIFESTS[@]}"; do
     old=$(manifest_version "$m" | head -1)
     [ -n "$old" ] || die "no version found in packaging/$m"
     if [ "$old" != "$new" ]; then
-      sed -i.bak "s/${old//./\\.}/$new/g" "$pkg/$m"
+      sed -i.bak -E "/$SCHEMA_LINES/!s/${old//./\\.}/$new/g" "$pkg/$m"
       rm -f "$pkg/$m.bak"
     fi
   done

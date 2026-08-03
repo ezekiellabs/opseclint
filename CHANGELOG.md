@@ -6,6 +6,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`sync-packaging.sh` could corrupt the winget manifests.** The version bump
+  replaced every occurrence of the crate's version in each manifest, and the
+  winget files carry a second version-shaped string that means something else
+  entirely — `ManifestVersion` and the `$schema` URL, which track the *winget
+  schema*, not opseclint. The schema was `1.6.0` and this crate is on its way
+  there: releasing 1.6.0 and then bumping to 1.7.0 would have silently rewritten
+  all three manifests to reference a schema version that does not exist. Those
+  two lines are now held back from the substitution.
+- winget manifests migrated from schema `1.6.0` to **`1.12.0`**, which is what
+  `microsoft/winget-pkgs` now asks new submissions to conform to. Every field
+  1.12.0 requires was already present, so this is a version-string change only.
+
 ### Added
 
 - **`--verify-detections` now reports *why* an entry is indeterminate**, not just
