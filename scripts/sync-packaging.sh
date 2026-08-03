@@ -161,11 +161,21 @@ FOREIGN_VERSION='ManifestVersion:|yaml-language-server:|schema [0-9]'
 # Catches both ways the allowlist can be wrong: a pattern that stopped matching,
 # and a line nobody remembered to list.
 assert_bumped() {
-  local m="$1" old_re="$2" residual
-  residual=$(grep -n "$old_re" "$pkg/$m" | grep -Ev "$FOREIGN_VERSION" || true)
+  local m="$1" old_re="$2" new_re="$3" n line residual=""
+  # Scrub the new version out of each line before looking for the old one. When
+  # `new` has `old` as a prefix — `1.3.0-rc.1` -> `1.3.0-rc.10`, or gaining a
+  # `+build` suffix — a correctly rewritten line still *contains* the old
+  # string, and a naive search would flag the very substitution that just
+  # succeeded. Line numbering survives `s///`, so the numbers still address the
+  # original file and the message quotes the real line.
+  while IFS= read -r n; do
+    line=$(sed -n "${n}p" "$pkg/$m")
+    if ! printf '%s\n' "$line" | grep -Eq "$FOREIGN_VERSION"; then
+      residual+="  $n: $line"$'\n'
+    fi
+  done < <(sed "s/$new_re//g" "$pkg/$m" | grep -n "$old_re" | cut -d: -f1)
   [ -z "$residual" ] || die "packaging/$m still carries the old version after the bump:
-$residual
-  Add the line to version_lines() in $(basename "${BASH_SOURCE[0]}")."
+$residual  Add the line to version_lines() in $(basename "${BASH_SOURCE[0]}")."
 }
 
 bump_versions() {
@@ -179,7 +189,7 @@ bump_versions() {
         sed -i.bak "/$pat/s/$old_re/$new/g" "$pkg/$m"
         rm -f "$pkg/$m.bak"
       done < <(version_lines "$m")
-      assert_bumped "$m" "$old_re"
+      assert_bumped "$m" "$old_re" "${new//./\\.}"
     fi
   done
 }
