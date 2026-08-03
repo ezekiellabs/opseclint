@@ -1,0 +1,21 @@
+---
+title: Suspicious Shell Spawned By SSHD
+id: 44444444-4444-4444-4444-444444444444
+status: test
+description: >
+  A genuine process_creation rule that keys on a field a command line cannot
+  supply. Unlike the file_event fixture, this one IS addressed to a process
+  execution — opseclint simply cannot answer it without richer telemetry, so it
+  must stay INDETERMINATE rather than being set aside as inapplicable.
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    ParentImage|endswith: "/sshd"
+    CommandLine|contains: "whoami"
+  condition: selection
+level: medium
+tags:
+  - attack.credential_access
+  - attack.t1552.001

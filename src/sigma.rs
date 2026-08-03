@@ -26,7 +26,8 @@ use crate::model::{Detection, Report};
 const MAX_RULES_PER_FINDING: usize = 5;
 
 /// Bump when the cached rule shape changes, to invalidate stale cache files.
-const CACHE_VERSION: u32 = 2;
+// 3: SigmaRule gained `category` (logsource), so v2 caches lack it.
+const CACHE_VERSION: u32 = 3;
 
 /// A resolved Sigma rule: metadata plus its parsed detection logic (when the
 /// rule could be lowered for evaluation).
@@ -35,8 +36,35 @@ pub struct SigmaRule {
     pub id: String,
     pub title: String,
     pub level: String,
+    /// `logsource.category`, empty when the rule does not declare one.
+    #[serde(default)]
+    pub category: String,
     #[serde(default)]
     pub rule: Option<crate::sigma_eval::DetectionRule>,
+}
+
+impl SigmaRule {
+    /// Whether this rule could ever fire on a **process-execution** event.
+    ///
+    /// opseclint synthesizes a process-creation event from a command line, so a
+    /// rule whose logsource declares a different event class — `ps_script`,
+    /// `file_event`, `registry_set`, `proxy` — can never match it, no matter
+    /// what the evaluator implements. Counting those as `INDETERMINATE`
+    /// conflates "I might answer this given more data" with "this question was
+    /// never addressed to me", and the second is not an abstention at all.
+    ///
+    /// Deliberately conservative: only an *explicit* non-process category
+    /// disqualifies a rule. A rule with no category (740 of them upstream,
+    /// including the auditd service rules whose records include `EXECVE`) is
+    /// still evaluated, because we cannot show it is inapplicable.
+    ///
+    /// Note this is about the event *class*, not about fields. A
+    /// `process_creation` rule keyed on `Hashes` or `Description` stays
+    /// evaluable and correctly reads indeterminate — Sysmon Event ID 1 carries
+    /// those, so richer telemetry really could resolve it.
+    pub fn applies_to_process_execution(&self) -> bool {
+        self.category.is_empty() || self.category.eq_ignore_ascii_case("process_creation")
+    }
 }
 
 /// On-disk cache of a parsed ruleset, keyed by a fingerprint of the directory.
@@ -142,6 +170,12 @@ impl SigmaIndex {
                 .and_then(|l| l.as_str())
                 .unwrap_or("medium")
                 .to_string();
+            let category = value
+                .get("logsource")
+                .and_then(|ls| ls.get("category"))
+                .and_then(|c| c.as_str())
+                .unwrap_or("")
+                .to_string();
             let detection = crate::sigma_eval::parse_rule_value(&value);
 
             let mut indexed_any = false;
@@ -157,6 +191,7 @@ impl SigmaIndex {
                         id: id.to_string(),
                         title: title.to_string(),
                         level: level.clone(),
+                        category: category.clone(),
                         rule: detection.clone(),
                     });
                     indexed_any = true;

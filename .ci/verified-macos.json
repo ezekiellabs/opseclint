@@ -47,6 +47,17 @@
       "status": "unverified"
     },
     {
+      "id": "curl",
+      "description": "Remote file transfer / HTTP client — tool ingress or exfil",
+      "techniques": [
+        "T1105"
+      ],
+      "claimed": [
+        "File transfer via curl (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
       "id": "ditto-archive",
       "description": "Archiving data via ditto — collection prior to exfiltration",
       "techniques": [
@@ -191,6 +202,18 @@
       "status": "unverified"
     },
     {
+      "id": "python-http-server",
+      "description": "Ad-hoc HTTP server — data staging / exfiltration channel",
+      "techniques": [
+        "T1105",
+        "T1567"
+      ],
+      "claimed": [
+        "Ad-hoc Python HTTP server (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
       "id": "quarantine-removal",
       "description": "Removing the quarantine attribute — Gatekeeper bypass",
       "techniques": [
@@ -210,6 +233,18 @@
       ],
       "claimed": [
         "Reverse shell via /dev/tcp (proc_creation_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "scp-exfil",
+      "description": "File transfer over SSH — ingress or exfiltration",
+      "techniques": [
+        "T1105",
+        "T1048"
+      ],
+      "claimed": [
+        "File transfer via scp (proc_creation_macos)"
       ],
       "status": "unverified"
     },
@@ -368,6 +403,20 @@
       "status": "no-rule"
     },
     {
+      "id": "emond-persist",
+      "description": "Writing an emond rule — event-monitor persistence",
+      "techniques": [
+        "T1546.014"
+      ],
+      "claimed": [
+        "Emond rule persistence (file_event_macos)"
+      ],
+      "status": "not-applicable",
+      "because": {
+        "inapplicable_rules": 1
+      }
+    },
+    {
       "id": "firewall-disable",
       "description": "Disabling the application firewall via socketfilterfw — defense impairment",
       "techniques": [
@@ -500,6 +549,20 @@
       "status": "no-rule"
     },
     {
+      "id": "shadowhash-dump",
+      "description": "Reading ShadowHashData via dscl — local password-hash extraction",
+      "techniques": [
+        "T1003"
+      ],
+      "claimed": [
+        "ShadowHashData dump via dscl (proc_creation_macos)"
+      ],
+      "status": "not-applicable",
+      "because": {
+        "inapplicable_rules": 1
+      }
+    },
+    {
       "id": "shell-profile-persist",
       "description": "Modifying a shell rc file (.zshrc) — logon persistence",
       "techniques": [
@@ -577,39 +640,6 @@
       "status": "no-rule"
     },
     {
-      "id": "curl",
-      "description": "Remote file transfer / HTTP client — tool ingress or exfil",
-      "techniques": [
-        "T1105"
-      ],
-      "claimed": [
-        "File transfer via curl (proc_creation_macos)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "c-uri-extension",
-          "cs-host"
-        ]
-      }
-    },
-    {
-      "id": "emond-persist",
-      "description": "Writing an emond rule — event-monitor persistence",
-      "techniques": [
-        "T1546.014"
-      ],
-      "claimed": [
-        "Emond rule persistence (file_event_macos)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "TargetFilename"
-        ]
-      }
-    },
-    {
       "id": "networksetup",
       "description": "Network configuration discovery / modification",
       "techniques": [
@@ -638,59 +668,6 @@
       "because": {
         "missing_fields": [
           "ParentImage"
-        ]
-      }
-    },
-    {
-      "id": "python-http-server",
-      "description": "Ad-hoc HTTP server — data staging / exfiltration channel",
-      "techniques": [
-        "T1105",
-        "T1567"
-      ],
-      "claimed": [
-        "Ad-hoc Python HTTP server (proc_creation_macos)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "c-uri-extension",
-          "cs-host",
-          "query"
-        ]
-      }
-    },
-    {
-      "id": "scp-exfil",
-      "description": "File transfer over SSH — ingress or exfiltration",
-      "techniques": [
-        "T1105",
-        "T1048"
-      ],
-      "claimed": [
-        "File transfer via scp (proc_creation_macos)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "c-uri-extension",
-          "cs-host"
-        ]
-      }
-    },
-    {
-      "id": "shadowhash-dump",
-      "description": "Reading ShadowHashData via dscl — local password-hash extraction",
-      "techniques": [
-        "T1003"
-      ],
-      "claimed": [
-        "ShadowHashData dump via dscl (proc_creation_macos)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "Signature"
         ]
       }
     },
