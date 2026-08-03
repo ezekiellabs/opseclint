@@ -114,46 +114,74 @@ require_semver() {
   [[ "$1" =~ $re ]] || die "expected a semver like 1.2.0 or 1.3.0-rc.1, got '$1'"
 }
 
-# Move every version string, leaving hashes alone. Each manifest declares its
-# own current version, and within these small files every occurrence of it moves
-# together (URLs, extract_dir, RelativeFilePath, ...). A hash can never contain
-# a version string: hashes are hex, versions contain dots.
+# The lines in each manifest that carry *opseclint's own* version.
 #
-# Some lines are held back, because they carry a version belonging to something
-# other than opseclint — the winget manifest schema — that happens to be the
-# same shape:
+# This is an allowlist, and that direction is the point. The previous approach
+# replaced the version everywhere and then grew an exclusion list as each
+# collision was discovered — a GNU-only address range, an ERE quantifier, the
+# winget schema version, the schema version quoted in prose. Every one shipped,
+# and every one was caught by review rather than by the script. Substituting
+# only where we have said the version lives inverts the failure mode: instead of
+# silently changing something that was not ours, we silently change too little —
+# and unlike the former, that is detectable, which `assert_bumped` below does.
 #
-#     # yaml-language-server: $schema=...winget-manifest.version.1.12.0.schema.json
-#     ManifestVersion: 1.12.0
-#     ...in packaging/README.md: "schema 1.12.0"
-#
-# Without the guard, the day opseclint's own version reaches the schema version,
-# a routine bump silently rewrites the schema reference and every winget manifest
-# becomes invalid. Not hypothetical: the schema was 1.6.0 and this crate is on
-# its way there.
-#
-# Deliberately BRE, not `sed -E`. In ERE `+` is a quantifier, so a version
-# carrying build metadata (`1.2.0+build.5`, which require_semver accepts) would
-# silently fail to match. BRE treats `+` as a literal, so escaping `.` is
-# sufficient for every string SemVer permits. `b` skips a line portably without
-# needing ERE alternation in the address.
+# Patterns are BRE, matching `sed` without `-E`, so `+` stays literal for
+# versions carrying build metadata (`1.2.0+build.5`, which require_semver
+# accepts).
+version_lines() {
+  case "$1" in
+    homebrew/opseclint.rb)
+      # URLs and the test assertion interpolate #{version}; only the declaration
+      # holds a literal.
+      printf '%s\n' '^  version "' ;;
+    scoop/opseclint.json)
+      # The autoupdate block templates $version and needs no substitution.
+      printf '%s\n' '^    "version":' '"url":' '"extract_dir":' ;;
+    aur/PKGBUILD)
+      # source=() interpolates ${pkgver}.
+      printf '%s\n' '^pkgver=' ;;
+    aur/.SRCINFO)
+      # Generated, so fully expanded: both lines hold literals.
+      printf '%s\n' 'pkgver = ' 'source = ' ;;
+    winget/*.yaml)
+      # NOT ManifestVersion or the $schema URL — those track the winget schema.
+      printf '%s\n' '^PackageVersion:' 'RelativeFilePath:' 'InstallerUrl:' ;;
+    README.md)
+      printf '%s\n' '\*\*v[0-9]' '^## v[0-9].* artifact hashes' ;;
+    *) die "no version-line rule for $1" ;;
+  esac
+}
+
+# Lines that legitimately carry a version belonging to something else, and so
+# are expected to still mention the old version after a bump. Used only by the
+# assertion — never to decide what to substitute.
+FOREIGN_VERSION='ManifestVersion:|yaml-language-server:|schema [0-9]'
+
+# After a bump, nothing outside FOREIGN_VERSION may still carry the old version.
+# Catches both ways the allowlist can be wrong: a pattern that stopped matching,
+# and a line nobody remembered to list.
+assert_bumped() {
+  local m="$1" old_re="$2" residual
+  residual=$(grep -n "$old_re" "$pkg/$m" | grep -Ev "$FOREIGN_VERSION" || true)
+  [ -z "$residual" ] || die "packaging/$m still carries the old version after the bump:
+$residual
+  Add the line to version_lines() in $(basename "${BASH_SOURCE[0]}")."
+}
+
 bump_versions() {
-  local new="$1" old m
+  local new="$1" old m pat old_re
   for m in "${MANIFESTS[@]}"; do
     old=$(manifest_version "$m" | head -1)
     [ -n "$old" ] || die "no version found in packaging/$m"
     if [ "$old" != "$new" ]; then
-      sed -i.bak \
-        -e '/^ManifestVersion:/b' \
-        -e '/schema/b' \
-        -e "s/${old//./\\.}/$new/g" \
-        "$pkg/$m"
-      rm -f "$pkg/$m.bak"
+      old_re=${old//./\\.}
+      while IFS= read -r pat; do
+        sed -i.bak "/$pat/s/$old_re/$new/g" "$pkg/$m"
+        rm -f "$pkg/$m.bak"
+      done < <(version_lines "$m")
+      assert_bumped "$m" "$old_re"
     fi
   done
-  sed -i.bak -E "s/^## v[0-9A-Za-z.+-]+ artifact hashes/## v$new artifact hashes/" \
-    "$pkg/README.md"
-  rm -f "$pkg/README.md.bak"
 }
 
 bump() {

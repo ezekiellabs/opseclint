@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **`sync-packaging.sh` now substitutes the version only where it is declared to
+  live**, instead of replacing it everywhere and excluding the collisions. The
+  old approach accumulated four exclusions — a GNU-only `sed` address range, an
+  ERE quantifier, the winget `ManifestVersion`, and the schema version quoted in
+  prose — every one of which shipped before being caught. An allowlist inverts
+  the failure mode from "silently changed something that was not ours" to
+  "silently changed too little", and unlike the former that is detectable: after
+  each bump the script asserts no line outside a known foreign-version line
+  still carries the old version, naming the file and line if one does.
+
 ### Fixed
 
 - **`sync-packaging.sh` could corrupt the winget manifests.** The version bump

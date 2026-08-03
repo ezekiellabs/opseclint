@@ -13,9 +13,9 @@ The artifact hashes only exist once the release publishes, so the version bump
 and the hash fill-in are two steps:
 
 ```sh
-scripts/sync-packaging.sh --bump 1.3.0   # 1. offline; Cargo.toml + every manifest
+scripts/sync-packaging.sh --bump X.Y.Z   # 1. offline; Cargo.toml + every manifest
                                          #    open the release PR, tag, publish
-scripts/sync-packaging.sh 1.3.0          # 2. online; real hashes from the release
+scripts/sync-packaging.sh X.Y.Z          # 2. online; real hashes from the release
 ```
 
 Two gates keep this honest:
