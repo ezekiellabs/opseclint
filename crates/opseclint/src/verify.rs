@@ -13,11 +13,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::kb::Platform;
-use crate::model::{KbEntry, KnowledgeBase};
-use crate::parser::{self, Command};
-use crate::sigma::SigmaIndex;
-use crate::sigma_eval::{self, Outcome};
+use opseclint_core::kb::Platform;
+use opseclint_core::model::{KbEntry, KnowledgeBase};
+use opseclint_core::parser::{self, Command};
+use opseclint_core::sigma::SigmaIndex;
+use opseclint_core::sigma_eval::{self, Outcome};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -598,13 +598,13 @@ pub fn render_delta_json(delta: &VerifyDelta) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kb;
-    use crate::matcher::{LinePred, Matcher, ProgramMatch};
-    use crate::model::{Detection, Technique};
+    use opseclint_core::kb;
+    use opseclint_core::matcher::{LinePred, Matcher, ProgramMatch};
+    use opseclint_core::model::{Detection, Technique};
     use std::path::PathBuf;
 
     fn index() -> SigmaIndex {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sigma");
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/sigma");
         SigmaIndex::load_dir(&dir, "linux").expect("index loads")
     }
 

@@ -3,8 +3,8 @@
 
 use std::fmt::Write as _;
 
-use crate::model::{Report, Severity};
 use crate::theme::{self, Painter};
+use opseclint_core::model::{Report, Severity};
 
 const WIDTH: usize = 60;
 const INDENT: &str = "                "; // 16 spaces, aligns sub-lines
@@ -76,7 +76,7 @@ pub fn render_human(report: &Report, color: bool) -> String {
             )
         ),
         p.paint(
-            sev.color(),
+            theme::severity_color(sev),
             &format!("● {} ({})", sev.label(), report.max_noise)
         )
     );
@@ -87,7 +87,10 @@ pub fn render_human(report: &Report, color: bool) -> String {
         let _ = writeln!(
             out,
             " {}  {}  {}",
-            p.paint(s.color(), &format!("● {:<8} {:>2}", s.label(), f.noise)),
+            p.paint(
+                theme::severity_color(s),
+                &format!("● {:<8} {:>2}", s.label(), f.noise)
+            ),
             p.paint(theme::COMMENT, &format!("L{}", f.line)),
             p.paint(theme::FG, &f.description),
         );
@@ -156,7 +159,7 @@ pub fn render_human(report: &Report, color: bool) -> String {
         " {}  {}",
         p.bold(theme::FG, "summary"),
         p.paint(
-            sev.color(),
+            theme::severity_color(sev),
             &format!("● {} ({})", sev.label(), report.max_noise)
         )
     );

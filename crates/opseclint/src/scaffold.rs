@@ -7,8 +7,8 @@
 
 use std::collections::HashSet;
 
-use crate::kb::Platform;
-use crate::model::{KbEntry, KnowledgeBase, Severity};
+use opseclint_core::kb::Platform;
+use opseclint_core::model::{KbEntry, KnowledgeBase, Severity};
 
 /// Resolve knowledge-base entries for a list of rule ids, de-duplicated and in
 /// first-seen order.
@@ -253,9 +253,9 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kb;
-    use crate::matcher::{LinePred, Matcher};
-    use crate::model::Technique;
+    use opseclint_core::kb;
+    use opseclint_core::matcher::{LinePred, Matcher};
+    use opseclint_core::model::Technique;
 
     fn linux_kb() -> KnowledgeBase {
         kb::load(kb::Platform::LinuxAuditd).unwrap()

@@ -7,10 +7,10 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::kb::Platform;
-use crate::model::Report;
-use crate::sigma::SigmaIndex;
-use crate::sigma_eval::{self, Outcome};
+use opseclint_core::kb::Platform;
+use opseclint_core::model::Report;
+use opseclint_core::sigma::SigmaIndex;
+use opseclint_core::sigma_eval::{self, Outcome};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -512,11 +512,11 @@ pub fn render_delta(delta: &CoverageDelta, color: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{analyzer, kb, sigma::SigmaIndex};
+    use opseclint_core::{analyzer, kb, sigma::SigmaIndex};
     use std::path::PathBuf;
 
     fn index() -> SigmaIndex {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sigma");
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/sigma");
         SigmaIndex::load_dir(&dir, "linux").expect("index loads")
     }
 

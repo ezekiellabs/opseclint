@@ -1,0 +1,24 @@
+[package]
+name = "opseclint-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "The knowledge base and evaluator behind opseclint: resolve shell/command actions to ATT&CK techniques, the host telemetry they emit, and the Sigma detections that would fire."
+readme = "README.md"
+keywords = ["security", "detection", "attack", "sigma", "telemetry"]
+categories = ["parser-implementations", "development-tools"]
+
+[features]
+# Adds `clap::ValueEnum` to the three enums a CLI wants to accept as flag
+# values (`Platform`, `telemetry::Format`, `edr::Vendor`). Off by default: a
+# library consumer should not inherit an argument parser.
+clap = ["dep:clap"]
+
+[dependencies]
+clap = { workspace = true, optional = true }
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true

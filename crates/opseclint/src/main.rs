@@ -7,23 +7,20 @@
 //! It answers "what would a defender see?", to help red/purple teams and
 //! detection engineers reason about coverage. It does not recommend evasions.
 
-mod analyzer;
+//! The analysis itself lives in `opseclint-core`; this crate is the CLI over
+//! it — argument parsing, the rendered report, and the knowledge-base tooling
+//! (`--scaffold`, `--verify-detections`, `--coverage-gaps`) that maintains it.
+
 mod coverage;
 mod diff;
-mod edr;
-mod kb;
-mod matcher;
-mod model;
 mod navigator;
-mod parser;
 mod report;
 mod sarif;
 mod scaffold;
-mod sigma;
-mod sigma_eval;
-mod telemetry;
 mod theme;
 mod verify;
+
+use opseclint_core::{analyzer, edr, kb, model, parser, sigma, sigma_eval, telemetry};
 
 use std::io::{IsTerminal, Read, Write};
 use std::process::ExitCode;

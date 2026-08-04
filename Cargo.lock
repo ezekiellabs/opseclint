@@ -164,6 +164,18 @@ name = "opseclint"
 version = "1.2.0"
 dependencies = [
  "clap",
+ "opseclint-core",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+]
+
+[[package]]
+name = "opseclint-core"
+version = "1.2.0"
+dependencies = [
+ "clap",
  "regex",
  "serde",
  "serde_json",

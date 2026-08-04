@@ -8,8 +8,8 @@ use std::fmt::Write as _;
 
 use serde::Serialize;
 
-use crate::model::{Detection, Report, Severity};
 use crate::theme::{self, Painter};
+use opseclint_core::model::{Detection, Report, Severity};
 
 const WIDTH: usize = 60;
 
@@ -239,7 +239,7 @@ pub fn render_human(delta: &Delta, color: bool) -> String {
                 ),
                 p.paint(theme::COMMENT, "→"),
                 p.paint(
-                    a.severity.color(),
+                    theme::severity_color(a.severity),
                     &format!("{} {}", a.severity.label(), a.noise)
                 ),
             );
@@ -297,7 +297,7 @@ pub fn render_json(delta: &Delta) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Finding, Technique};
+    use opseclint_core::model::{Finding, Technique};
 
     fn finding(rule: &str, noise: u8, verdict: Option<&str>) -> Finding {
         Finding {

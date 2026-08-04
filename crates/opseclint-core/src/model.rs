@@ -8,15 +8,23 @@ use crate::matcher::Matcher;
 /// A single ATT&CK technique reference.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Technique {
+    /// The ATT&CK technique id, including any sub-technique: `T1059.001`.
     pub id: String,
+    /// The technique's ATT&CK name, e.g. `PowerShell`.
     pub name: String,
 }
 
 /// A representative detection signal (e.g. a Sigma rule the action would trip).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Detection {
+    /// Where the detection comes from — `Sigma`, a vendor, an internal ruleset.
     pub source: String,
+    /// The rule's name or title. Representative of published logic rather than a
+    /// literal rule id, unless the finding was enriched from a real ruleset.
     pub rule: String,
+    /// How confident the knowledge base is that this detection covers the
+    /// action: `high`, `medium`, or `low`. An authored judgement, not a measured
+    /// one — [`verdict`](Detection::verdict) is the measured field.
     pub confidence: String,
     /// When enriched from a real ruleset, whether the rule would actually fire
     /// on the matched command: `fires`, `no-fire`, or `indeterminate (…)`.
@@ -30,7 +38,9 @@ pub struct Detection {
 /// `registry`); `detail` is the human phrase rendered under the finding.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SideEffect {
+    /// Short event-class tag: `network`, `file`, or `registry`.
     pub class: String,
+    /// The human-readable phrase describing what was observed.
     pub detail: String,
 }
 
@@ -43,6 +53,8 @@ pub struct SideEffect {
 /// `raw_contains` were removed once every knowledge base finished migrating.)
 #[derive(Debug, Clone, Deserialize)]
 pub struct KbEntry {
+    /// Stable kebab-case identifier, unique within its knowledge base. Surfaces
+    /// as a finding's [`rule_id`](Finding::rule_id).
     pub id: String,
     /// The structured matcher that decides whether this entry applies to a line.
     #[serde(rename = "match")]
@@ -54,10 +66,17 @@ pub struct KbEntry {
     /// where it overrides the literal-derived representative.
     #[serde(default)]
     pub example: Option<String>,
+    /// One line describing what a defender would observe — written from the
+    /// defender's side, not the operator's.
     pub description: String,
+    /// The ATT&CK technique(s) this action implements.
     pub techniques: Vec<Technique>,
+    /// The concrete host events this action produces, in the platform's own
+    /// vocabulary (`Sysmon EID 1`, `auditd execve`, `ESF NOTIFY_EXEC`, …).
     #[serde(default)]
     pub telemetry: Vec<String>,
+    /// Representative detections that would fire. Authored claims — run
+    /// `--verify-detections` against a real ruleset to find out which hold.
     #[serde(default)]
     pub detections: Vec<Detection>,
     /// Detectability on a 0-100 scale: how likely this action is to surface in
@@ -80,9 +99,14 @@ impl KbEntry {
 /// The deserialized knowledge base.
 #[derive(Debug, Clone, Deserialize)]
 pub struct KnowledgeBase {
+    /// The platform this base models, as a display string.
     pub platform: String,
+    /// The base's own caveat: what it assumes about the host's collection, and
+    /// what it does not claim. Carried into every [`Report`] so the caveat
+    /// travels with the result instead of living in documentation.
     #[serde(default)]
     pub note: String,
+    /// Every modeled action, in file order.
     pub entries: Vec<KbEntry>,
 }
 
@@ -112,13 +136,18 @@ impl KnowledgeBase {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
+    /// Noise 0-24: little or nothing distinctive reaches the sensor.
     Low,
+    /// Noise 25-49: observable, but unlikely to stand out on its own.
     Medium,
+    /// Noise 50-74: distinctive telemetry a tuned ruleset should catch.
     High,
+    /// Noise 75-100: loud, and widely covered by published detections.
     Critical,
 }
 
 impl Severity {
+    /// The bucket a 0-100 detectability score falls in.
     pub fn from_noise(noise: u8) -> Self {
         match noise {
             0..=24 => Severity::Low,
@@ -128,22 +157,13 @@ impl Severity {
         }
     }
 
+    /// The uppercase display label: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
     pub fn label(self) -> &'static str {
         match self {
             Severity::Low => "LOW",
             Severity::Medium => "MEDIUM",
             Severity::High => "HIGH",
             Severity::Critical => "CRITICAL",
-        }
-    }
-
-    /// Tokyo Night ANSI color code for terminal rendering.
-    pub fn color(self) -> &'static str {
-        match self {
-            Severity::Low => crate::theme::CYAN,
-            Severity::Medium => crate::theme::YELLOW,
-            Severity::High => crate::theme::ORANGE,
-            Severity::Critical => crate::theme::RED,
         }
     }
 }
@@ -161,12 +181,22 @@ pub struct EdrMapping {
 /// A single detection-coverage finding tied to a source line.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Finding {
+    /// 1-based line of the input this finding came from. For ingested
+    /// telemetry, the 1-based record number instead.
     pub line: usize,
+    /// The source text that produced the finding — the command line as written.
     pub source: String,
+    /// The [`KbEntry::id`] that matched.
     pub rule_id: String,
+    /// What a defender would observe, from the matched entry.
     pub description: String,
+    /// The ATT&CK technique(s) this action implements.
     pub techniques: Vec<Technique>,
+    /// The concrete host events this action produces.
     pub telemetry: Vec<String>,
+    /// Detections that would fire. Authored claims from the knowledge base
+    /// unless the report was enriched from a real ruleset, in which case each
+    /// carries a [`verdict`](Detection::verdict).
     pub detections: Vec<Detection>,
     /// EDR sensor-event mappings, populated only when `--edr` is requested.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -176,7 +206,11 @@ pub struct Finding {
     /// Populated only for ingested telemetry; empty for predictive analysis.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub observed_side_effects: Vec<SideEffect>,
+    /// Detectability on a 0-100 scale: how strongly this action surfaces in
+    /// defensive telemetry. Higher = louder. Not a severity or a risk score —
+    /// a quiet action is not a safe one.
     pub noise: u8,
+    /// The bucket [`noise`](Finding::noise) falls in.
     pub severity: Severity,
     /// The command this finding was matched from, kept for rule-logic
     /// evaluation (coverage gaps). Not serialized.
@@ -195,16 +229,30 @@ pub struct Finding {
 /// The full report for an analyzed input.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
+    /// The platform analyzed against, from [`KnowledgeBase::platform`].
     pub platform: String,
+    /// The knowledge base's caveat about what it assumes and does not claim,
+    /// carried through from [`KnowledgeBase::note`]. Surface it alongside the
+    /// findings: it is what keeps an empty `findings` from reading as proof
+    /// that nothing would be seen.
     #[serde(default)]
     pub note: String,
+    /// Every match, deduplicated per line and ranked loudest-first.
+    ///
+    /// An empty vector means no *modeled* action matched — the knowledge base
+    /// covers a bounded set, so this is not evidence that the input is
+    /// invisible.
     pub findings: Vec<Finding>,
+    /// The loudest [`Finding::noise`] in the report, or 0 when there are none.
     pub max_noise: u8,
+    /// How many logical lines were analyzed, including ones that matched
+    /// nothing — the denominator that makes a finding count meaningful.
     #[serde(default)]
     pub lines_analyzed: usize,
 }
 
 impl Report {
+    /// The bucket of the loudest finding in this report.
     pub fn max_severity(&self) -> Severity {
         Severity::from_noise(self.max_noise)
     }

@@ -3,7 +3,7 @@
 
 use serde::Serialize;
 
-use crate::model::{Report, Severity};
+use opseclint_core::model::{Report, Severity};
 
 const SCHEMA: &str = "https://json.schemastore.org/sarif-2.1.0.json";
 const INFO_URI: &str = "https://github.com/ezekiellabs/opseclint";
@@ -209,7 +209,7 @@ pub fn render(report: &Report, source_uri: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{analyzer, kb};
+    use opseclint_core::{analyzer, kb};
 
     #[test]
     fn sarif_is_valid_json_with_expected_shape() {

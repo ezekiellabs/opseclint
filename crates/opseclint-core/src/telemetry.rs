@@ -38,7 +38,8 @@ use crate::parser::{self, Command};
 
 /// A telemetry format opseclint can ingest. All three reduce to the same
 /// `Command` behind the same `--telemetry` input path.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
 pub enum Format {
     /// Windows Sysmon Event ID 1 (Process Create), JSON — a top-level array of
     /// event objects, or one JSON object per line (JSONL).
@@ -65,9 +66,21 @@ pub enum Format {
 /// record produces share one map instead of each deep-cloning it.
 #[derive(Debug, Clone)]
 pub struct Observation {
+    /// 1-based position of the source record in the ingested file. Becomes the
+    /// finding's line number, so a finding points back at the record it came
+    /// from.
     pub record: usize,
+    /// The commands resolved from this event — usually one, more when the
+    /// recorded command line itself contains a pipeline or substitution.
     pub commands: Vec<Command>,
+    /// The command line exactly as the sensor recorded it.
     pub raw: String,
+    /// The event's field map: the fields a command line cannot supply
+    /// (`ParentImage`, `User`, `IntegrityLevel`, …), so Sigma evaluation can
+    /// resolve rules keyed on them against what was really logged. Known Sysmon
+    /// EID 1 fields are keyed by their canonical name; any other key keeps its
+    /// original casing. `Arc` so the several findings one record produces share
+    /// a single map.
     pub event: Arc<HashMap<String, String>>,
     /// Non-execution events (network / file / registry) correlated to this
     /// execution by pid — confirmed secondary telemetry.
@@ -80,8 +93,15 @@ pub struct Observation {
 /// standalone against the KB's `event` axis.
 #[derive(Debug, Clone)]
 pub struct Ingest {
+    /// The process-execution records, in file order.
     pub observations: Vec<Observation>,
+    /// How many records were not ingested as their own unit — non-execution
+    /// event classes, and malformed records. Counted rather than silently
+    /// dropped: report it, so a thin result is distinguishable from a quiet
+    /// host.
     pub skipped: usize,
+    /// Non-execution events that did not correlate back to any captured
+    /// execution, matched standalone against the knowledge base's `event` axis.
     pub event_observations: Vec<EventObservation>,
 }
 
@@ -91,9 +111,13 @@ pub struct Ingest {
 /// or was not a process launch (e.g. a GUI-set registry Run key).
 #[derive(Debug, Clone)]
 pub struct EventObservation {
+    /// 1-based position of the source record in the ingested file.
     pub record: usize,
+    /// Short event-class tag: `network`, `file`, or `registry`.
     pub class: String,
+    /// The human-readable phrase describing what was observed.
     pub detail: String,
+    /// The event's recorded field map, keyed as in [`Observation::event`].
     pub event: Arc<HashMap<String, String>>,
 }
 
@@ -101,9 +125,9 @@ pub struct EventObservation {
 pub type UserMap = HashMap<String, String>;
 
 /// Parse recorded telemetry `text` in the given `format` into observations, with
-/// no uid→name mapping. The ergonomic default used across the tests; the binary
-/// goes through [`parse_with_users`] to honor `--users`.
-#[allow(dead_code)]
+/// no uid→name mapping. The ergonomic default; reach for [`parse_with_users`]
+/// when you have a `passwd` map to resolve numeric uids against (opseclint's
+/// `--users`).
 pub fn parse(text: &str, format: Format) -> Result<Ingest, String> {
     parse_with_users(text, format, &UserMap::new())
 }
@@ -803,7 +827,7 @@ mod tests {
 
     fn fixture(name: &str) -> String {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/telemetry")
+            .join("../../tests/fixtures/telemetry")
             .join(name);
         std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
     }
