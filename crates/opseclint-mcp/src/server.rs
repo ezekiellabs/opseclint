@@ -65,7 +65,10 @@ pub struct AnalyzeArgs {
 #[derive(Debug, serde::Deserialize, JsonSchema)]
 pub struct LookupArgs {
     /// An ATT&CK technique id, with or without a sub-technique: `T1059` or
-    /// `T1059.001`. A bare parent id also returns its sub-techniques.
+    /// `T1059.001`. A bare parent id also returns its sub-techniques. Anything
+    /// that is not this shape is rejected rather than answered — including the
+    /// Sigma tag spelling `attack.t1059` — so an empty result always means
+    /// "not modeled" and never "you mistyped it".
     pub technique_id: String,
     /// Restrict to one platform. Omit to search all three.
     pub platform: Option<PlatformArg>,
@@ -87,6 +90,29 @@ pub struct EvaluateArgs {
 pub struct CoverageArgs {
     /// Restrict to one platform. Omit to describe all three.
     pub platform: Option<PlatformArg>,
+}
+
+/// Whether `id` is a well-formed ATT&CK technique id: `T` then four digits,
+/// optionally `.` then three more. Expects an already-uppercased, trimmed
+/// string.
+///
+/// Deliberately strict, and it does *not* accept the Sigma tag spelling
+/// (`attack.t1059`). Normalizing that would mean guessing at what a caller
+/// meant, and the point of validating at all is to keep an absent result
+/// meaning exactly one thing.
+fn is_technique_id(id: &str) -> bool {
+    let (major, sub) = match id.split_once('.') {
+        Some((m, s)) => (m, Some(s)),
+        None => (id, None),
+    };
+    let digits_ok = |s: &str, n: usize| s.len() == n && s.bytes().all(|b| b.is_ascii_digit());
+
+    major.starts_with('T')
+        && digits_ok(&major[1..], 4)
+        && match sub {
+            Some(s) => digits_ok(s, 3),
+            None => true,
+        }
 }
 
 /// The server. Holds every platform's knowledge base, loaded once.
@@ -196,10 +222,32 @@ impl Opseclint {
     /// Look up what implements a technique, and what that emits.
     #[tool(
         name = "lookup_technique",
-        description = "Given an ATT&CK technique id, return the modeled actions that implement it, the host telemetry each emits, and the detections claimed for it, per platform. A platform with no actions means this knowledge base models none for that technique — not that the technique is undetectable there."
+        description = "Given an ATT&CK technique id (`T1059` or `T1059.001`), return the modeled actions that implement it, the host telemetry each emits, and the detections claimed for it, per platform. A platform with no actions means this knowledge base models none for that technique — not that the technique is undetectable there. A malformed id is an error, not an empty result, so an absence always means 'not modeled'."
     )]
-    fn lookup_technique(&self, Parameters(args): Parameters<LookupArgs>) -> Json<LookupOutput> {
+    fn lookup_technique(
+        &self,
+        Parameters(args): Parameters<LookupArgs>,
+    ) -> Result<Json<LookupOutput>, ErrorData> {
         let wanted = args.technique_id.trim().to_uppercase();
+        // A malformed id must not come back as an ordinary "not modeled"
+        // result. `describe_coverage` and every empty result in this crate rest
+        // on "absent means unmodeled" being true; if a typo (`T10O5`), a Sigma
+        // tag (`attack.t1059`), or an empty string also produces an absence,
+        // that guarantee is worthless and a caller cannot tell its own mistake
+        // from a real coverage gap.
+        if !is_technique_id(&wanted) {
+            return Err(ErrorData::invalid_params(
+                format!(
+                    "`{}` is not an ATT&CK technique id. Expected `T` followed by four digits, optionally a three-digit sub-technique: `T1059` or `T1059.001`.",
+                    args.technique_id
+                ),
+                None,
+            ));
+        }
+        // Built once rather than per candidate: this is the inner loop over
+        // every entry in every base.
+        let sub_prefix = format!("{wanted}.");
+
         let targets: Vec<PlatformArg> = match args.platform {
             Some(p) => vec![p],
             None => PlatformArg::ALL.to_vec(),
@@ -214,11 +262,11 @@ impl Opseclint {
                 .iter()
                 .filter(|e| {
                     e.techniques.iter().any(|t| {
-                        let id = t.id.to_uppercase();
                         // A bare parent id also matches its sub-techniques, so
                         // `T1059` finds `T1059.001`. The dot guard keeps
                         // `T1059` from matching an unrelated `T10591`.
-                        id == wanted || id.starts_with(&format!("{wanted}."))
+                        t.id.eq_ignore_ascii_case(&wanted)
+                            || t.id.to_uppercase().starts_with(&sub_prefix)
                     })
                 })
                 .map(|e| ActionOut {
@@ -270,12 +318,12 @@ impl Opseclint {
             )
         };
 
-        Json(LookupOutput {
+        Ok(Json(LookupOutput {
             summary,
             technique_id: wanted,
             platforms,
             limits,
-        })
+        }))
     }
 
     /// Evaluate a Sigma rule against a command, three-valued.
@@ -548,6 +596,7 @@ detection:
                 technique_id: "T1059".into(),
                 platform: None,
             }))
+            .expect("a well-formed id")
             .0
             .limits
             .is_empty()
@@ -587,12 +636,14 @@ detection:
                 technique_id: "T1059.001".into(),
                 platform: Some(PlatformArg::Windows),
             }))
+            .expect("a well-formed id")
             .0;
         let parent = s
             .lookup_technique(Parameters(LookupArgs {
                 technique_id: "T1059".into(),
                 platform: Some(PlatformArg::Windows),
             }))
+            .expect("a well-formed id")
             .0;
         let n = |o: &LookupOutput| o.platforms.iter().map(|p| p.actions.len()).sum::<usize>();
         assert!(n(&sub) > 0, "T1059.001 is modeled on windows");
@@ -604,20 +655,90 @@ detection:
 
     #[test]
     fn a_technique_id_is_not_matched_by_prefix_alone() {
-        // `T1059` must not sweep in a hypothetical `T10591`. The guard is the
-        // dot in the sub-technique check; without it this silently over-reports.
+        // The dot guard: a match is the id exactly, or the id followed by `.`
+        // and a sub-technique. Without it, `T1059` would sweep in anything
+        // merely starting with those characters and silently over-report.
+        // Asserted as a property over whatever the bases contain, so it stays
+        // true as coverage grows.
         let s = server();
-        let out = s
-            .lookup_technique(Parameters(LookupArgs {
-                technique_id: "T105".into(),
+        for id in ["T1059", "T1053", "T1105"] {
+            let out = s
+                .lookup_technique(Parameters(LookupArgs {
+                    technique_id: id.into(),
+                    platform: None,
+                }))
+                .expect("a well-formed id")
+                .0;
+            for p in &out.platforms {
+                for a in &p.actions {
+                    let base = s.base(match p.platform.as_str() {
+                        "linux-auditd" => PlatformArg::Linux,
+                        "windows-sysmon" => PlatformArg::Windows,
+                        _ => PlatformArg::Macos,
+                    });
+                    let entry = base
+                        .entries
+                        .iter()
+                        .find(|e| e.id == a.action)
+                        .expect("the action came from this base");
+                    assert!(
+                        entry
+                            .techniques
+                            .iter()
+                            .any(|t| t.id == id || t.id.starts_with(&format!("{id}."))),
+                        "{} was returned for {id} without carrying it",
+                        a.action
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_malformed_technique_id_is_rejected_rather_than_reported_as_unmodeled() {
+        // The reason this matters is not input hygiene. Every empty result in
+        // this crate means "not modeled", and describe_coverage exists to make
+        // that checkable. If a typo also produced an absence, a caller could
+        // not tell its own mistake from a real coverage gap — and the guarantee
+        // that absence means something specific would be false.
+        let s = server();
+        for bad in [
+            "",
+            "T105",
+            "T10O5",
+            "attack.t1059",
+            "T1059.1",
+            "1059",
+            "TT1059",
+        ] {
+            let result = s.lookup_technique(Parameters(LookupArgs {
+                technique_id: bad.into(),
                 platform: None,
-            }))
-            .0;
-        assert_eq!(
-            out.platforms.iter().map(|p| p.actions.len()).sum::<usize>(),
-            0,
-            "T105 is not a prefix match for T1059 or T1053"
-        );
+            }));
+            match result {
+                Err(e) => assert!(
+                    e.message.contains("not an ATT&CK technique id"),
+                    "{bad}: {}",
+                    e.message
+                ),
+                Ok(_) => panic!("`{bad}` was answered as though it were a technique id"),
+            }
+        }
+    }
+
+    #[test]
+    fn well_formed_technique_ids_are_accepted() {
+        for good in ["T1059", "T1059.001", "t1105", "  T1053.005  "] {
+            assert!(
+                server()
+                    .lookup_technique(Parameters(LookupArgs {
+                        technique_id: good.into(),
+                        platform: None,
+                    }))
+                    .is_ok(),
+                "{good} is a valid technique id"
+            );
+        }
     }
 
     #[test]
@@ -627,6 +748,7 @@ detection:
                 technique_id: "T9999".into(),
                 platform: None,
             }))
+            .expect("a well-formed id")
             .0;
         assert!(out.summary.contains("NOT a finding"));
         assert!(out.platforms.iter().all(|p| p.actions.is_empty()));
@@ -639,6 +761,7 @@ detection:
                 technique_id: "  t1105  ".into(),
                 platform: Some(PlatformArg::Windows),
             }))
+            .expect("a well-formed id")
             .0;
         assert_eq!(out.technique_id, "T1105");
         assert!(!out.platforms[0].actions.is_empty());

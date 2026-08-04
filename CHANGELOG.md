@@ -51,12 +51,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   bump.
 
 - **`opseclint-core`: the knowledge base and evaluator, as a library.** The repo
-  is now a Cargo workspace of two crates. `crates/opseclint-core` holds
-  everything that computes — the platform knowledge bases, the `match` engine,
-  the parser, the analyzer, the Sigma evaluator, telemetry ingest, and the EDR
-  mapping — and `crates/opseclint` is the CLI over it: argument parsing, the
-  rendered report, and the knowledge-base tooling (`--scaffold`,
-  `--verify-detections`, `--coverage-gaps`).
+  becomes a Cargo workspace — three crates by the end of this release, counting
+  `opseclint-mcp` above. `crates/opseclint-core` holds everything that computes
+  — the platform knowledge bases, the `match` engine, the parser, the analyzer,
+  the Sigma evaluator, telemetry ingest, and the EDR mapping — and
+  `crates/opseclint` is the CLI over it: argument parsing, the rendered report,
+  and the knowledge-base tooling (`--scaffold`, `--verify-detections`,
+  `--coverage-gaps`).
 
   The point is that the binary is now core's *first consumer* rather than its
   owner. Until now the knowledge base was reachable only by running the CLI and
