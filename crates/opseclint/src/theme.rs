@@ -2,6 +2,8 @@
 //! Truecolor ANSI escapes; painting is a no-op when color is disabled
 //! (`--no-color`, `NO_COLOR`, or a non-TTY).
 
+use opseclint_core::Severity;
+
 pub const RED: &str = "\x1b[38;2;247;118;142m"; // #f7768e
 pub const ORANGE: &str = "\x1b[38;2;255;158;100m"; // #ff9e64
 pub const YELLOW: &str = "\x1b[38;2;224;175;104m"; // #e0af68
@@ -15,6 +17,18 @@ pub const COMMENT: &str = "\x1b[38;2;86;95;137m"; // #565f89
 pub const RULE: &str = "\x1b[38;2;65;72;104m"; // #414868
 pub const BOLD: &str = "\x1b[1m";
 pub const RESET: &str = "\x1b[0m";
+
+/// The palette entry for a detectability bucket. Lives here rather than on
+/// `Severity` itself: the severity scale is knowledge, and belongs to
+/// opseclint-core; how it is painted in a terminal is this binary's business.
+pub fn severity_color(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Low => CYAN,
+        Severity::Medium => YELLOW,
+        Severity::High => ORANGE,
+        Severity::Critical => RED,
+    }
+}
 
 /// Wraps text in ANSI color when enabled, else returns it plain.
 pub struct Painter {

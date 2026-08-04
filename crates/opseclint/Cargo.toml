@@ -1,0 +1,35 @@
+[package]
+name = "opseclint"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Detection-coverage analyzer for Linux/auditd, Windows/Sysmon, and macOS/Endpoint Security: resolve shell/command actions to ATT&CK techniques, the telemetry they emit, and the detections that would fire."
+readme = "../../README.md"
+keywords = ["security", "detection", "attack", "sigma", "opsec"]
+categories = ["command-line-utilities", "development-tools"]
+
+# cargo-binstall: fetch a prebuilt binary from the GitHub Release instead of
+# compiling from source. Templated to match the asset layout produced by
+# .github/workflows/release.yml: `opseclint-v<version>-<target>.<ext>`, with the
+# binary nested inside a same-named directory.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }-{ target }{ archive-suffix }"
+pkg-fmt = "tgz"
+bin-dir = "{ name }-v{ version }-{ target }/{ bin }{ binary-ext }"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
+
+[dependencies]
+opseclint-core = { workspace = true, features = ["clap"] }
+clap = { workspace = true }
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+
+[[bin]]
+name = "opseclint"
+path = "src/main.rs"

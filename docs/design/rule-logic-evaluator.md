@@ -88,7 +88,7 @@ With `--telemetry`, the event is **ingested rather than synthesized**, so the
 last row's fields are populated from what the sensor actually recorded and
 `available` grows accordingly — the same evaluator, given a real event.
 
-### Data model (`src/sigma_eval.rs`)
+### Data model (`crates/opseclint-core/src/sigma_eval.rs`)
 
 ```rust
 enum Modifier { Contains, StartsWith, EndsWith, All } // v2: Re, Cidr, Base64, Windash

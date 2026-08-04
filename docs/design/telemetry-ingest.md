@@ -164,7 +164,7 @@ the canonical field names a Sigma rule references (`ParentImage`,
 `IntegrityLevel`, `CurrentDirectory`, …) — and it rides along on each `Finding`
 as `observed_event`. When `--telemetry` is paired with `--sigma` (or feeds
 `--coverage-gaps`), rule evaluation uses
-[`sigma_eval::evaluate_observed`](../../src/sigma_eval.rs) instead of the
+[`sigma_eval::evaluate_observed`](../../crates/opseclint-core/src/sigma_eval.rs) instead of the
 predictive `evaluate`: the recorded fields are overlaid on the synthesized base,
 so a rule keyed on a field a command line cannot supply resolves against the
 real event.

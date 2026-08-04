@@ -33,12 +33,20 @@ use crate::parser::Command;
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Matcher {
+    /// Who ran: the resolved program basename. `None` places no constraint.
     #[serde(default)]
     pub program: Option<ProgramMatch>,
+    /// A predicate tree over the resolved argument vector. `None` places no
+    /// constraint.
     #[serde(default)]
     pub args: Option<ArgPred>,
+    /// A predicate over the whole raw line, for markers that span tokens.
+    /// `None` places no constraint.
     #[serde(default)]
     pub line: Option<LinePred>,
+    /// A predicate over a non-execution record's fields. Orthogonal to the
+    /// three axes above — an entry carrying this is recognized from standalone
+    /// telemetry, with no command line involved.
     #[serde(default)]
     pub event: Option<EventMatch>,
 }
@@ -51,10 +59,17 @@ pub struct Matcher {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EventMatch {
+    /// The event class this applies to: `network`, `file`, or `registry`.
     pub class: String,
+    /// The single event field to test, by its canonical name (e.g. a registry
+    /// `TargetObject`).
     pub field: String,
+    /// The field must contain this substring, case-insensitively. Mutually
+    /// exclusive with `eq`; exactly one of the two is required.
     #[serde(default)]
     pub contains: Option<String>,
+    /// The field must equal this string, case-insensitively. Mutually exclusive
+    /// with `contains`; exactly one of the two is required.
     #[serde(default)]
     pub eq: Option<String>,
 }
@@ -100,7 +115,10 @@ pub enum ProgramMatch {
     /// `"program": "curl"` — exact basename, case-insensitive.
     Exact(String),
     /// `"program": { "any": ["nc", "ncat"] }` — any of these basenames.
-    AnyOf { any: Vec<String> },
+    AnyOf {
+        /// The accepted basenames, case-insensitive.
+        any: Vec<String>,
+    },
 }
 
 /// A predicate over a command's argument vector. Leaf predicates are
@@ -143,7 +161,9 @@ pub enum ArgPred {
 /// A positional argument match: the argument at `index` must satisfy `value`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PosMatch {
+    /// 0-based position in the argument vector, not counting the program.
     pub index: usize,
+    /// The test the argument at `index` must satisfy.
     pub value: StrLeaf,
 }
 
@@ -152,8 +172,11 @@ pub struct PosMatch {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LinePred {
+    /// Every sub-predicate holds.
     All(Vec<LinePred>),
+    /// Some sub-predicate holds.
     Any(Vec<LinePred>),
+    /// The sub-predicate does not hold.
     Not(Box<LinePred>),
     /// The line contains this substring (case-insensitive).
     Contains(String),
@@ -171,10 +194,16 @@ pub enum LinePred {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StrLeaf {
+    /// The value equals this string, case-insensitively.
     Eq(String),
+    /// The value contains this substring, case-insensitively.
     Contains(String),
+    /// The value starts with this string.
     Prefix(String),
+    /// The value ends with this string.
     Suffix(String),
+    /// The value contains this token on word boundaries — `id_rsa` matches
+    /// `id_rsa` but not `id_rsa_notes.txt`.
     Word(String),
     /// A regular expression (case-insensitive) the value must match.
     Regex(Re),
@@ -220,18 +249,18 @@ impl<'de> Deserialize<'de> for Re {
 // --- matching engine -------------------------------------------------------
 
 impl Matcher {
-    /// Evaluate the matcher against a unit's commands and its raw line.
-    ///
-    /// Returns `None` when the matcher does not apply. Returns `Some(mc)` when it
-    /// does, where `mc` is the specific command that matched (for command-scoped
-    /// matchers) or the unit's first command (for line-scoped matchers) — the
-    /// `matched_command` that downstream coverage/Sigma evaluation keys on.
     /// Whether this entry's `event` axis matches a non-execution record of the
     /// given `class` and field map. `false` for a command-only matcher.
     pub fn evaluate_event(&self, class: &str, fields: &HashMap<String, String>) -> bool {
         self.event.as_ref().is_some_and(|e| e.eval(class, fields))
     }
 
+    /// Evaluate the matcher against a unit's commands and its raw line.
+    ///
+    /// Returns `None` when the matcher does not apply. Returns `Some(mc)` when it
+    /// does, where `mc` is the specific command that matched (for command-scoped
+    /// matchers) or the unit's first command (for line-scoped matchers) — the
+    /// `matched_command` that downstream coverage/Sigma evaluation keys on.
     pub fn evaluate(&self, commands: &[Command], raw: &str) -> Option<Option<Command>> {
         if self.program.is_some() {
             commands

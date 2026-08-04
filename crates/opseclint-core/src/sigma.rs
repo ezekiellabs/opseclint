@@ -34,12 +34,21 @@ const CACHE_VERSION: u32 = 3;
 /// rule could be lowered for evaluation).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigmaRule {
+    /// The rule's UUID, as declared in its `id:` field.
     pub id: String,
+    /// The rule's human-readable `title:`.
     pub title: String,
+    /// The rule's declared `level:` (`informational` … `critical`), lowercase
+    /// as written. Used to rank rules when a technique has more of them than a
+    /// report should show.
     pub level: String,
     /// `logsource.category`, empty when the rule does not declare one.
     #[serde(default)]
     pub category: String,
+    /// The parsed detection logic, when the rule could be lowered for
+    /// evaluation. `None` means the rule was indexed for its metadata but its
+    /// `detection:`/`condition:` could not be reduced to something evaluable —
+    /// so it can be reported, but never produce a verdict.
     #[serde(default)]
     pub rule: Option<crate::sigma_eval::DetectionRule>,
 }
@@ -84,7 +93,11 @@ struct SigmaCache {
 #[derive(Debug, Default)]
 pub struct SigmaIndex {
     by_technique: HashMap<String, Vec<SigmaRule>>,
+    /// How many YAML files were read while building this index, including ones
+    /// that yielded no usable rule.
     pub files_scanned: usize,
+    /// How many rules were indexed. Lower than `files_scanned` — rules without
+    /// an ATT&CK tag, or for another platform, are read and set aside.
     pub rules_indexed: usize,
 }
 
@@ -423,7 +436,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn fixtures() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sigma")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/sigma")
     }
 
     #[test]
@@ -486,7 +499,8 @@ mod tests {
         // A rule keyed on ParentImage (a field a command line can't supply) is
         // indeterminate in predictive mode but fires when the same finding
         // carries the real recorded event that names the Office parent.
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sigma-observed");
+        let dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/sigma-observed");
         let index = SigmaIndex::load_dir(&dir, "windows").expect("fixtures load");
         let kb = kb::load(kb::Platform::WindowsSysmon).unwrap();
         let verdict_for = |report: &Report| -> Option<String> {
@@ -525,8 +539,8 @@ mod tests {
         // ESF supplies a real ParentImage from the calling process, so a macOS
         // rule keyed on the osascript parent fires on the ingested exec event
         // where predictive analysis of the same command line is indeterminate.
-        let dir =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sigma-observed-macos");
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/sigma-observed-macos");
         let index = SigmaIndex::load_dir(&dir, "macos").expect("fixtures load");
         let kb = kb::load(kb::Platform::MacosEs).unwrap();
         let verdict_for = |report: &Report| -> Option<String> {
@@ -559,7 +573,7 @@ mod tests {
         // a rule keyed on it fires on ingested telemetry (a curl-named third-party
         // binary) where predictive analysis of the command line is indeterminate.
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/sigma-observed-macos-signing");
+            .join("../../tests/fixtures/sigma-observed-macos-signing");
         let index = SigmaIndex::load_dir(&dir, "macos").expect("fixtures load");
         let kb = kb::load(kb::Platform::MacosEs).unwrap();
         let verdict_for = |report: &Report| -> Option<String> {

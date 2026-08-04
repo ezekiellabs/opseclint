@@ -36,9 +36,25 @@ cleanup() { [ -n "$scratch" ] && rm -rf "$scratch"; return 0; }
 trap cleanup EXIT
 
 crate_version() {
-  # First `version = "..."` in Cargo.toml is the package version; the
-  # [dependencies] table is further down and never reaches this.
-  sed -n 's/^version = "\(.*\)"/\1/p' "$repo_root/Cargo.toml" | head -1
+  # The workspace version, declared once under [workspace.package] and inherited
+  # by both crates. Read from inside that table rather than taken as the first
+  # `version = "..."` in the file: [workspace.dependencies] declares one too (the
+  # opseclint-core requirement), and which table comes first is not a fact worth
+  # depending on.
+  awk '
+    /^\[/ { in_pkg = ($0 == "[workspace.package]") }
+    in_pkg && sub(/^version = "/, "") { sub(/".*/, ""); print; exit }
+  ' "$repo_root/Cargo.toml"
+}
+
+# The version of opseclint-core that the binary declares it needs. Published
+# together and pinned to each other, so this must equal crate_version(); check()
+# enforces it, because the failure is invisible locally — a path dependency
+# resolves fine no matter what the requirement says, and the mismatch only
+# surfaces as an `opseclint` on crates.io built against one evaluator and
+# requiring another.
+core_dep_version() {
+  sed -n 's/^opseclint-core = .*version = "\([^"]*\)".*/\1/p' "$repo_root/Cargo.toml" | head -1
 }
 
 sha256_of() {
@@ -75,10 +91,21 @@ MANIFESTS=(
 )
 
 check() {
-  local want rc=0 got
+  local want rc=0 got core
   want=$(crate_version)
-  [ -n "$want" ] || die "could not read version from Cargo.toml"
+  [ -n "$want" ] || die "could not read [workspace.package] version from Cargo.toml"
   printf 'Cargo.toml declares %s\n' "$want"
+
+  core=$(core_dep_version)
+  if [ -z "$core" ]; then
+    printf '  %-46s no version found\n' "opseclint-core requirement"
+    rc=1
+  elif [ "$core" != "$want" ]; then
+    printf '  %-46s %s  != %s\n' "opseclint-core requirement" "$core" "$want"
+    rc=1
+  else
+    printf '  %-46s %s  ok\n' "opseclint-core requirement" "$core"
+  fi
 
   for m in "${MANIFESTS[@]}"; do
     got=$(manifest_version "$m" | head -1)
@@ -159,9 +186,12 @@ FOREIGN_VERSION='ManifestVersion:|yaml-language-server:|schema [0-9]'
 
 # After a bump, nothing outside FOREIGN_VERSION may still carry the old version.
 # Catches both ways the allowlist can be wrong: a pattern that stopped matching,
-# and a line nobody remembered to list.
+# and a line nobody remembered to list. `$1` is a path relative to $pkg, or an
+# absolute path (the root Cargo.toml, which is not a packaging manifest but has
+# the same failure mode).
 assert_bumped() {
-  local m="$1" old_re="$2" new_re="$3" n line residual=""
+  local m="$1" old_re="$2" new_re="$3" n line residual="" file
+  case "$m" in /*) file="$m" ;; *) file="$pkg/$m" ;; esac
   # Scrub the new version out of each line before looking for the old one. When
   # `new` has `old` as a prefix — `1.3.0-rc.1` -> `1.3.0-rc.10`, or gaining a
   # `+build` suffix — a correctly rewritten line still *contains* the old
@@ -169,12 +199,12 @@ assert_bumped() {
   # succeeded. Line numbering survives `s///`, so the numbers still address the
   # original file and the message quotes the real line.
   while IFS= read -r n; do
-    line=$(sed -n "${n}p" "$pkg/$m")
+    line=$(sed -n "${n}p" "$file")
     if ! printf '%s\n' "$line" | grep -Eq "$FOREIGN_VERSION"; then
       residual+="  $n: $line"$'\n'
     fi
-  done < <(sed "s/$new_re//g" "$pkg/$m" | grep -n "$old_re" | cut -d: -f1)
-  [ -z "$residual" ] || die "packaging/$m still carries the old version after the bump:
+  done < <(sed "s/$new_re//g" "$file" | grep -n "$old_re" | cut -d: -f1)
+  [ -z "$residual" ] || die "${file#"$repo_root"/} still carries the old version after the bump:
 $residual  Add the line to version_lines() in $(basename "${BASH_SOURCE[0]}")."
 }
 
@@ -199,14 +229,24 @@ bump() {
   require_semver "$new"
   old=$(crate_version)
   if [ "$old" != "$new" ]; then
-    # First match only, and awk rather than sed: the `0,/re/` address range is a
-    # GNU extension that BSD sed (macOS) rejects, and release work happens on
-    # both. Exact string compare, so no regex escaping to get wrong either.
+    # Two declarations move, not one: the workspace version both crates inherit,
+    # and the opseclint-core requirement the binary is published against. They
+    # are pinned to each other on purpose (see core_dep_version).
+    #
+    # awk rather than sed: the `0,/re/` address range is a GNU extension that
+    # BSD sed (macOS) rejects, and release work happens on both. The
+    # [workspace.package] line is an exact string compare, so no regex escaping
+    # to get wrong; the dependency line is addressed by its key, so a `version`
+    # belonging to some other dependency is never in reach.
     scratch=${scratch:-$(mktemp -d)}
-    awk -v old="version = \"$old\"" -v new="version = \"$new\"" '
-      !done && $0 == old { print new; done = 1; next } { print }
+    awk -v old="$old" -v new="$new" '
+      /^\[/ { in_pkg = ($0 == "[workspace.package]") }
+      in_pkg && $0 == "version = \"" old "\"" { print "version = \"" new "\""; next }
+      /^opseclint-core = / { gsub("version = \"" old "\"", "version = \"" new "\"") }
+      { print }
     ' "$repo_root/Cargo.toml" > "$scratch/Cargo.toml"
     mv "$scratch/Cargo.toml" "$repo_root/Cargo.toml"
+    assert_bumped "$repo_root/Cargo.toml" "${old//./\\.}" "${new//./\\.}"
     printf 'Cargo.toml %s -> %s\n' "$old" "$new"
   fi
   bump_versions "$new"

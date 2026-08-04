@@ -8,7 +8,6 @@
 
 use std::collections::BTreeMap;
 
-use clap::ValueEnum;
 use serde::Deserialize;
 
 use crate::model::{EdrMapping, Report};
@@ -16,17 +15,30 @@ use crate::model::{EdrMapping, Report};
 const EMBEDDED: &str = include_str!("../data/edr-telemetry.json");
 
 /// An EDR product to map telemetry against. `All` expands to every vendor.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
 pub enum Vendor {
-    #[value(name = "crowdstrike", alias = "falcon", alias = "cs")]
+    /// CrowdStrike Falcon.
+    #[cfg_attr(
+        feature = "clap",
+        value(name = "crowdstrike", alias = "falcon", alias = "cs")
+    )]
     CrowdStrike,
-    #[value(name = "defender", alias = "mde", alias = "msde")]
+    /// Microsoft Defender for Endpoint.
+    #[cfg_attr(
+        feature = "clap",
+        value(name = "defender", alias = "mde", alias = "msde")
+    )]
     Defender,
-    #[value(name = "sentinelone", alias = "s1")]
+    /// SentinelOne.
+    #[cfg_attr(feature = "clap", value(name = "sentinelone", alias = "s1"))]
     SentinelOne,
-    #[value(name = "elastic", alias = "elastic-defend")]
+    /// Elastic Defend.
+    #[cfg_attr(feature = "clap", value(name = "elastic", alias = "elastic-defend"))]
     Elastic,
-    #[value(name = "all")]
+    /// Every vendor above, in display order. Not a product — a selection that
+    /// [`Vendor::expand`] resolves to the four concrete ones.
+    #[cfg_attr(feature = "clap", value(name = "all"))]
     All,
 }
 

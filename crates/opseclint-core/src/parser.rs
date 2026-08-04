@@ -11,8 +11,18 @@
 /// text of the line it came from.
 #[derive(Debug, Clone)]
 pub struct Command {
+    /// The program's basename, with any wrapper (`sudo`, `env`, …) already
+    /// stripped and a path reduced to its final segment: `/usr/bin/curl` and
+    /// `sudo curl` both resolve to `curl`.
     pub program: String,
+    /// The argument vector, without the program itself. Quotes are removed and
+    /// `VAR=value` assignments dropped, so these are the values as the program
+    /// would receive them.
     pub args: Vec<String>,
+    /// The raw source line this command came from, kept whole. Line-scoped
+    /// predicates (redirections, pipes, markers that span tokens) test against
+    /// this rather than the tokens, so a command extracted from a pipeline
+    /// still sees the pipeline it sat in.
     pub raw: String,
 }
 
@@ -183,7 +193,7 @@ pub fn parse_line(line: &str) -> Vec<Command> {
 /// continuations) plus the physical line it started on. Here-doc bodies fed to
 /// a shell interpreter are emitted as their own units at their real line.
 #[derive(Debug, Clone)]
-pub struct Unit {
+pub(crate) struct Unit {
     pub line: usize,
     pub text: String,
 }
@@ -226,7 +236,7 @@ fn feeds_interpreter(text: &str) -> bool {
 
 /// Extract the inner text of every `$(...)` and backtick command substitution,
 /// recursing into nested `$(...)`.
-pub fn command_substitutions(text: &str) -> Vec<String> {
+pub(crate) fn command_substitutions(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let bytes = text.as_bytes();
     let mut i = 0;
@@ -273,7 +283,7 @@ pub fn command_substitutions(text: &str) -> Vec<String> {
 /// `\`, `|`, `&&`, `||`) and here-docs. A here-doc body is treated as data and
 /// skipped, unless the command consuming it is a shell/interpreter, in which
 /// case each body line becomes its own unit at its physical line number.
-pub fn preprocess(input: &str) -> Vec<Unit> {
+pub(crate) fn preprocess(input: &str) -> Vec<Unit> {
     let phys: Vec<&str> = input.lines().collect();
     let mut units = Vec::new();
     let mut i = 0;

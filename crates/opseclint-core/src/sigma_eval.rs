@@ -127,22 +127,48 @@ enum Cond {
 /// A parsed Sigma rule reduced to what the evaluator needs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DetectionRule {
+    /// The source rule's UUID, carried through so a verdict can be traced back.
     pub id: String,
+    /// The source rule's `title:`.
     pub title: String,
     searches: HashMap<String, Search>,
     condition: Cond,
 }
 
 /// The verdict of evaluating a rule against a command.
+///
+/// Three-valued (Kleene), and the third value is the point. A command line is
+/// not a host event, so a rule keyed on something the input cannot carry has no
+/// answer here — not a negative one.
+///
+/// **Do not collapse this to a boolean.** [`Indeterminate`](Outcome::Indeterminate)
+/// mapped to "not detected" is the single failure mode this evaluator exists to
+/// prevent: it converts *"I cannot see enough to say"* into *"nothing would
+/// fire"*, which reads as evidence of stealth and is nothing of the kind. If a
+/// caller must reduce to two values, the safe direction is to treat
+/// `Indeterminate` as unresolved and say so.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outcome {
+    /// The rule's condition is satisfied: it would fire on this input.
     Fires,
+    /// The rule's condition is definitively not satisfied on fields the input
+    /// does supply. A real negative, not an absence of information.
     NoFire,
+    /// The rule could not be decided from this input — it references a field
+    /// that could not be synthesized, or a modifier the evaluator does not
+    /// implement. See [`Verdict::missing_fields`] and
+    /// [`Verdict::blocking_modifiers`] for which.
     Indeterminate,
 }
 
+/// An [`Outcome`] together with why it came out that way.
+///
+/// For an `Indeterminate` outcome the two detail fields are the whole value of
+/// the verdict: they name what the input would have to carry for the question
+/// to become answerable. Surface them rather than the outcome alone.
 #[derive(Debug, Clone)]
 pub struct Verdict {
+    /// The three-valued result. Read [`Outcome`] before reducing it.
     pub outcome: Outcome,
     /// For `Indeterminate`: referenced fields opseclint cannot synthesize.
     pub missing_fields: Vec<String>,
@@ -237,7 +263,7 @@ pub fn parse_rule(yaml: &str) -> Option<DetectionRule> {
 }
 
 /// Parse an already-deserialized Sigma rule document into a [`DetectionRule`].
-pub fn parse_rule_value(doc: &Value) -> Option<DetectionRule> {
+pub(crate) fn parse_rule_value(doc: &Value) -> Option<DetectionRule> {
     let det = doc.get("detection")?.as_mapping()?;
 
     let mut searches = HashMap::new();

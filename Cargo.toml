@@ -1,35 +1,22 @@
-[package]
-name = "opseclint"
+[workspace]
+members = ["crates/opseclint-core", "crates/opseclint"]
+resolver = "3"
+
+# Both crates release together and share one version: `opseclint` depends on the
+# exact `opseclint-core` it was built against, so a core change that moves the
+# analysis behaviour cannot reach users under an unchanged binary version.
+# scripts/sync-packaging.sh reads the version from here.
+[workspace.package]
 version = "1.2.0"
 edition = "2024"
-description = "Detection-coverage analyzer for Linux/auditd, Windows/Sysmon, and macOS/Endpoint Security: resolve shell/command actions to ATT&CK techniques, the telemetry they emit, and the detections that would fire."
 license = "MIT"
 repository = "https://github.com/ezekiellabs/opseclint"
 homepage = "https://github.com/ezekiellabs/opseclint"
-readme = "README.md"
-keywords = ["security", "detection", "attack", "sigma", "opsec"]
-categories = ["command-line-utilities", "development-tools"]
-exclude = ["/.github", "/docs", "/examples", "/tests/fixtures"]
 
-# cargo-binstall: fetch a prebuilt binary from the GitHub Release instead of
-# compiling from source. Templated to match the asset layout produced by
-# .github/workflows/release.yml: `opseclint-v<version>-<target>.<ext>`, with the
-# binary nested inside a same-named directory.
-[package.metadata.binstall]
-pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }-{ target }{ archive-suffix }"
-pkg-fmt = "tgz"
-bin-dir = "{ name }-v{ version }-{ target }/{ bin }{ binary-ext }"
-
-[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
-pkg-fmt = "zip"
-
-[dependencies]
+[workspace.dependencies]
+opseclint-core = { version = "1.2.0", path = "crates/opseclint-core" }
 clap = { version = "4", features = ["derive"] }
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
-
-[[bin]]
-name = "opseclint"
-path = "src/main.rs"

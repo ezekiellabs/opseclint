@@ -21,10 +21,14 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Verify the package builds
-        run: cargo publish --dry-run --locked
+      # --workspace publishes opseclint-core before opseclint and verifies the
+      # binary against the core it just packaged, so the two never drift apart
+      # on crates.io. Publishing them one at a time would leave a window where
+      # `cargo install opseclint` resolves against a core that is not there yet.
+      - name: Verify the packages build
+        run: cargo publish --workspace --dry-run --locked
 
       - name: Publish
-        run: cargo publish --locked
+        run: cargo publish --workspace --locked
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

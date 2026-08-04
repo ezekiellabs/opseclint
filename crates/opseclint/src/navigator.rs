@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::model::Report;
+use opseclint_core::model::Report;
 
 #[derive(Serialize)]
 pub struct Layer {
@@ -118,7 +118,7 @@ pub fn render(report: &Report) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{analyzer, kb};
+    use opseclint_core::{analyzer, kb};
 
     #[test]
     fn navigator_layer_has_expected_shape() {
