@@ -48,10 +48,10 @@ done
 
 | target | archive | SHA256 |
 |---|---|---|
-| x86_64-unknown-linux-gnu | .tar.gz | `a2898439b8df630d49249ffa4748f821abe351f06d286d9ed8a216c582ba8179` |
-| aarch64-apple-darwin | .tar.gz | `338d5abd7a80b47f8d522e6dc576ef3aa78be6580c83352ea43939bcfa59a97b` |
-| x86_64-apple-darwin | .tar.gz | `362ebf63ee34d859781103b466573cf3f607f079781e6e348c7bc47104bbcdfd` |
-| x86_64-pc-windows-msvc | .zip | `1edde8dcb4f2f46c70ff0089454ce5a35147ed209900e577ed463b1634c207b7` |
+| x86_64-unknown-linux-gnu | .tar.gz | `c785a675b02a481c67c1775b6e77f390e88f9d570454b79dc3cb3fd57d0f5911` |
+| aarch64-apple-darwin | .tar.gz | `f190f7a4830938d0b3d28b024089255682da79c71eb7bbb31cd2ef14efa108ad` |
+| x86_64-apple-darwin | .tar.gz | `c6a998d3c9468bc9467945c412b2807ffc1521c093e23225e634856efb794b42` |
+| x86_64-pc-windows-msvc | .zip | `b3bf8aabded20690660cd4e866147d471a9422b9aa709a4f3696f5b2ecb86a0d` |
 
 ## Homebrew — `homebrew/opseclint.rb`
 

@@ -8,6 +8,6 @@ pkgbase = opseclint-bin
 	provides = opseclint
 	conflicts = opseclint
 	source = opseclint-1.3.0.tar.gz::https://github.com/ezekiellabs/opseclint/releases/download/v1.3.0/opseclint-v1.3.0-x86_64-unknown-linux-gnu.tar.gz
-	sha256sums = a2898439b8df630d49249ffa4748f821abe351f06d286d9ed8a216c582ba8179
+	sha256sums = c785a675b02a481c67c1775b6e77f390e88f9d570454b79dc3cb3fd57d0f5911
 
 pkgname = opseclint-bin

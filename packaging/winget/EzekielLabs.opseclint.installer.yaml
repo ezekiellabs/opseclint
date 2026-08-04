@@ -11,6 +11,6 @@ Installers:
       - RelativeFilePath: opseclint-v1.3.0-x86_64-pc-windows-msvc/opseclint-mcp.exe
         PortableCommandAlias: opseclint-mcp
     InstallerUrl: https://github.com/ezekiellabs/opseclint/releases/download/v1.3.0/opseclint-v1.3.0-x86_64-pc-windows-msvc.zip
-    InstallerSha256: 1EDDE8DCB4F2F46C70FF0089454CE5A35147ED209900E577ED463B1634C207B7
+    InstallerSha256: B3BF8AABDED20690660CD4E866147D471A9422B9AA709A4F3696F5B2ECB86A0D
 ManifestType: installer
 ManifestVersion: 1.12.0
