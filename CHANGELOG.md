@@ -47,10 +47,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   instructions from a model, and the safest one has nothing to reach for.
 
   Built on `rmcp` 3.1, the official Rust MCP SDK. Release archives carry both
-  binaries from the next release onward; the package-manager manifests still
-  install only `opseclint`, because they describe the published v1.2.0 artifacts
-  — see `packaging/README.md` for the step that belongs to the next version
-  bump.
+  binaries, and every package manifest installs both: `brew install`,
+  `scoop install`, the AUR package, and `winget install` all put `opseclint-mcp`
+  on your path alongside `opseclint`. It is also on crates.io —
+  `cargo install opseclint-mcp`.
 
 - **`opseclint-core`: the knowledge base and evaluator, as a library.** The repo
   becomes a Cargo workspace — three crates by the end of this release, counting
