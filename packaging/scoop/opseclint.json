@@ -6,7 +6,7 @@
     "architecture": {
         "64bit": {
             "url": "https://github.com/ezekiellabs/opseclint/releases/download/v1.3.0/opseclint-v1.3.0-x86_64-pc-windows-msvc.zip",
-            "hash": "1edde8dcb4f2f46c70ff0089454ce5a35147ed209900e577ed463b1634c207b7",
+            "hash": "b3bf8aabded20690660cd4e866147d471a9422b9aa709a4f3696f5b2ecb86a0d",
             "extract_dir": "opseclint-v1.3.0-x86_64-pc-windows-msvc"
         }
     },
