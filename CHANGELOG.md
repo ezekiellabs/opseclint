@@ -6,8 +6,59 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`opseclint-core`: the knowledge base and evaluator, as a library.** The repo
+  is now a Cargo workspace of two crates. `crates/opseclint-core` holds
+  everything that computes — the platform knowledge bases, the `match` engine,
+  the parser, the analyzer, the Sigma evaluator, telemetry ingest, and the EDR
+  mapping — and `crates/opseclint` is the CLI over it: argument parsing, the
+  rendered report, and the knowledge-base tooling (`--scaffold`,
+  `--verify-detections`, `--coverage-gaps`).
+
+  The point is that the binary is now core's *first consumer* rather than its
+  owner. Until now the knowledge base was reachable only by running the CLI and
+  parsing its output, which meant the second tool built on this data would have
+  had to fork it — and two copies of a knowledge base is how a toolkit dies.
+
+  No behavior changes: same output, same flags, same 164 tests. The library
+  carries the same commitment the CLI ships under, and one of them matters more
+  through an API than through a report a human reads — `sigma_eval` is
+  three-valued, and `INDETERMINATE` is a verdict, not a soft no. A consumer that
+  rounds it to "not detected" converts a careful abstention into a false claim
+  of stealth.
+
+  For consumers: `cargo add opseclint-core`. `clap::ValueEnum` on `Platform`,
+  `telemetry::Format`, and `edr::Vendor` now sits behind an off-by-default
+  `clap` feature, so a library user does not inherit an argument parser;
+  `Severity::color()` moved to the binary, where terminal palettes belong.
+
+  The public surface was narrowed before publishing rather than after, since
+  every name in it becomes a semver commitment the moment 1.3.0 ships.
+  `parser::preprocess`, `parser::Unit`, `parser::command_substitutions`, and
+  `sigma_eval::parse_rule_value` are now `pub(crate)` — implementation details
+  of `analyzer::analyze` and the rule parser, not entry points. The last of
+  those also takes `serde_yaml::Value` out of the public API, which matters
+  because serde_yaml 0.9 is deprecated and would otherwise have been a
+  breaking-change liability in a signature we had promised to keep.
+
+  `opseclint-core` is `#![warn(missing_docs)]` and CI builds docs with
+  `-D warnings`. Every public item — 63 items and 84 fields — carries
+  documentation. That is worth the effort in a knowledge-base crate
+  specifically: a field named `noise` or a variant named `Indeterminate` means
+  something precise, and a consumer who guesses gets a plausible wrong answer
+  instead of a compile error.
+
 ### Changed
 
+- **`kb::load` returns `KbError` instead of `serde_json::Error`.** The old
+  signature routed semantic validation failures through
+  `serde_json::Error::custom`, so a caller could not tell "this JSON is not a
+  knowledge base" from "this knowledge base is malformed" — the two are
+  different problems with different fixes. `KbError::Parse` and
+  `KbError::Invalid` separate them, and it implements `std::error::Error` with
+  `source()`, so it composes with `anyhow`, `thiserror`, and `?`. The CLI's
+  output is unchanged; it only ever printed `Display`.
 - **`--verify-detections` and `--coverage-gaps` no longer count rules that were
   never addressed to a command line.** Candidate rules are selected by ATT&CK
   technique tag, and a technique's rules span event classes — `ps_script`,

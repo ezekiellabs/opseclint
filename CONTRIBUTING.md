@@ -6,12 +6,28 @@ changes, not code.
 
 ## Development setup
 
-opseclint is a single Rust crate (edition 2024, stable toolchain).
+opseclint is a Cargo workspace of two crates (edition 2024, stable toolchain):
+
+- **`crates/opseclint-core`** — the knowledge base and everything that computes
+  over it: the `match` engine, the Sigma evaluator, telemetry ingest, the EDR
+  mapping. Published as a library so other tools build on this data rather than
+  fork it.
+- **`crates/opseclint`** — the CLI: argument parsing, the rendered report, and
+  the knowledge-base tooling (`--scaffold`, `--verify-detections`,
+  `--coverage-gaps`). The binary is core's first consumer, not its owner.
+
+New coverage and matching logic almost always belong in core; anything about
+how output *looks* belongs in the binary.
 
 ```bash
 cargo build
 cargo test
 ```
+
+Both crates build and test together from the workspace root. `opseclint-core`
+must also stand on its own without the CLI's dependencies, which CI checks with
+`cargo test -p opseclint-core` — that build has no `clap` feature, so a stray
+`use clap::…` in core fails there while passing a workspace build.
 
 Before opening a PR, run the same gates CI enforces:
 
@@ -28,9 +44,9 @@ cargo test
 
 Coverage lives in the per-platform knowledge bases:
 
-- `data/knowledge.json` — Linux / auditd
-- `data/knowledge-windows.json` — Windows / Sysmon
-- `data/knowledge-macos.json` — macOS / Endpoint Security
+- `crates/opseclint-core/data/knowledge.json` — Linux / auditd
+- `crates/opseclint-core/data/knowledge-windows.json` — Windows / Sysmon
+- `crates/opseclint-core/data/knowledge-macos.json` — macOS / Endpoint Security
 
 Each entry maps an action to ATT&CK technique(s), the telemetry it emits,
 representative Sigma-style detections, and a detectability score. Matching is
@@ -56,8 +72,8 @@ avoid false positives, and reach for `regex` only when the fixed leaves can't
 express the shape (an entry that uses `regex` must also carry an `example`). The
 full reference is [docs/design/match-schema.md](docs/design/match-schema.md).
 
-Keep `id`s unique within a file, and add a matching test in `src/analyzer.rs`
-when you introduce a notable technique.
+Keep `id`s unique within a file, and add a matching test in
+`crates/opseclint-core/src/analyzer.rs` when you introduce a notable technique.
 
 ## Guidelines
 

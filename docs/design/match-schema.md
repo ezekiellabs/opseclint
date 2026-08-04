@@ -3,10 +3,10 @@
 **Status:** current
 **Scope:** how a knowledge-base entry decides whether it applies to a line.
 
-Every entry in `data/knowledge*.json` carries a required `match` object — a small
+Every entry in `crates/opseclint-core/data/knowledge*.json` carries a required `match` object — a small
 structured predicate over a parsed command and its raw line. It replaced the old
 `command` / `args_contains` / `raw_contains` substring fields. The engine lives
-in [`src/matcher.rs`](../../src/matcher.rs).
+in [`crates/opseclint-core/src/matcher.rs`](../../crates/opseclint-core/src/matcher.rs).
 
 `match` describes **detectability** only ("what would a defender see?"). It never
 encodes evasion.
@@ -127,7 +127,7 @@ knowledge bases avoid false positives:
 
 ## Self-consistency invariant
 
-A test (`every_entry_matches_its_own_representative` in `src/analyzer.rs`)
+A test (`every_entry_matches_its_own_representative` in `crates/opseclint-core/src/analyzer.rs`)
 derives a representative command from each entry — its `example` if present, else
 one built from the `match` literals — and asserts the entry fires on it. If you
 write a matcher whose own representative can't match it, that test fails — which

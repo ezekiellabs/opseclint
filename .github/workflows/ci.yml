@@ -37,6 +37,23 @@ jobs:
       - name: Test
         run: cargo test --verbose
 
+      # A workspace build enables opseclint-core's `clap` feature, because the
+      # binary asks for it. Building core alone is the only configuration that
+      # proves the library still stands without the CLI's dependencies — a
+      # stray `use clap::…` in core passes the step above and fails here.
+      - name: Test opseclint-core standalone
+        run: cargo test -p opseclint-core --verbose
+
+      # opseclint-core is `#![warn(missing_docs)]`, which this promotes to an
+      # error. A knowledge-base crate whose fields are undocumented invites the
+      # consumer to guess what `noise` or `Indeterminate` means, and a guess
+      # here produces a plausible wrong answer rather than a compile error.
+      # Also catches broken intra-doc links before they reach docs.rs.
+      - name: Docs
+        run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
   packaging:
     name: packaging version parity
     runs-on: ubuntu-latest

