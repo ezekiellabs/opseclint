@@ -6,7 +6,7 @@ changes, not code.
 
 ## Development setup
 
-opseclint is a Cargo workspace of two crates (edition 2024, stable toolchain):
+opseclint is a Cargo workspace of three crates (edition 2024, stable toolchain):
 
 - **`crates/opseclint-core`** — the knowledge base and everything that computes
   over it: the `match` engine, the Sigma evaluator, telemetry ingest, the EDR
@@ -14,10 +14,17 @@ opseclint is a Cargo workspace of two crates (edition 2024, stable toolchain):
   fork it.
 - **`crates/opseclint`** — the CLI: argument parsing, the rendered report, and
   the knowledge-base tooling (`--scaffold`, `--verify-detections`,
-  `--coverage-gaps`). The binary is core's first consumer, not its owner.
+  `--coverage-gaps`).
+- **`crates/opseclint-mcp`** — an MCP server over the same core, for agents.
 
-New coverage and matching logic almost always belong in core; anything about
-how output *looks* belongs in the binary.
+The two binaries are core's *consumers*, not its owners. New coverage and
+matching logic almost always belong in core; anything about how a result is
+*presented* belongs in whichever consumer presents it.
+
+A note on the MCP crate specifically: its result types exist to keep an
+abstention from being read as a negative, and the tests in `server.rs` under
+"the uncertainty contract" hold that property. Treat those as load-bearing —
+if a change makes one fail, the fix is almost never to relax the test.
 
 ```bash
 cargo build
