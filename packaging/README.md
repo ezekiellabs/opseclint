@@ -2,7 +2,7 @@
 
 Package-manager manifests for opseclint, staged here and version-controlled. Each
 is copied into its real destination repo at submit time. All hashes are for the
-**v1.2.0** GitHub Release artifacts.
+**v1.3.0** GitHub Release artifacts.
 
 The whole bump is scripted — prefer
 [`scripts/sync-packaging.sh`](../scripts/sync-packaging.sh) over hand-editing.
@@ -31,27 +31,6 @@ Two gates keep this honest:
 Neither gate can tell you whether a manifest was actually *submitted* to its
 destination registry; those four submissions are still manual (below).
 
-### Outstanding: `opseclint-mcp` is not yet in these manifests
-
-Release archives carry **two** binaries from the next release onward —
-`opseclint` and `opseclint-mcp`. The manifests here still install only the
-first, deliberately: they describe the artifacts of the **published** v1.2.0,
-which contains one binary, and a manifest that promises a file the release does
-not have is worse than one that ships less than it could.
-
-So this is a step of the *next* version bump, not a change to make now. At that
-bump, alongside `--bump X.Y.Z`, add the second binary to each manifest:
-
-| manifest | change |
-|---|---|
-| `homebrew/opseclint.rb` | a second `bin.install Dir["**/opseclint-mcp"].first` (the existing glob is exact and will not pick it up) |
-| `scoop/opseclint.json` | `"bin"` becomes `["opseclint.exe", "opseclint-mcp.exe"]` |
-| `aur/PKGBUILD` | a second `install -Dm755 opseclint-mcp ...`, then regenerate `.SRCINFO` |
-| `winget/…installer.yaml` | a second entry under `NestedInstallerFiles` with `PortableCommandAlias: opseclint-mcp` |
-
-Until then, the MCP server installs from crates.io with
-`cargo install opseclint-mcp`, or from the release archive directly.
-
 To regenerate the hashes by hand:
 
 ```sh
@@ -65,7 +44,7 @@ for a in \
 done
 ```
 
-## v1.2.0 artifact hashes
+## v1.3.0 artifact hashes
 
 | target | archive | SHA256 |
 |---|---|---|

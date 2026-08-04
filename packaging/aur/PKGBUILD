@@ -1,7 +1,7 @@
 # Maintainer: Garrett Allen <garrettallen2@gmail.com>
 # Destination: ssh://aur@aur.archlinux.org/opseclint-bin.git
 pkgname=opseclint-bin
-pkgver=1.2.0
+pkgver=1.3.0
 pkgrel=1
 pkgdesc="Detection-coverage analyzer: map shell/command actions to ATT&CK techniques, host telemetry, and the detections that would fire"
 arch=('x86_64')
@@ -15,6 +15,7 @@ sha256sums=('a2898439b8df630d49249ffa4748f821abe351f06d286d9ed8a216c582ba8179')
 package() {
     cd "${srcdir}/opseclint-v${pkgver}-x86_64-unknown-linux-gnu"
     install -Dm755 opseclint "${pkgdir}/usr/bin/opseclint"
+    install -Dm755 opseclint-mcp "${pkgdir}/usr/bin/opseclint-mcp"
     install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
     install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
 }
