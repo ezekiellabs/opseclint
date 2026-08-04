@@ -8,13 +8,56 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`opseclint-mcp`: the knowledge base as an MCP server.** A third crate,
+  producing a second binary that speaks [MCP](https://modelcontextprotocol.io)
+  over stdio on top of `opseclint-core`. Four tools: `analyze_command`,
+  `lookup_technique`, `evaluate_sigma_rule`, and `describe_coverage`.
+
+  Agents are being pointed at security work right now with no ground truth —
+  they hallucinate detections and confidently misjudge what is observable. This
+  puts a real knowledge base and a real evaluator behind the question.
+
+  **The interesting part is not the plumbing, it is the result shape.** Agents
+  amplify whatever they are given, which turns opseclint's abstain-honestly
+  property from a nice trait into a load-bearing one: an `INDETERMINATE` that an
+  agent silently rounds to "not detected" manufactures evidence of stealth out
+  of an honest abstention, and is worse than no answer at all. So the results
+  are designed against that specifically. No field in any result is a boolean
+  about whether something was detected — the verdict is a three-variant enum,
+  and the one boolean nearby (`verdict_is_conclusive`) is about the verdict's
+  *standing*, with `false` as its unsafe-to-ignore value. Every result carries a
+  prose `summary` first in declaration order, so it leads the JSON a client
+  renders as text, and a `limits` list naming what the answer does not
+  establish. An empty result says "no *modeled* action matched" and points at
+  `describe_coverage`, which exists so that "nothing matched" is always
+  distinguishable from "not modeled". The contract is also delivered in the
+  server's `instructions`, which reach the client before any tool is called.
+
+  None of this can make an agent reason well. What it does is make the
+  uncertainty impossible to drop *silently*: reporting certainty here requires
+  having discarded a field that said otherwise in plain words. The tests under
+  "the uncertainty contract" in `server.rs` hold the property, including the
+  converse — that a real `no_fire` stays conclusive, since a server that
+  abstained on everything would be equally useless.
+
+  The server makes no network calls and reads no files. `evaluate_sigma_rule`
+  takes rule text inline rather than a directory path: an MCP server takes
+  instructions from a model, and the safest one has nothing to reach for.
+
+  Built on `rmcp` 3.1, the official Rust MCP SDK. Release archives carry both
+  binaries from the next release onward; the package-manager manifests still
+  install only `opseclint`, because they describe the published v1.2.0 artifacts
+  — see `packaging/README.md` for the step that belongs to the next version
+  bump.
+
 - **`opseclint-core`: the knowledge base and evaluator, as a library.** The repo
-  is now a Cargo workspace of two crates. `crates/opseclint-core` holds
-  everything that computes — the platform knowledge bases, the `match` engine,
-  the parser, the analyzer, the Sigma evaluator, telemetry ingest, and the EDR
-  mapping — and `crates/opseclint` is the CLI over it: argument parsing, the
-  rendered report, and the knowledge-base tooling (`--scaffold`,
-  `--verify-detections`, `--coverage-gaps`).
+  becomes a Cargo workspace — three crates by the end of this release, counting
+  `opseclint-mcp` above. `crates/opseclint-core` holds everything that computes
+  — the platform knowledge bases, the `match` engine, the parser, the analyzer,
+  the Sigma evaluator, telemetry ingest, and the EDR mapping — and
+  `crates/opseclint` is the CLI over it: argument parsing, the rendered report,
+  and the knowledge-base tooling (`--scaffold`, `--verify-detections`,
+  `--coverage-gaps`).
 
   The point is that the binary is now core's *first consumer* rather than its
   owner. Until now the knowledge base was reachable only by running the CLI and

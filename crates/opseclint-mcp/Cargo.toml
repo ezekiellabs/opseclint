@@ -1,0 +1,24 @@
+[package]
+name = "opseclint-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "MCP server over opseclint's detection knowledge base: what a command emits, what detects it, and — honestly — what cannot be determined."
+readme = "README.md"
+keywords = ["mcp", "security", "detection", "attack", "sigma"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+opseclint-core = { workspace = true }
+# schemars comes from rmcp's re-export rather than a direct dependency, so the
+# derive and the SDK can never disagree about which version generated a schema.
+rmcp = { version = "3.1", features = ["server", "macros", "schemars", "transport-io"] }
+serde.workspace = true
+serde_json.workspace = true
+tokio = { version = "1", features = ["rt", "macros", "io-std"] }
+
+[[bin]]
+name = "opseclint-mcp"
+path = "src/main.rs"

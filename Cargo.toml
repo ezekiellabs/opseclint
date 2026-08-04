@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/opseclint-core", "crates/opseclint"]
+members = ["crates/opseclint-core", "crates/opseclint", "crates/opseclint-mcp"]
 resolver = "3"
 
 # Both crates release together and share one version: `opseclint` depends on the

@@ -65,6 +65,7 @@
         <li><a href="#detectability-score">Detectability score</a></li>
         <li><a href="#how-it-works">How it works</a></li>
         <li><a href="#use-it-as-a-library">Use it as a library</a></li>
+        <li><a href="#use-it-from-an-agent">Use it from an agent</a></li>
       </ul>
     </li>
     <li><a href="#whats-shipped">What's shipped</a></li>
@@ -477,6 +478,36 @@ human reads: rule evaluation is three-valued. `INDETERMINATE` means the input
 could not answer the question — treat it as its own verdict, never as "not
 detected". Full docs at [docs.rs/opseclint-core](https://docs.rs/opseclint-core).
 
+### Use it from an agent
+
+[`opseclint-mcp`](crates/opseclint-mcp) is an [MCP](https://modelcontextprotocol.io)
+server over the same knowledge base, so an agent doing security work can ask
+what a command emits instead of guessing.
+
+```sh
+cargo install opseclint-mcp
+```
+
+```json
+{
+  "mcpServers": {
+    "opseclint": { "command": "opseclint-mcp" }
+  }
+}
+```
+
+Four tools: `analyze_command`, `lookup_technique`, `evaluate_sigma_rule`, and
+`describe_coverage`. It speaks stdio, makes no network calls, and reads no
+files — rules are passed inline rather than by path.
+
+The three-valued caveat above becomes the whole design here. Agents amplify
+whatever they are given, so an `indeterminate` silently rounded to "not
+detected" is worse than no answer at all: it manufactures evidence of stealth
+out of an honest abstention. No result field is a boolean about detection,
+every result carries a `limits` list naming what it does not establish, and
+`describe_coverage` exists so "nothing matched" is always distinguishable from
+"not modeled".
+
 Try it against the [`examples/`](examples/) playbooks:
 
 ```bash
@@ -498,6 +529,7 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - SARIF output → GitHub code scanning
 - Distribution: crates.io, prebuilt binaries, a GitHub Action, and a GHCR image
 - [`opseclint-core`](crates/opseclint-core): the knowledge base, `match` engine, and Sigma evaluator as a library, with this binary as its first consumer
+- [`opseclint-mcp`](crates/opseclint-mcp): an MCP server over the same knowledge base, designed so an agent cannot silently turn an `INDETERMINATE` into a claim of stealth
 - [Sigma rule-logic evaluator](docs/design/rule-logic-evaluator.md): three-valued `FIRES` / `NO-FIRE` / `INDETERMINATE`, via `--check-rule`
 - `--coverage-gaps`: flag actions whose techniques have rules but where none fire
 - macOS/Endpoint Security KB at breadth parity with Linux/Windows (66 entries)
