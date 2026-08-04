@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-04
+
 ### Added
 
 - **`opseclint-mcp`: the knowledge base as an MCP server.** A third crate,
@@ -45,10 +47,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   instructions from a model, and the safest one has nothing to reach for.
 
   Built on `rmcp` 3.1, the official Rust MCP SDK. Release archives carry both
-  binaries from the next release onward; the package-manager manifests still
-  install only `opseclint`, because they describe the published v1.2.0 artifacts
-  — see `packaging/README.md` for the step that belongs to the next version
-  bump.
+  binaries, and every package manifest installs both: `brew install`,
+  `scoop install`, the AUR package, and `winget install` all put `opseclint-mcp`
+  on your path alongside `opseclint`. It is also on crates.io —
+  `cargo install opseclint-mcp`.
 
 - **`opseclint-core`: the knowledge base and evaluator, as a library.** The repo
   becomes a Cargo workspace — three crates by the end of this release, counting
@@ -441,7 +443,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Human / JSON / SARIF output; a `--ci` gate; `--sigma` enrichment from a real
   SigmaHQ checkout with an on-disk cache; a `--platform` selector.
 
-[Unreleased]: https://github.com/ezekiellabs/opseclint/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/ezekiellabs/opseclint/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/ezekiellabs/opseclint/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ezekiellabs/opseclint/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ezekiellabs/opseclint/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ezekiellabs/opseclint/compare/v0.1.2...v1.0.0

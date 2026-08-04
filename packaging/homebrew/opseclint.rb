@@ -4,7 +4,7 @@
 class Opseclint < Formula
   desc "Analyze shell commands for ATT&CK techniques and detection coverage"
   homepage "https://github.com/ezekiellabs/opseclint"
-  version "1.2.0"
+  version "1.3.0"
   license "MIT"
 
   on_macos do
@@ -26,13 +26,18 @@ class Opseclint < Formula
   end
 
   def install
-    # The archive nests the binary in a single opseclint-v<version>-<target>/
-    # directory; locate it explicitly so install works regardless of whether
-    # Homebrew has descended into that sole top-level directory.
+    # The archive nests the binaries in a single opseclint-v<version>-<target>/
+    # directory; locate them explicitly so install works regardless of whether
+    # Homebrew has descended into that sole top-level directory. The globs are
+    # exact, so "**/opseclint" never picks up opseclint-mcp.
     bin.install Dir["**/opseclint"].first
+    bin.install Dir["**/opseclint-mcp"].first
   end
 
   test do
     assert_match "opseclint #{version}", shell_output("#{bin}/opseclint --version")
+    # opseclint-mcp speaks MCP on stdio and has no --version; an empty stdin
+    # gives it a clean EOF, which is a successful session rather than an error.
+    assert_predicate bin/"opseclint-mcp", :executable?
   end
 end
