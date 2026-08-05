@@ -859,38 +859,138 @@ fn parse_kv(s: &str) -> HashMap<String, String> {
 /// Ingest macOS Endpoint Security `NOTIFY_EXEC` telemetry, as produced by
 /// `eslogger exec` — a top-level JSON array, a single object, or JSONL, read by
 /// the same [`read_events`] the Sysmon path uses. Every record carrying an
-/// `event.exec` object is a process execution; anything else (an `open`, a
-/// `fork`) is skipped and counted.
+/// `event.exec` object is a process execution.
 ///
 /// ESF exec semantics: `event.exec.target` is the *new* process (its
 /// `executable.path` and `event.exec.args` are the launched image and argv),
 /// while the message's top-level `process` is the caller that invoked `exec` —
 /// so its `executable.path` is the parent image a defender's rules key on. That
 /// is what lets ESF resolve `ParentImage`-keyed detections where auditd cannot.
+///
+/// Non-exec messages are not executions but are not featureless either: an
+/// `open` / `create` / `connect` becomes a `file` or `network` event (see
+/// [`esf_event`]), correlated to the execution that most recently held its
+/// audit-token pid or kept standalone for the knowledge base's `event` axis,
+/// exactly as the Sysmon and auditd paths do. Anything else is skipped and
+/// counted.
 fn parse_esf(text: &str) -> Result<Ingest, String> {
     let events = read_events(text)?;
-    let mut observations = Vec::new();
+    let mut observations: Vec<Observation> = Vec::new();
+    let mut event_observations: Vec<EventObservation> = Vec::new();
+    // pid -> index of the most recent execution with that pid; see `parse_sysmon`.
+    let mut latest_by_pid: HashMap<String, usize> = HashMap::new();
     let mut skipped = 0;
     for (i, ev) in events.iter().enumerate() {
         match reduce_esf(ev) {
             Some(fields) => match execution_from_fields(&fields) {
-                Some((commands, raw)) => observations.push(Observation {
-                    record: i + 1,
-                    commands,
-                    raw,
-                    event: Arc::new(fields),
-                    side_effects: Vec::new(),
-                }),
+                Some((commands, raw)) => {
+                    if let Some(pid) = fields.get("ProcessId") {
+                        latest_by_pid.insert(pid.clone(), observations.len());
+                    }
+                    observations.push(Observation {
+                        record: i + 1,
+                        commands,
+                        raw,
+                        event: Arc::new(fields),
+                        side_effects: Vec::new(),
+                    });
+                }
                 None => skipped += 1,
             },
-            None => skipped += 1,
+            None => {
+                skipped += 1;
+                if let Some((class, detail, mut fields)) = esf_event(ev) {
+                    // The emitting process is the message's top-level `process`,
+                    // whose audit token names the pid to correlate on.
+                    let pid = esf_pid(ev.get("process"));
+                    if let Some(pid) = &pid {
+                        fields.insert("ProcessId".to_string(), pid.clone());
+                    }
+                    if let Some(image) = nested_str(ev, &["process", "executable", "path"]) {
+                        insert_nonempty(&mut fields, "Image", image);
+                    }
+                    match pid.as_ref().and_then(|p| latest_by_pid.get(p)) {
+                        Some(&idx) => observations[idx]
+                            .side_effects
+                            .push(SideEffect { class, detail }),
+                        None => event_observations.push(EventObservation {
+                            record: i + 1,
+                            class,
+                            detail,
+                            event: Arc::new(fields),
+                        }),
+                    }
+                }
+            }
         }
     }
     Ok(Ingest {
         observations,
         skipped,
-        event_observations: Vec::new(),
+        event_observations,
     })
+}
+
+/// The class, human detail and field map of a non-execution ESF message, or
+/// `None` when it is an exec (handled by [`reduce_esf`]) or a class opseclint does
+/// not read.
+///
+/// The ESF counterpart of [`sysmon_event`] and [`auditd_event`], keyed by the same
+/// canonical field names so one knowledge-base entry serves every platform that
+/// reports the class. `NOTIFY_OPEN` and `NOTIFY_CREATE` are `file` events;
+/// `NOTIFY_CONNECT` is a `network` one.
+fn esf_event(ev: &Value) -> Option<(String, String, HashMap<String, String>)> {
+    let event = ev.get("event")?;
+    let mut fields = HashMap::new();
+
+    if let Some(open) = event.get("open")
+        && let Some(path) = nested_str(open, &["file", "path"])
+    {
+        fields.insert("TargetFilename".to_string(), path.to_string());
+        return Some(("file".to_string(), format!("file opened {path}"), fields));
+    }
+    if let Some(create) = event.get("create") {
+        // A create names its target either as an already-existing file or as a
+        // (directory, new name) pair, depending on whether it clobbered anything.
+        let path = nested_str(create, &["destination", "existing_file", "path"])
+            .or_else(|| nested_str(create, &["destination", "new_path", "filename"]))
+            .or_else(|| nested_str(create, &["file", "path"]))?;
+        fields.insert("TargetFilename".to_string(), path.to_string());
+        return Some(("file".to_string(), format!("file created {path}"), fields));
+    }
+    if let Some(connect) = event.get("connect") {
+        let host = nested_str(connect, &["address"])?;
+        fields.insert("DestinationIp".to_string(), host.to_string());
+        let port = connect.get("port").and_then(|p| {
+            p.as_str()
+                .map(str::to_string)
+                .or_else(|| p.as_u64().map(|n| n.to_string()))
+        });
+        let detail = match &port {
+            Some(p) => {
+                fields.insert("DestinationPort".to_string(), p.clone());
+                format!("network connection to {host}:{p}")
+            }
+            None => format!("network connection to {host}"),
+        };
+        return Some(("network".to_string(), detail, fields));
+    }
+    None
+}
+
+/// The pid of an ESF process object, from its audit token. `eslogger` renders the
+/// token as an object carrying the pid; a bare numeric `pid` is accepted as a
+/// fallback for exports that flatten it.
+fn esf_pid(process: Option<&Value>) -> Option<String> {
+    let process = process?;
+    let pid = process
+        .get("audit_token")
+        .and_then(|t| t.get("pid"))
+        .or_else(|| process.get("pid"))?;
+    pid.as_u64()
+        .map(|n| n.to_string())
+        .or_else(|| pid.as_str().map(str::to_string))
+        .filter(|s| !s.is_empty())
 }
 
 /// Reduce one ESF message to a canonical field map, or `None` when it is not an
@@ -915,6 +1015,11 @@ fn reduce_esf(ev: &Value) -> Option<HashMap<String, String>> {
     }
     if let Some(parent) = nested_str(ev, &["process", "executable", "path"]) {
         insert_nonempty(&mut fields, "ParentImage", parent);
+    }
+    // The *new* process's pid, so the non-execution events it goes on to cause
+    // correlate back to it — the field the other two formats also supply.
+    if let Some(pid) = esf_pid(exec.get("target")) {
+        fields.insert("ProcessId".to_string(), pid);
     }
     // Code-signing context of the new image — the fields macOS detections key on
     // to flag unsigned or third-party binaries. Kept under their `eslogger`
@@ -1538,10 +1643,12 @@ type=EXECVE msg=audit(1.0:1): argc=1 a0=\"whoami\"
     #[test]
     fn ingests_esf_exec_and_skips_non_exec() {
         let ingest = parse(&fixture("esf-exec.jsonl"), Format::Esf).expect("parses");
-        // Three exec events (curl, whoami, sw_vers); the lone open event is
-        // skipped, and record numbers follow source position (sw_vers is #4).
+        // Three exec events (curl, whoami, sw_vers). The lone open event is not an
+        // execution — counted as skipped, and kept as a standalone file
+        // observation. Record numbers follow source position (sw_vers is #4).
         assert_eq!(ingest.observations.len(), 3);
         assert_eq!(ingest.skipped, 1);
+        assert_eq!(ingest.event_observations.len(), 1);
         assert_eq!(
             ingest
                 .observations
@@ -1582,6 +1689,70 @@ type=EXECVE msg=audit(1.0:1): argc=1 a0=\"whoami\"
         assert_eq!(
             curl.event.get("ParentImage").map(String::as_str),
             Some("/usr/bin/osascript")
+        );
+    }
+
+    #[test]
+    fn esf_reads_open_and_create_as_standalone_file_events() {
+        let ingest = parse(&fixture("esf-with-side-effects.jsonl"), Format::Esf).expect("parses");
+        let files: Vec<&EventObservation> = ingest
+            .event_observations
+            .iter()
+            .filter(|e| e.class == "file")
+            .collect();
+        assert_eq!(files.len(), 2);
+        assert_eq!(
+            files[0].detail,
+            "file created /Users/analyst/Library/LaunchAgents/com.evil.plist"
+        );
+        assert_eq!(
+            files[1].event.get("TargetFilename").map(String::as_str),
+            Some("/Users/analyst/Library/Application Support/com.apple.TCC/TCC.db")
+        );
+        // The emitting process is named on the event, so a finding can say who did
+        // it even with no captured execution.
+        assert_eq!(
+            files[1].event.get("Image").map(String::as_str),
+            Some("/usr/bin/sqlite3")
+        );
+    }
+
+    #[test]
+    fn esf_correlates_a_connect_by_audit_token_pid() {
+        let ingest = parse(&fixture("esf-with-side-effects.jsonl"), Format::Esf).expect("parses");
+        // curl's audit token pid is 4242, and so is the connect's — so the
+        // connection attaches to the execution that made it.
+        assert_eq!(ingest.observations.len(), 1);
+        let curl = &ingest.observations[0];
+        assert_eq!(
+            curl.event.get("ProcessId").map(String::as_str),
+            Some("4242")
+        );
+        assert_eq!(curl.side_effects.len(), 1);
+        assert_eq!(curl.side_effects[0].class, "network");
+        assert_eq!(
+            curl.side_effects[0].detail,
+            "network connection to 192.0.2.10:443"
+        );
+        // …and it does not also stand alone.
+        assert!(
+            !ingest
+                .event_observations
+                .iter()
+                .any(|e| e.class == "network")
+        );
+    }
+
+    #[test]
+    fn esf_open_without_an_audit_token_still_becomes_an_observation() {
+        // The base fixture predates audit tokens. Correlation is impossible
+        // without a pid, but an uncorrelated event is kept, not dropped.
+        let ingest = parse(&fixture("esf-exec.jsonl"), Format::Esf).expect("parses");
+        assert_eq!(ingest.event_observations.len(), 1);
+        assert_eq!(ingest.event_observations[0].class, "file");
+        assert_eq!(
+            ingest.event_observations[0].detail,
+            "file opened /etc/passwd"
         );
     }
 
