@@ -6,6 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Sigma modifiers `windash`, `re`, `base64offset` and `cidr` are now evaluated
+  rather than abstained on. `windash` and `base64offset` expand a value into
+  candidate needles; `re` and `cidr` replace the default comparison.
+- Three Windows knowledge-base claims that previously read `INDETERMINATE` are
+  now verified against the live SigmaHQ ruleset: `findstr-creds`,
+  `gpp-cpassword` and `ipconfig`.
+
+### Changed
+
+- A field match is cached as its source key plus raw values and re-lowered on
+  load, so nothing derived is persisted. Stale caches are invalidated
+  automatically.
+
+### Notes
+
+- The degradation contract is unchanged and now covers the new modifiers: an
+  `re` pattern that will not compile, or a malformed network under `cidr`,
+  evaluates to `INDETERMINATE` and names the modifier. It never evaluates to
+  `no-fire` — an evaluator that cannot read a rule has not shown the rule would
+  not fire.
+- `base64`, `utf16`/`utf16le`/`wide`, `fieldref` and `expand` remain
+  unsupported on purpose. An unrecognized token anywhere in a modifier chain
+  still gates the whole field match, which is what stops a UTF-16 rule being
+  answered with ASCII needles.
+
 ## [1.3.0] - 2026-08-04
 
 ### Added

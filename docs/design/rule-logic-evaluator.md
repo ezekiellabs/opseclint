@@ -61,8 +61,15 @@ These bound what can be resolved from a **command line alone**. Since v1.2.0,
 - Fields opseclint cannot synthesize from a command line (`ParentImage`,
   `User`, `Hashes`, registry and network fields) → these branches evaluate to
   `Unknown` and surface as `INDETERMINATE`.
-- Modifiers `re`, `cidr`, `base64`/`base64offset`, `windash` → treated as
-  `Unknown` (documented), implemented later. Still open.
+- Modifiers `re`, `cidr`, `base64offset`, `windash` → **implemented**. A `re`
+  pattern the `regex` crate cannot compile, and a malformed network under
+  `cidr`, still evaluate to `Unknown` and name the modifier — the degradation
+  is an abstention, never a `no-fire`.
+- Modifiers `base64` (unused upstream today), `utf16`/`utf16le`/`wide`,
+  `fieldref`, `expand`, and the numeric comparisons → treated as `Unknown`
+  (documented), implemented later. Leaving the encoding modifiers unsupported
+  is what keeps `base64offset` honest: an unknown token in a chain gates the
+  whole field match, so a UTF-16 rule can never be answered with ASCII needles.
 - Aggregations (`| count() > N`, `near`, `timeframe`) and correlation rules →
   out of scope; opseclint evaluates a single command, not an event stream.
 
@@ -91,10 +98,22 @@ last row's fields are populated from what the sensor actually recorded and
 ### Data model (`crates/opseclint-core/src/sigma_eval.rs`)
 
 ```rust
-enum Modifier { Contains, StartsWith, EndsWith, All } // v2: Re, Cidr, Base64, Windash
+// Modifiers split by role: a transform rewrites the value, an op compares it.
+// `contains|windash` is a transform *then* a comparison, which a single flat
+// modifier set cannot express.
+enum Transform { Windash, Base64Offset }
+enum MatchOp { Glob, Contains, StartsWith, EndsWith, Re(Vec<Regex>), Cidr(Vec<Net>) }
 
-struct FieldMatch { field: String, mods: Vec<Modifier>, values: Vec<String> }
-// values: OR across values, unless `All` (then AND)
+struct FieldMatch {
+    field: String,
+    values: Vec<String>,        // as authored
+    needles: Vec<Vec<String>>,  // one group per value: its transform expansion
+    op: MatchOp,
+    all: bool,
+}
+// OR within a needle group, OR across groups — unless `all`, then AND across
+// groups. Keeping the grouping is what makes `all|windash` mean "every
+// authored flag, in any dash form" rather than "every variant of every flag".
 
 enum Search {
     Fields(Vec<FieldMatch>),          // map form: AND across fields

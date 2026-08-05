@@ -179,8 +179,9 @@ observed (real event):    fires
 ```
 
 Evaluation stays honest: a field the record genuinely lacks is still
-`INDETERMINATE`, and an unsupported Sigma modifier (`re`, `cidr`, `base64`) is
-still `Unknown` — the real event resolves only the fields it actually carries.
+`INDETERMINATE`, and an unsupported Sigma modifier (`base64`, `utf16`/`wide`,
+`fieldref`) is still `Unknown` — the real event resolves only the fields it
+actually carries.
 
 ## Correlating non-execution events
 
