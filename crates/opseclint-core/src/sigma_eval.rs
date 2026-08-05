@@ -77,12 +77,27 @@ fn not_(t: Ternary) -> Ternary {
 enum Transform {
     /// `|windash` — the same flag written with any of Windows' dash characters.
     Windash,
+    /// `|base64offset` — the value as it appears inside a base64 blob at each
+    /// of the three possible byte alignments.
+    Base64Offset,
 }
 
 impl Transform {
-    fn apply(self, value: &str) -> Vec<String> {
+    /// The token as written in the rule, for reporting when the transform
+    /// cannot be applied.
+    fn token(self) -> &'static str {
         match self {
-            Transform::Windash => windash_variants(value),
+            Transform::Windash => "windash",
+            Transform::Base64Offset => "base64offset",
+        }
+    }
+
+    /// Expand one value, or `None` when this transform cannot honestly
+    /// represent it — see [`base64offset_variants`].
+    fn apply(self, value: &str) -> Option<Vec<String>> {
+        match self {
+            Transform::Windash => Some(windash_variants(value)),
+            Transform::Base64Offset => base64offset_variants(value),
         }
     }
 }
@@ -126,6 +141,10 @@ struct FieldMatch {
     op: MatchOp,
     /// `|all` — every value group must match, rather than any.
     all: bool,
+    /// Compare needles without case folding. Set by `base64offset`, whose
+    /// output is case-significant; folding it would match differently-cased
+    /// blobs and claim a detection fires when it would not.
+    case_sensitive: bool,
     /// One group per authored value: that value's transform expansion. OR
     /// within a group, AND/OR across groups per `all`. Keeping the grouping is
     /// what makes `|all|windash` mean "every authored flag, in any dash form"
@@ -309,28 +328,41 @@ fn lower(key: &str, values: Vec<String>) -> FieldMatch {
             },
             ("all", _) => all = true,
             ("windash", _) => transforms.push(Transform::Windash),
+            ("base64offset", _) => transforms.push(Transform::Base64Offset),
             (other, _) => unsupported_mods.push(other.to_string()),
         }
         i += 1;
     }
 
     let null_values = values.is_empty();
+    let case_sensitive = transforms.contains(&Transform::Base64Offset);
+
     // Only expand once every token is understood: a value transform under an
     // unknown modifier would be answering a question we did not parse.
-    let needles = if unsupported_mods.is_empty() {
-        values
-            .iter()
-            .map(|v| {
-                let mut group = vec![v.clone()];
-                for t in &transforms {
-                    group = group.iter().flat_map(|s| t.apply(s)).collect();
+    let mut needles: Vec<Vec<String>> = Vec::new();
+    if unsupported_mods.is_empty() {
+        'values: for v in &values {
+            let mut group = vec![v.clone()];
+            for t in &transforms {
+                let mut next = Vec::new();
+                for s in &group {
+                    match t.apply(s) {
+                        Some(vs) => next.extend(vs),
+                        // The transform cannot represent this value. Record it
+                        // as unevaluated work rather than expanding to
+                        // something that would answer a different question.
+                        None => {
+                            unsupported_mods.push(t.token().to_string());
+                            needles.clear();
+                            break 'values;
+                        }
+                    }
                 }
-                dedup_in_order(group)
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
+                group = next;
+            }
+            needles.push(dedup_in_order(group));
+        }
+    }
 
     FieldMatch {
         key: key.to_string(),
@@ -338,6 +370,7 @@ fn lower(key: &str, values: Vec<String>) -> FieldMatch {
         values,
         op: op.unwrap_or_default(),
         all,
+        case_sensitive,
         needles,
         unsupported_mods,
         null_values,
@@ -595,6 +628,69 @@ fn windash_variants(value: &str) -> Vec<String> {
     )
 }
 
+const B64_ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/// Standard-alphabet base64 with `=` padding.
+///
+/// Hand-rolled rather than pulled in as a dependency: only encoding is needed,
+/// and `opseclint-core` has no base64 crate available to it.
+fn base64_encode(input: &[u8]) -> String {
+    let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
+    for c in input.chunks(3) {
+        let n = (c[0] as u32) << 16
+            | (*c.get(1).unwrap_or(&0) as u32) << 8
+            | (*c.get(2).unwrap_or(&0) as u32);
+        out.push(B64_ALPHABET[(n >> 18 & 63) as usize] as char);
+        out.push(B64_ALPHABET[(n >> 12 & 63) as usize] as char);
+        out.push(if c.len() > 1 {
+            B64_ALPHABET[(n >> 6 & 63) as usize] as char
+        } else {
+            '='
+        });
+        out.push(if c.len() > 2 {
+            B64_ALPHABET[(n & 63) as usize] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
+/// Leading characters to drop per alignment, and trailing characters to drop
+/// per `(value length + alignment) % 3`. Both ends carry bits from outside the
+/// value, so they cannot be part of a needle.
+const B64_START: [usize; 3] = [0, 2, 3];
+const B64_END: [usize; 3] = [0, 3, 2];
+
+/// The three encodings of `value` as it would appear inside a larger base64
+/// blob, one per byte alignment.
+///
+/// `None` for a value shorter than three bytes. At one byte the middle
+/// alignment slices to an *empty* needle, and `contains("")` is true of every
+/// command line — the rule would appear to fire on everything. The other
+/// alignments leave one or two characters, which match almost any blob.
+/// Abstaining says what we actually know.
+///
+/// The padding byte's value is irrelevant: every base64 character it influences
+/// falls inside the `B64_START` prefix that gets trimmed.
+fn base64offset_variants(value: &str) -> Option<Vec<String>> {
+    let bytes = value.as_bytes();
+    if bytes.len() < 3 {
+        return None;
+    }
+    Some(
+        (0..3)
+            .map(|i| {
+                let mut buf = vec![b' '; i];
+                buf.extend_from_slice(bytes);
+                let enc = base64_encode(&buf);
+                let end = enc.len() - B64_END[(bytes.len() + i) % 3];
+                enc[B64_START[i]..end].to_string()
+            })
+            .collect(),
+    )
+}
+
 /// Reduce the needle groups to a verdict: any needle satisfies its own group,
 /// and `all` decides whether every group or merely one has to be satisfied.
 fn group_reduce(fm: &FieldMatch, hit: impl Fn(&str) -> bool) -> Ternary {
@@ -617,9 +713,17 @@ fn eval_field(fm: &FieldMatch, event: &HashMap<String, String>) -> Ternary {
     let Some(raw) = event.get(&fm.field) else {
         return Ternary::Unknown;
     };
-    let val = raw.to_lowercase();
+    let val = if fm.case_sensitive {
+        raw.to_string()
+    } else {
+        raw.to_lowercase()
+    };
     group_reduce(fm, |needle| {
-        let n = needle.to_lowercase();
+        let n = if fm.case_sensitive {
+            needle.to_string()
+        } else {
+            needle.to_lowercase()
+        };
         match fm.op {
             MatchOp::Contains => val.contains(&n),
             MatchOp::StartsWith => val.starts_with(&n),
@@ -1043,6 +1147,107 @@ detection:
         assert_eq!(two.len(), 5);
         assert!(two.contains(&" /a /b".to_string()));
         assert!(!two.contains(&" /a -b".to_string()));
+    }
+
+    // --- base64offset ------------------------------------------------------
+
+    const B64OFF: &str = r#"
+title: Encoded whoami
+id: b1
+detection:
+    selection:
+        CommandLine|base64offset|contains: 'whoami'
+    condition: selection
+"#;
+
+    #[test]
+    fn base64offset_matches_each_of_the_three_offsets() {
+        // One command per byte alignment. An implementation with a wrong
+        // trailing-trim table passes at most one of these.
+        for encoded in ["d2hvYW1p", "dob2Fta", "3aG9hbW"] {
+            assert_eq!(
+                verdict(B64OFF, &format!("powershell -enc {encoded}")).outcome,
+                Outcome::Fires,
+                "offset encoding {encoded} should match"
+            );
+        }
+    }
+
+    #[test]
+    fn base64offset_does_not_match_an_unrelated_payload() {
+        assert_eq!(
+            verdict(B64OFF, "powershell -enc bm90aGluZw==").outcome,
+            Outcome::NoFire
+        );
+    }
+
+    #[test]
+    fn base64offset_needles_are_case_sensitive() {
+        // Base64 is case-significant. Folding case here would match a blob
+        // that decodes to something else entirely and claim the rule fires.
+        assert_eq!(
+            verdict(B64OFF, "powershell -enc d2hvyw1p").outcome,
+            Outcome::NoFire
+        );
+    }
+
+    #[test]
+    fn base64offset_expansion_matches_pysigma() {
+        assert_eq!(
+            base64offset_variants("whoami").expect("long enough"),
+            vec![
+                "d2hvYW1p".to_string(),
+                "dob2Fta".to_string(),
+                "3aG9hbW".to_string(),
+            ]
+        );
+        // The three residues of (len + offset) % 3, so the trailing-trim table
+        // is exercised in every column.
+        for v in ["abc", "abcd", "abcde"] {
+            let got = base64offset_variants(v).expect("long enough");
+            assert_eq!(got.len(), 3);
+            assert!(
+                got.iter().all(|s| !s.is_empty() && !s.contains('=')),
+                "{v} produced a padded or empty needle: {got:?}"
+            );
+        }
+        // Ground truth: the literals SigmaHQ itself publishes for the UTF-16LE
+        // form of '::FromBase64String'.
+        let utf16: String = "::FromBase64String"
+            .encode_utf16()
+            .flat_map(|u| u.to_le_bytes())
+            .map(|b| b as char)
+            .collect();
+        assert_eq!(
+            base64offset_variants(&utf16).expect("long enough"),
+            vec![
+                "OgA6AEYAcgBvAG0AQgBhAHMAZQA2ADQAUwB0AHIAaQBuAGcA".to_string(),
+                "oAOgBGAHIAbwBtAEIAYQBzAGUANgA0AFMAdAByAGkAbgBnA".to_string(),
+                "6ADoARgByAG8AbQBCAGEAcwBlADYANABTAHQAcgBpAG4AZw".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_short_base64offset_value_stays_indeterminate() {
+        // At one byte the middle alignment slices to an empty needle, and
+        // `contains("")` is true of every command line. Abstaining is the only
+        // honest answer; firing on everything is the bug this guards.
+        let yaml = "title: t\nid: b2\ndetection:\n    selection:\n        CommandLine|base64offset|contains: 'a'\n    condition: selection\n";
+        let v = verdict(yaml, "echo hello");
+        assert_eq!(v.outcome, Outcome::Indeterminate);
+        assert_eq!(v.blocking_modifiers, vec!["base64offset".to_string()]);
+    }
+
+    #[test]
+    fn an_unsupported_token_in_a_chain_suppresses_the_supported_ones() {
+        // `wide` means the value is UTF-16 before encoding. We do not implement
+        // it, so emitting ASCII needles would answer a different question than
+        // the rule asked.
+        let yaml = "title: t\nid: b3\ndetection:\n    selection:\n        CommandLine|wide|base64offset|contains: 'whoami'\n    condition: selection\n";
+        let v = verdict(yaml, "powershell -enc d2hvYW1p");
+        assert_eq!(v.outcome, Outcome::Indeterminate);
+        assert_eq!(v.blocking_modifiers, vec!["wide".to_string()]);
     }
 
     #[test]
