@@ -61,7 +61,7 @@
     },
     {
       "id": "shadow-read",
-      "match": { "line": { "contains": "/etc/shadow" } },
+      "match": { "line": { "contains": "/etc/shadow" }, "event": { "class": "file", "field": "TargetFilename", "eq": "/etc/shadow" } },
       "description": "Access to /etc/shadow — password hash exposure",
       "techniques": [{ "id": "T1003.008", "name": "OS Credential Dumping: /etc/passwd and /etc/shadow" }],
       "telemetry": ["openat() of /etc/shadow — high-signal auditd file watch", "read by process not running as auth stack"],
@@ -256,7 +256,7 @@
     },
     {
       "id": "authorized-keys",
-      "match": { "line": { "contains": "authorized_keys" } },
+      "match": { "line": { "contains": "authorized_keys" }, "event": { "class": "file", "field": "TargetFilename", "word": "authorized_keys" } },
       "description": "Modification of SSH authorized_keys — persistence / account manipulation",
       "techniques": [
         { "id": "T1098.004", "name": "Account Manipulation: SSH Authorized Keys" },
@@ -487,7 +487,7 @@
     },
     {
       "id": "ld-preload",
-      "match": { "line": { "contains": "ld.so.preload" } },
+      "match": { "line": { "contains": "ld.so.preload" }, "event": { "class": "file", "field": "TargetFilename", "eq": "/etc/ld.so.preload" } },
       "description": "Writing /etc/ld.so.preload — dynamic linker hijacking (userland rootkit)",
       "techniques": [{ "id": "T1574.006", "name": "Hijack Execution Flow: Dynamic Linker Hijacking" }],
       "telemetry": ["create()/write() of /etc/ld.so.preload — high-signal auditd file watch"],
@@ -505,7 +505,7 @@
     },
     {
       "id": "cron-persist",
-      "match": { "line": { "contains": "/etc/cron" } },
+      "match": { "line": { "contains": "/etc/cron" }, "event": { "class": "file", "any": [{ "field": "TargetFilename", "path_under": "/etc/cron.d" }, { "field": "TargetFilename", "eq": "/etc/crontab" }] } },
       "description": "Writing to system cron locations — scheduled-task persistence",
       "techniques": [{ "id": "T1053.003", "name": "Scheduled Task/Job: Cron" }],
       "telemetry": ["create()/write() under /etc/cron.d, /etc/crontab, /etc/cron.* — auditd file watch"],
@@ -616,7 +616,7 @@
     },
     {
       "id": "cloud-imds",
-      "match": { "line": { "contains": "169.254.169.254" } },
+      "match": { "line": { "contains": "169.254.169.254" }, "event": { "class": "network", "all": [{ "field": "DestinationIp", "eq": "169.254.169.254" }, { "field": "DestinationPort", "eq": "80" }] } },
       "description": "Querying the cloud instance metadata endpoint — credential theft",
       "techniques": [{ "id": "T1552.005", "name": "Unsecured Credentials: Cloud Instance Metadata API" }],
       "telemetry": ["connect() to the link-local metadata endpoint 169.254.169.254:80 from a shell/utility", "outbound HTTP GET to /latest/meta-data/iam/security-credentials/"],

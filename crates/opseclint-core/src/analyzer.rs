@@ -556,31 +556,77 @@ mod tests {
 
     // ---- Structured-matcher guards ------------------------------------------
 
-    /// Every entry's own representative command must fire its own rule. This is
-    /// the self-consistency property: a matcher whose example does not match
-    /// itself is a broken rule. It also proves the representative derivation used
-    /// by `--verify-detections` / `--scaffold` stays aligned with the engine.
+    /// Every entry's own representative must fire its own rule. This is the
+    /// self-consistency property: a matcher whose example does not match itself is
+    /// a broken rule. It also proves the representative derivation used by
+    /// `--verify-detections` / `--scaffold` stays aligned with the engine.
+    ///
+    /// Each axis is checked on its own terms. A command axis is checked by
+    /// analyzing its representative line; an `event` axis by running its
+    /// representative event through the same standalone-matching path real
+    /// telemetry takes. An entry carrying both must satisfy both — the two are
+    /// different claims about the same action, and neither implies the other.
     fn assert_self_consistent(kb: &KnowledgeBase) {
         for entry in &kb.entries {
-            // An entry whose matcher uses a `regex` leaf cannot derive a literal
-            // representative, so it must supply an `example`.
+            let has_command_axis = entry.matcher.program.is_some()
+                || entry.matcher.args.is_some()
+                || entry.matcher.line.is_some();
             assert!(
-                !entry.matcher.has_regex() || entry.example.is_some(),
-                "entry `{}` uses a regex leaf but has no `example`",
+                has_command_axis || entry.matcher.event.is_some(),
+                "entry `{}` has no matchable axis at all",
                 entry.id
             );
-            let repr = entry.representative_line().unwrap_or_else(|| {
-                panic!(
-                    "entry `{}` has no matchable field to build a representative from",
+
+            if has_command_axis {
+                // An entry whose matcher uses a `regex` leaf cannot derive a
+                // literal representative, so it must supply an `example`.
+                assert!(
+                    !entry.matcher.has_regex() || entry.example.is_some(),
+                    "entry `{}` uses a regex leaf but has no `example`",
                     entry.id
-                )
-            });
-            let report = analyze(&repr, kb);
-            assert!(
-                report.findings.iter().any(|f| f.rule_id == entry.id),
-                "entry `{}` did not fire on its own representative `{repr}`",
-                entry.id,
-            );
+                );
+                let repr = entry.representative_line().unwrap_or_else(|| {
+                    panic!(
+                        "entry `{}` has no matchable field to build a representative from",
+                        entry.id
+                    )
+                });
+                let report = analyze(&repr, kb);
+                assert!(
+                    report.findings.iter().any(|f| f.rule_id == entry.id),
+                    "entry `{}` did not fire on its own representative `{repr}`",
+                    entry.id,
+                );
+            }
+
+            if entry.matcher.event.is_some() {
+                let (class, fields) = entry.matcher.representative_event().unwrap_or_else(|| {
+                    panic!(
+                        "entry `{}` has an `event` axis with no derivable representative",
+                        entry.id
+                    )
+                });
+                // Go through `analyze_telemetry` rather than calling the matcher
+                // directly, so this exercises the same path a real standalone
+                // event takes — ingest shape included.
+                let ingest = Ingest {
+                    observations: Vec::new(),
+                    skipped: 0,
+                    event_observations: vec![EventObservation {
+                        record: 1,
+                        class: class.as_str().to_string(),
+                        detail: format!("representative {} event", class.as_str()),
+                        event: Arc::new(fields.clone()),
+                    }],
+                };
+                let report = analyze_telemetry(&ingest, kb);
+                assert!(
+                    report.findings.iter().any(|f| f.rule_id == entry.id),
+                    "entry `{}` did not fire on its own representative {} event {fields:?}",
+                    entry.id,
+                    class.as_str(),
+                );
+            }
         }
     }
 
@@ -589,6 +635,35 @@ mod tests {
         assert_self_consistent(&kb());
         assert_self_consistent(&win_kb());
         assert_self_consistent(&mac_kb());
+    }
+
+    #[test]
+    fn the_event_self_consistency_guard_catches_a_contradictory_entry() {
+        // A guard that cannot fail proves nothing. Two `eq` leaves on one field
+        // cannot both hold, so no representative can satisfy the entry — exactly
+        // the authoring mistake this check exists to catch.
+        let json = r#"{
+            "platform": "linux",
+            "entries": [{
+                "id": "contradictory",
+                "match": { "event": { "class": "file", "all": [
+                    { "field": "TargetFilename", "eq": "/etc/shadow" },
+                    { "field": "TargetFilename", "eq": "/etc/passwd" } ] } },
+                "description": "d",
+                "techniques": [{"id": "T1005", "name": "Data from Local System"}],
+                "noise": 10
+            }]
+        }"#;
+        let broken: KnowledgeBase = serde_json::from_str(json).expect("parses");
+        // The panic here is the expected outcome, so keep it out of test output.
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let caught = std::panic::catch_unwind(|| assert_self_consistent(&broken));
+        std::panic::set_hook(previous);
+        assert!(
+            caught.is_err(),
+            "the guard accepted an entry that cannot match its own representative"
+        );
     }
 
     /// Findings must not depend on the order entries appear in the KB: matching

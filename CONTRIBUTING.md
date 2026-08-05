@@ -71,13 +71,18 @@ driven by a structured `match` predicate:
 }
 ```
 
-`match` has three optional axes — `program` (the resolved basename), `args` (a
-predicate tree over the arguments), and `line` (the whole raw line) — with leaves
+`match` has four optional axes — `program` (the resolved basename), `args` (a
+predicate tree over the arguments), `line` (the whole raw line), and `event` (a
+non-execution record's fields, for telemetry with no command line) — with leaves
 like `contains`, `flag`, `word`, `path_under`, `any`/`all`/`not`, and `regex`.
 Prefer the boundary-aware leaves (`word`, `path_under`) over a bare `contains` to
 avoid false positives, and reach for `regex` only when the fixed leaves can't
 express the shape (an entry that uses `regex` must also carry an `example`). The
 full reference is [docs/design/match-schema.md](docs/design/match-schema.md).
+
+If the action also shows up as a standalone sensor event — a file written, a
+connection made — give the entry an `event` axis alongside its command axis, so
+one entry recognizes it either way rather than splitting into two.
 
 Keep `id`s unique within a file, and add a matching test in
 `crates/opseclint-core/src/analyzer.rs` when you introduce a notable technique.

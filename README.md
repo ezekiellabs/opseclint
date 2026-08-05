@@ -190,14 +190,18 @@ record, which techniques does this represent?"
 Three formats are supported, selected with `--format`:
 
 - `sysmon` (the default) — Windows **Sysmon Event ID 1** (Process Create), as a
-  JSON array of events or JSONL.
+  JSON array of events or JSONL. Network, file and registry events (EID 3 / 11 /
+  13) are read too.
 - `auditd` — Linux **auditd** `execve` events, as raw `audit.log` text. The
   multi-line `SYSCALL` / `EXECVE` / `CWD` records of one event are reassembled by
   their `audit(…)` id, the argv rebuilt from the `EXECVE` fields (quoted and
   hex-encoded values decoded), and the program taken from the `exe` path.
+  `SOCKADDR` and `PATH` records supply network and file events.
 - `esf` — macOS **Endpoint Security** `NOTIFY_EXEC` events, as `eslogger exec`
   JSON (array, single object, or JSONL). The image, argv, and working directory come from
   `event.exec.target`; the calling process supplies a real `ParentImage`.
+  `NOTIFY_OPEN` / `NOTIFY_CREATE` / `NOTIFY_CONNECT` supply file and network
+  events.
 
 ```bash
 opseclint --telemetry sysmon-events.json --platform windows-sysmon
@@ -209,19 +213,27 @@ Each record reduces to the same `Command` the analyzer already understands, so
 `--json`, `--sarif`, `--navigator`, and `--edr` all work on ingested events, and
 observed verdicts agree with the predictive ones. Only process-execution records
 are ingested as their own units; other event classes are skipped and counted —
-but Sysmon network/file/registry events (EID 3 / 11 / 13) are **correlated by
-process id** back to the execution that caused them and shown as confirmed
-secondary telemetry (a green `◉ observed:` line), turning predicted telemetry
-into recorded proof.
+but on **all three formats** a recognized network/file/registry event is
+**correlated by process id** back to the execution that caused it and shown as
+confirmed secondary telemetry (a green `◉ observed:` line), turning predicted
+telemetry into recorded proof.
 
 Pass `--users <passwd-file>` to resolve numeric auditd uids to names (so
 `User`-keyed detections resolve); without it, a numeric uid is left unresolved
 rather than guessed.
 
-A non-execution event with no captured causing execution (e.g. a registry
-Run-key set by an uncaptured process) is matched directly against the KB's
-`event` axis, producing a standalone finding — so persistence written outside a
-captured command still surfaces.
+A non-execution event with no captured causing execution (a registry Run-key set
+by an uncaptured process, a LaunchAgent plist written by a service) is matched
+directly against the KB's `event` axis, producing a standalone finding — so
+persistence written outside a captured command still surfaces:
+
+```console
+$ opseclint --telemetry audit.log --format auditd --platform linux
+● CRITICAL 85  Access to /etc/shadow — password hash exposure   (T1003.008)
+               ◉ observed: file opened /etc/shadow
+● HIGH     58  Writing to system cron locations — scheduled-task persistence
+               ◉ observed: file created /etc/cron.d/backdoor
+```
 
 Because a real event carries more than a command line, pairing `--telemetry`
 with `--sigma` evaluates each detection against the **recorded event** — so a
@@ -538,7 +550,7 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - [Coverage diff](#coverage-diff---diff): compare a run against a saved report to see what coverage changed, via `--diff`
 - ATT&CK Navigator layer export: visualize technique coverage on the MITRE matrix, via `--navigator`
 - Gap-to-rule scaffolding: generate a starter Sigma rule for a modeled action (or a `--coverage-gaps` blind spot), via `--scaffold`
-- [Ingest real telemetry](docs/design/telemetry-ingest.md): map recorded sensor events back to techniques and coverage, via `--telemetry` — Windows Sysmon Event ID 1 JSON, Linux auditd `execve` logs, and macOS Endpoint Security `NOTIFY_EXEC` (`eslogger`); with `--sigma`, evaluate detections against the real event so parent/integrity/working-directory-keyed rules resolve instead of reading indeterminate
+- [Ingest real telemetry](docs/design/telemetry-ingest.md): map recorded sensor events back to techniques and coverage, via `--telemetry` — Windows Sysmon Event ID 1 JSON, Linux auditd `execve` logs, and macOS Endpoint Security `NOTIFY_EXEC` (`eslogger`); non-execution network/file/registry events on every format, correlated to the process that caused them or matched standalone against the knowledge base's `event` axis; with `--sigma`, evaluate detections against the real event so parent/integrity/working-directory-keyed rules resolve instead of reading indeterminate
 
 ### Next
 
@@ -557,13 +569,14 @@ Honest about what isn't done yet:
   field a command line cannot carry — `EventID`, `Description`,
   `Provider_Name`, `Hashes`, `ParentImage`. Richer telemetry ingest, not
   evaluator features, is what moves that number.
-- **Event-scoped matching on Linux and macOS** ([#57][issue-57]). The `event`
-  axis is platform-general, but `--telemetry` only produces standalone
-  non-execution events for Sysmon — the auditd and ESF paths return none at
-  all, so this is blocked on ingest before it is a knowledge-base question.
-- **Side-effect correlation beyond Sysmon** ([#57][issue-57]). Correlating
-  non-execution events back to the process that emitted them is wired for
-  Sysmon EID 3/11/13; auditd and ESF are the natural follow-ons.
+- **`registry` event matching is Windows-only in practice.** The class is
+  platform-general and the `event` axis now works on all three formats, but
+  only Sysmon reports a registry event — no auditd or ESF equivalent exists to
+  match against.
+- **`--scaffold` does not lower the `event` axis.** It mirrors the command axes
+  into a Sigma `selection`; an entry that matches only a standalone event
+  scaffolds an empty one. A `file_event` / `registry_set` logsource mapping is
+  the natural follow-on.
 - **[`serde_yaml` is deprecated][issue-58]** and sits on the `--sigma` and
   `--check-rule` paths.
 
@@ -641,7 +654,6 @@ Project Link: [https://github.com/ezekiellabs/opseclint](https://github.com/ezek
 [issues-url]: https://github.com/ezekiellabs/opseclint/issues
 [coverage-url]: https://github.com/ezekiellabs/opseclint/issues/new?labels=detection-logic&template=coverage_request.yml
 [discussions-url]: https://github.com/ezekiellabs/opseclint/discussions
-[issue-57]: https://github.com/ezekiellabs/opseclint/issues/57
 [issue-58]: https://github.com/ezekiellabs/opseclint/issues/58
 [license-shield]: https://img.shields.io/github/license/ezekiellabs/opseclint?style=flat-square
 [license-url]: https://github.com/ezekiellabs/opseclint/blob/main/LICENSE

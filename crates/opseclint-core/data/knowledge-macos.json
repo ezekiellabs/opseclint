@@ -85,7 +85,7 @@
     },
     {
       "id": "launch-agent-persist",
-      "match": { "line": { "contains": "launchagents" } },
+      "match": { "line": { "contains": "launchagents" }, "event": { "class": "file", "all": [{ "field": "TargetFilename", "contains": "/LaunchAgents/" }, { "field": "TargetFilename", "suffix": ".plist" }] } },
       "description": "Writing a LaunchAgent plist — user logon persistence",
       "techniques": [{ "id": "T1543.001", "name": "Create or Modify System Process: Launch Agent" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_CREATE of ~/Library/LaunchAgents/*.plist"],
@@ -94,7 +94,7 @@
     },
     {
       "id": "launch-daemon-persist",
-      "match": { "line": { "contains": "launchdaemons" } },
+      "match": { "line": { "contains": "launchdaemons" }, "event": { "class": "file", "all": [{ "field": "TargetFilename", "contains": "/LaunchDaemons/" }, { "field": "TargetFilename", "suffix": ".plist" }] } },
       "description": "Writing a LaunchDaemon plist — system-wide persistence",
       "techniques": [{ "id": "T1543.004", "name": "Create or Modify System Process: Launch Daemon" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_CREATE of /Library/LaunchDaemons/*.plist"],
@@ -187,7 +187,7 @@
     },
     {
       "id": "tcc-tamper",
-      "match": { "line": { "contains": "tcc.db" } },
+      "match": { "line": { "contains": "tcc.db" }, "event": { "class": "file", "field": "TargetFilename", "suffix": "TCC.db" } },
       "description": "Direct access to the TCC database — privacy/permission control bypass",
       "techniques": [{ "id": "T1548.006", "name": "Abuse Elevation Control Mechanism: TCC Manipulation" }],
       "telemetry": ["ESF open/write of TCC.db under ~/Library/Application Support/com.apple.TCC"],

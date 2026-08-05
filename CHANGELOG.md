@@ -8,6 +8,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Non-execution telemetry on Linux and macOS.** `--telemetry` reads auditd
+  `SOCKADDR` and `PATH` records, and macOS ESF `NOTIFY_OPEN` / `NOTIFY_CREATE` /
+  `NOTIFY_CONNECT`, as network and file events. Each is correlated by process id
+  to the execution that caused it and shown as a confirmed `◉ observed:` line,
+  or — with no captured causing execution — matched standalone against the
+  knowledge base's `event` axis. Previously only Sysmon produced these, so on
+  the other two platforms the `event` axis had nothing to match against at all.
+- **The `event` axis is a predicate tree.** `all` / `any` / `not` over per-field
+  leaves (`contains`, `eq`, `prefix`, `suffix`, `word`, `path_under`, `regex`),
+  reaching parity with the `args` and `line` axes. An entry can now require
+  several fields at once — a destination address *and* a port — which the
+  previous one-field shape could not express. The single-field form is the
+  degenerate case of the same grammar, so existing entries are unchanged.
+- **Event-scoped knowledge-base coverage for Linux and macOS.** `shadow-read`,
+  `cron-persist`, `ld-preload`, `authorized-keys` and `cloud-imds` on Linux;
+  `launch-agent-persist`, `launch-daemon-persist` and `tcc-tamper` on macOS.
+  Each carries an `event` axis alongside its command axis, so one entry
+  recognizes its action whether it arrives as a command or as a sensor event.
 - Sigma modifiers `windash`, `re`, `base64offset` and `cidr` are now evaluated
   rather than abstained on. `windash` and `base64offset` expand a value into
   candidate needles; `re` and `cidr` replace the default comparison.
@@ -20,6 +38,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A field match is cached as its source key plus raw values and re-lowered on
   load, so nothing derived is persisted. Stale caches are invalidated
   automatically.
+- An `event` axis is now held to the same self-consistency invariant as the
+  command axes: a representative record derived from the predicate's own
+  literals must fire the entry. An `event` predicate with nothing positive to
+  derive from — a bare `regex`, or pure negation — is rejected at load, as is an
+  unrecognized `class`. Event field names are matched case-insensitively, which
+  values already were.
+- `docs/design/match-schema.md` documents the `event` axis, which it had never
+  mentioned despite being the canonical `match` reference, and
+  `docs/design/telemetry-ingest.md` no longer contradicts itself about whether
+  non-execution classes are in scope.
 
 ### Notes
 
