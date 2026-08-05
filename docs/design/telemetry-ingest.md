@@ -1,6 +1,6 @@
 # Reference: ingesting real telemetry
 
-**Status:** current (Windows Sysmon EID 1 JSON; Linux auditd `execve`; macOS ESF `NOTIFY_EXEC`)
+**Status:** current (Windows Sysmon EID 1/3/11/13; Linux auditd `execve` / `SOCKADDR` / `PATH`; macOS ESF `NOTIFY_EXEC` / `NOTIFY_OPEN` / `NOTIFY_CREATE` / `NOTIFY_CONNECT`)
 **Scope:** how opseclint maps recorded host telemetry back to the knowledge base.
 
 opseclint's original direction is *predictive*: given a command, resolve the
@@ -71,7 +71,9 @@ A record is ingested when its event id is `1`, or — when no event id is presen
 Requiring the command line in the id-less case keeps a network (EID 3) or file
 (EID 11) record, which carries an `Image` but no `CommandLine`, from being
 misread as a process launch. Non-process records are **skipped and counted**,
-and the count is reported to the user — never silently dropped.
+and the count is reported to the user — never silently dropped. Being skipped as
+an *execution* is not the end of the road: a recognized EID 3 / 11 / 13 goes on
+to be correlated or matched standalone (see below).
 
 ## The reduction (Linux auditd)
 
@@ -88,7 +90,9 @@ grouping every parsed record by the `<ts>:<serial>` inside `audit(…)`, in
 first-seen order. An event is a process launch when it carries an **`EXECVE`**
 record — the kernel emits `EXECVE` only for `execve`/`execveat`, which makes this
 arch-independent (no matching on syscall number `59` vs `221`). Every other event
-class (a `connect`, an `open`) has no `EXECVE` and is **skipped and counted**.
+class has no `EXECVE` and is **skipped and counted** as an execution — but a
+`connect` (`SOCKADDR`) or an `open` (`PATH`) is still read as a non-execution
+event, below.
 
 For a qualifying event the reduction fills the same canonical field map the
 Sysmon path produces, so `execution_from_fields` — the shared reducer — and all
@@ -133,7 +137,8 @@ built-in `eslogger exec`, each is a self-contained JSON object (a top-level arra
 a single object, or JSONL, read by the same reader the Sysmon path uses — no
 reassembly). A record
 is an execution when it carries an `event.exec` object; any other event class
-(`event.open`, `event.fork`) is **skipped and counted**.
+(`event.open`, `event.fork`) is **skipped and counted** as an execution — though
+an `open`, `create` or `connect` is still read as a non-execution event, below.
 
 The ESF exec model is the key to the mapping. `event.exec.target` is the *new*
 process, while the message's top-level `process` is the caller that invoked
@@ -200,19 +205,33 @@ This turns a prediction into an observation. Where predictive mode says "certuti
 ├ ◉ observed: file created C:\Users\analyst\a.exe      ← confirmed, from EID 11
 ```
 
-Each execution `Observation` carries its `pid`; non-execution records are parsed
-into `(pid, SideEffect{class, detail})` pairs and attached to the matching
-observation (`correlate_side_effects`), then ride onto every `Finding` as
-`observed_side_effects` and render as green `◉ observed:` lines. An event whose
-causing process is not in the same file is dropped — correlation never guesses.
+Each execution `Observation` carries its `ProcessId`; each reduction keeps a
+`pid → most recent execution` map, and a recognized non-execution record is
+attached to that execution as a `SideEffect{class, detail}`. Side-effects ride
+onto every `Finding` as `observed_side_effects` and render as green
+`◉ observed:` lines. An event whose causing process is not in the same file is
+**not** dropped — correlation never guesses, but the event is still kept, as a
+standalone observation (see below).
 
-**Currently wired for Sysmon** (EID 3 network → `DestinationIp:DestinationPort`,
-EID 11 → `TargetFilename`, EID 13 → `TargetObject`), the canonical case: a flat
-`ProcessId` and named destination/target fields. The same framework extends to
-auditd (correlate by `pid`, decode `SOCKADDR` `saddr`) and ESF (the audit-token
-pid, `NOTIFY_OPEN`) as follow-ons. Pid reuse is the known caveat — correlation is
-scoped to a single ingest file; tightening it with event timestamps / process
-start time is a future refinement.
+**Wired for all three formats**, each reducing into the same canonical field
+names so one knowledge-base entry serves every platform that reports the class:
+
+| Sensor | `network` | `file` | `registry` |
+|---|---|---|---|
+| Sysmon | EID 3 → `DestinationIp` / `DestinationPort` | EID 11 → `TargetFilename` | EID 13 → `TargetObject` |
+| auditd | `SOCKADDR` `saddr` decoded | `PATH` `name` | — |
+| ESF | `NOTIFY_CONNECT` | `NOTIFY_OPEN` / `NOTIFY_CREATE` | — |
+
+The pid each correlates on is a flat `ProcessId` for Sysmon, the `SYSCALL` `pid`
+for auditd, and the audit-token pid for ESF. Two details are worth naming because
+getting them wrong would manufacture observations: `saddr` is decoded from the raw
+`struct sockaddr` (`AF_INET` / `AF_INET6` only — a unix socket path is not a
+destination host, so it abstains), and a failed syscall is never reported, because
+a `connect()` that did not complete is not the action an entry describes.
+
+Pid reuse is the known caveat — correlation is scoped to a single ingest file and
+resolves to the most recent prior execution holding that pid; tightening it with
+event timestamps / process start time is a future refinement.
 
 ## Standalone non-execution matching
 
@@ -224,37 +243,48 @@ launch at all (a GUI, a service). Those events are not dropped: they become
 matcher.
 
 The `event` axis (`matcher::EventMatch`) is orthogonal to the command axes: it
-tests a record's `class` (`network` / `file` / `registry`) and a single field
-(`contains` / `eq` on, e.g., a registry `TargetObject`). An entry can carry
-*both* — the command `line` axis and an `event` axis — so one KB entry recognizes
-its action whether seen as a command or as a standalone event. The Windows
-`run-key-persist` entry does exactly this:
+tests a record's `class` (`network` / `file` / `registry`) with a predicate tree
+over the record's fields — `all` / `any` / `not` over per-field leaves, so an
+entry can require several fields at once. The full grammar is in
+[`match-schema.md`](match-schema.md). An entry can carry *both* a command axis
+and an `event` axis, and most should: that is how one entry recognizes its action
+whether seen as a command or as a standalone event.
 
 ```
-opseclint --telemetry registry-events.json --platform windows-sysmon
-● HIGH  Writing a Run key — registry autostart persistence   (T1547.001)
-  ◉ observed: registry set HKLM\…\CurrentVersion\Run\Updater
+opseclint --telemetry audit.log --format auditd --platform linux
+● CRITICAL  Access to /etc/shadow — password hash exposure   (T1003.008)
+  ◉ observed: file opened /etc/shadow
+● HIGH      Writing to system cron locations — scheduled-task persistence
+  ◉ observed: file created /etc/cron.d/backdoor
 ```
 
-Because it keeps its `line` axis, `representative_line` is still derived and
+An entry that keeps a command axis still derives a `representative_line`, so
 `--verify-detections` / `--scaffold` treat it exactly as before; the `event` axis
 is additive. A non-execution event that correlates to an execution is attached as
 that execution's side-effect and is **not** also matched standalone, so it can't
-double-count. Broadening the `event` axis (more predicates, `regex`) and
-authoring event-scoped entries across the Linux and macOS KBs are the natural
-follow-ons — the mechanism is platform-general; only the Windows registry case is
-seeded so far.
+double-count.
+
+Both halves of the property are guarded. `event` entries are held to the same
+self-consistency invariant as command entries: a synthetic record is derived from
+the predicate's own literals and must fire the entry through
+`analyze_telemetry`. Because a command `example` cannot stand in for a record, an
+`event` predicate with nothing positive to derive from — a bare `regex`, or pure
+negation — is a load error rather than an entry that cannot be checked.
 
 ## Scope and what comes next
 
-- **Process-execution events only.** The KB matches commands, so process launches
-  are the natural target across all three formats. Other event classes (network /
-  file / registry) tie into the `edr.rs` event-class taxonomy and are out of
-  scope for now — they are skipped and counted.
+- **Executions and non-execution events, on every format.** Process launches
+  reduce to commands and are matched by the command axes; `network` and `file`
+  events (plus Windows `registry`) reduce to the same canonical field names and
+  are matched by the `event` axis, either as a correlated side-effect or
+  standalone. A record in neither group is skipped and counted, never silently
+  dropped.
+- **`registry` is Windows-only in practice**, because only Sysmon reports it.
+  The class is platform-general; no other sensor emits one.
 
-With Sysmon, auditd, and ESF, the three platforms opseclint models each have a
-process-execution ingest path. Natural extensions from here are non-execution
-event classes (file / network / registry) mapped through `edr.rs`, and richer
-per-format field coverage (e.g. resolving numeric uids to names when a record
-carries the mapping) — each additive behind the same reduction and observed-event
-evaluation.
+The natural extensions from here are richer per-format field coverage (resolving
+ESF's audit-token uid to a name, as `--users` already does for auditd), more
+`event` classes as sensors report them (process termination, module load), and
+teaching `--scaffold` to lower an `event` axis to a Sigma `file_event` /
+`registry_set` logsource — today it lowers only the command axes, so an
+event-only entry scaffolds an empty selection.
