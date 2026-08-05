@@ -32,6 +32,7 @@
     {
       "id": "ipconfig",
       "match": { "program": "ipconfig" },
+      "example": "ipconfig /all",
       "description": "Network configuration discovery",
       "techniques": [{ "id": "T1016", "name": "System Network Configuration Discovery" }],
       "telemetry": ["Sysmon EID 1: ipconfig.exe"],
@@ -582,6 +583,7 @@
     {
       "id": "gpp-cpassword",
       "match": { "line": { "contains": "cpassword" } },
+      "example": "findstr /S /I cpassword \\\\dc\\sysvol\\corp\\policies\\*.xml",
       "description": "Reading Group Policy Preferences cPassword — credentials in SYSVOL",
       "techniques": [{ "id": "T1552.006", "name": "Unsecured Credentials: Group Policy Preferences" }],
       "telemetry": ["read of Groups.xml under \\\\<domain>\\SYSVOL", "cPassword field access"],
@@ -717,6 +719,7 @@
     {
       "id": "findstr-creds",
       "match": { "program": "findstr", "args": { "contains": "password" } },
+      "example": "findstr /S /I password C:\\*.txt",
       "description": "Searching files for passwords via findstr — credential hunting",
       "techniques": [{ "id": "T1552.001", "name": "Unsecured Credentials: Credentials In Files" }],
       "telemetry": ["Sysmon EID 1: findstr scanning files for password strings"],

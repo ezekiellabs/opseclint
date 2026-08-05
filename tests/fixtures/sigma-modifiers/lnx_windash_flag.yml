@@ -1,0 +1,19 @@
+title: Recursive Grep For Secrets
+id: 3e7d0b16-5a48-4c92-bf03-9d1e6a2c8074
+status: test
+description: Detects a recursive search, with the flag written in any dash form.
+author: opseclint fixtures
+date: 2026-08-05
+tags:
+    - attack.credential-access
+    - attack.t1552.001
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection:
+        CommandLine|contains|windash: ' -r '
+    condition: selection
+falsepositives:
+    - Administrative activity
+level: low

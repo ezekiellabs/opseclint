@@ -544,12 +544,19 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 
 Honest about what isn't done yet:
 
-- **Sigma modifiers `re`, `cidr`, `base64`/`base64offset`, `windash`** still
-  evaluate to `Unknown` ([design note](docs/design/rule-logic-evaluator.md),
-  [#56][issue-56]). Most Windows knowledge-base claims currently read
-  `INDETERMINATE` under `--verify-detections`; how much of that these modifiers
-  account for is not yet measured, because the evaluator does not distinguish
-  "unsupported modifier" from "field the event doesn't carry".
+- **Sigma modifiers `base64`, `utf16`/`utf16le`/`wide`, `fieldref`, `expand`**
+  still evaluate to `Unknown`
+  ([design note](docs/design/rule-logic-evaluator.md)). Each is a distinct
+  token: a rule written with `utf16le` is as unsupported as one written with
+  `wide`.
+  `re`, `cidr`, `base64offset` and `windash` are implemented; an unsupported
+  token anywhere in a chain still gates the whole field match, which is what
+  keeps a UTF-16 rule from being answered with ASCII needles.
+- **Field-shape mismatch, not modifiers, is what makes Windows claims read
+  `INDETERMINATE`.** Of 49 indeterminate Windows entries, all 49 reference a
+  field a command line cannot carry — `EventID`, `Description`,
+  `Provider_Name`, `Hashes`, `ParentImage`. Richer telemetry ingest, not
+  evaluator features, is what moves that number.
 - **Event-scoped matching on Linux and macOS** ([#57][issue-57]). The `event`
   axis is platform-general, but `--telemetry` only produces standalone
   non-execution events for Sysmon — the auditd and ESF paths return none at
@@ -634,7 +641,6 @@ Project Link: [https://github.com/ezekiellabs/opseclint](https://github.com/ezek
 [issues-url]: https://github.com/ezekiellabs/opseclint/issues
 [coverage-url]: https://github.com/ezekiellabs/opseclint/issues/new?labels=detection-logic&template=coverage_request.yml
 [discussions-url]: https://github.com/ezekiellabs/opseclint/discussions
-[issue-56]: https://github.com/ezekiellabs/opseclint/issues/56
 [issue-57]: https://github.com/ezekiellabs/opseclint/issues/57
 [issue-58]: https://github.com/ezekiellabs/opseclint/issues/58
 [license-shield]: https://img.shields.io/github/license/ezekiellabs/opseclint?style=flat-square

@@ -28,7 +28,9 @@ const MAX_RULES_PER_FINDING: usize = 5;
 
 /// Bump when the cached rule shape changes, to invalidate stale cache files.
 // 3: SigmaRule gained `category` (logsource), so v2 caches lack it.
-const CACHE_VERSION: u32 = 3;
+// 4: a field match is cached as its source key plus raw values and re-lowered
+//    on load, so v3 caches carry the old expanded shape.
+const CACHE_VERSION: u32 = 4;
 
 /// A resolved Sigma rule: metadata plus its parsed detection logic (when the
 /// rule could be lowered for evaluation).
@@ -437,6 +439,93 @@ mod tests {
 
     fn fixtures() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/sigma")
+    }
+
+    /// Rules exercising the value-transform and match-op modifiers. Kept out of
+    /// `fixtures()` because three test modules load that directory and assert
+    /// on rule counts per technique.
+    fn modifier_fixtures() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/sigma-modifiers")
+    }
+
+    /// Verdicts for every candidate rule on a technique, keyed by rule title.
+    fn verdicts_for(
+        index: &SigmaIndex,
+        technique: &str,
+        command: &str,
+    ) -> Vec<(String, crate::sigma_eval::Verdict)> {
+        let cmd = crate::parser::parse_line(command)
+            .into_iter()
+            .next()
+            .expect("a command");
+        index
+            .candidate_rules(&[technique.to_string()])
+            .into_iter()
+            .map(|r| {
+                let dr = r.rule.as_ref().expect("rule lowers to detection logic");
+                let v = crate::sigma_eval::evaluate(dr, &cmd, kb::Platform::LinuxAuditd);
+                (r.title.clone(), v)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn modifier_rules_resolve_through_the_full_index() {
+        use crate::sigma_eval::Outcome;
+        let index = SigmaIndex::load_dir(&modifier_fixtures(), "linux").expect("fixtures load");
+        assert_eq!(index.rules_indexed, 3);
+
+        let shadow = verdicts_for(&index, "T1003.008", "cat /etc/shadow");
+        assert_eq!(shadow.len(), 2, "both shadow rules are candidates");
+        for (title, v) in &shadow {
+            if title.contains("Lookbehind") {
+                // The pattern is real, we just cannot compile it. Saying
+                // NO-FIRE here would be a claim about the rule we cannot make.
+                assert_eq!(v.outcome, Outcome::Indeterminate, "{title}");
+                assert_eq!(v.blocking_modifiers, vec!["re".to_string()], "{title}");
+            } else {
+                assert_eq!(v.outcome, Outcome::Fires, "{title}");
+            }
+        }
+
+        // windash, through the index rather than the evaluator alone.
+        let grep = verdicts_for(&index, "T1552.001", "grep /r password /home");
+        assert_eq!(grep.len(), 1);
+        assert_eq!(grep[0].1.outcome, Outcome::Fires);
+        let grep = verdicts_for(&index, "T1552.001", "grep -q password /home");
+        assert_eq!(grep[0].1.outcome, Outcome::NoFire);
+    }
+
+    #[test]
+    fn a_modifier_rule_survives_the_cache_round_trip() {
+        use crate::sigma_eval::Outcome;
+        // The cache stores a field match as its source key plus raw values and
+        // re-lowers it on load, so this is the only place the lowering is
+        // reconstructed rather than parsed — including the regex compile and
+        // its failure path.
+        let cache = std::env::temp_dir().join("opseclint-test-cache-modifiers.json");
+        let _ = std::fs::remove_file(&cache);
+
+        let (_, from_cache) =
+            load_with_cache(&modifier_fixtures(), "linux", Some(&cache)).expect("fresh load");
+        assert!(!from_cache, "first load should parse");
+
+        let (cached, from_cache) =
+            load_with_cache(&modifier_fixtures(), "linux", Some(&cache)).expect("cached load");
+        assert!(from_cache, "second load should hit the cache");
+
+        for (title, v) in verdicts_for(&cached, "T1003.008", "cat /etc/shadow") {
+            if title.contains("Lookbehind") {
+                assert_eq!(v.outcome, Outcome::Indeterminate, "{title} from cache");
+                assert_eq!(v.blocking_modifiers, vec!["re".to_string()], "{title}");
+            } else {
+                assert_eq!(v.outcome, Outcome::Fires, "{title} from cache");
+            }
+        }
+        let grep = verdicts_for(&cached, "T1552.001", "grep /r password /home");
+        assert_eq!(grep[0].1.outcome, Outcome::Fires, "windash from cache");
+
+        let _ = std::fs::remove_file(&cache);
     }
 
     #[test]

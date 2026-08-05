@@ -731,9 +731,6 @@
       ],
       "status": "indeterminate",
       "because": {
-        "modifiers": [
-          "re"
-        ],
         "missing_fields": [
           "exe",
           "key",

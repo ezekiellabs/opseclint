@@ -1,6 +1,6 @@
 {
   "platform": "windows",
-  "rules_indexed": 2216,
+  "rules_indexed": 2220,
   "results": [
     {
       "id": "accessibility-sethc",
@@ -302,22 +302,13 @@
       ],
       "status": "indeterminate",
       "because": {
-        "modifiers": [
-          "base64offset",
-          "re",
-          "windash"
-        ],
         "missing_fields": [
           "EventID",
           "Hashes",
           "ImagePath",
-          "IntegrityLevel",
-          "ParentCommandLine",
-          "ParentImage",
           "Provider_Name",
           "ServiceFileName",
-          "TargetName",
-          "User"
+          "TargetName"
         ],
         "inapplicable_rules": 28
       }
@@ -371,12 +362,8 @@
       ],
       "status": "indeterminate",
       "because": {
-        "modifiers": [
-          "windash"
-        ],
         "missing_fields": [
           "EventID",
-          "Hashes",
           "ParentImage"
         ],
         "inapplicable_rules": 8
@@ -394,14 +381,14 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
-          "AccessMask",
           "EventID",
           "ImagePath",
           "Properties",
           "Provider_Name",
           "ServiceFileName",
           "SubjectDomainName",
-          "SubjectUserName"
+          "SubjectUserName",
+          "SubjectUserSid"
         ],
         "inapplicable_rules": 1
       }
@@ -471,10 +458,6 @@
       ],
       "status": "indeterminate",
       "because": {
-        "modifiers": [
-          "base64offset",
-          "re"
-        ],
         "missing_fields": [
           "Company",
           "Data",
@@ -541,40 +524,6 @@
       }
     },
     {
-      "id": "findstr-creds",
-      "description": "Searching files for passwords via findstr — credential hunting",
-      "techniques": [
-        "T1552.001"
-      ],
-      "claimed": [
-        "Credential search via findstr (proc_creation_win)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "modifiers": [
-          "windash"
-        ],
-        "inapplicable_rules": 3
-      }
-    },
-    {
-      "id": "gpp-cpassword",
-      "description": "Reading Group Policy Preferences cPassword — credentials in SYSVOL",
-      "techniques": [
-        "T1552.006"
-      ],
-      "claimed": [
-        "GPP cPassword access (proc_creation_win / ps_script)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "modifiers": [
-          "windash"
-        ],
-        "inapplicable_rules": 1
-      }
-    },
-    {
       "id": "impacket-exec",
       "description": "Impacket wmiexec/smbexec-style remote execution",
       "techniques": [
@@ -587,10 +536,7 @@
       "status": "indeterminate",
       "because": {
         "modifiers": [
-          "base64offset",
-          "cidr",
-          "re",
-          "windash"
+          "cidr"
         ],
         "missing_fields": [
           "AccessList",
@@ -599,7 +545,6 @@
           "ClientAddress",
           "EncyptionUsed",
           "EventID",
-          "Hashes",
           "ImagePath",
           "IpAddress",
           "LogonId",
@@ -634,10 +579,6 @@
       ],
       "status": "indeterminate",
       "because": {
-        "modifiers": [
-          "base64offset",
-          "re"
-        ],
         "missing_fields": [
           "Company",
           "Data",
@@ -653,23 +594,6 @@
           "ServiceFileName"
         ],
         "inapplicable_rules": 77
-      }
-    },
-    {
-      "id": "ipconfig",
-      "description": "Network configuration discovery",
-      "techniques": [
-        "T1016"
-      ],
-      "claimed": [
-        "Network configuration discovery (proc_creation_win)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "modifiers": [
-          "re"
-        ],
-        "inapplicable_rules": 1
       }
     },
     {
@@ -783,9 +707,6 @@
       ],
       "status": "indeterminate",
       "because": {
-        "modifiers": [
-          "re"
-        ],
         "missing_fields": [
           "AccessList",
           "AccessMask",
@@ -819,9 +740,6 @@
       ],
       "status": "indeterminate",
       "because": {
-        "modifiers": [
-          "re"
-        ],
         "missing_fields": [
           "AccessList",
           "AccessMask",
@@ -872,14 +790,9 @@
       ],
       "status": "indeterminate",
       "because": {
-        "modifiers": [
-          "windash"
-        ],
         "missing_fields": [
           "Data",
           "EventID",
-          "IntegrityLevel",
-          "ParentImage",
           "Provider_Name"
         ],
         "inapplicable_rules": 1
@@ -1071,10 +984,6 @@
       ],
       "status": "indeterminate",
       "because": {
-        "modifiers": [
-          "base64offset",
-          "re"
-        ],
         "missing_fields": [
           "Company",
           "CurrentDirectory",
@@ -1084,15 +993,13 @@
           "EventID",
           "Hashes",
           "ImagePath",
-          "IntegrityLevel",
           "LayerRTID",
           "ParentCommandLine",
           "ParentImage",
           "Product",
           "Provider_Name",
           "ServiceFileName",
-          "TargetName",
-          "User"
+          "TargetName"
         ],
         "inapplicable_rules": 79
       }
@@ -1109,10 +1016,6 @@
       ],
       "status": "indeterminate",
       "because": {
-        "modifiers": [
-          "base64offset",
-          "re"
-        ],
         "missing_fields": [
           "Company",
           "CurrentDirectory",
@@ -1172,9 +1075,7 @@
       "status": "indeterminate",
       "because": {
         "modifiers": [
-          "base64offset",
-          "cidr",
-          "re"
+          "cidr"
         ],
         "missing_fields": [
           "AccessList",
@@ -1363,11 +1264,6 @@
       ],
       "status": "indeterminate",
       "because": {
-        "modifiers": [
-          "base64offset",
-          "re",
-          "windash"
-        ],
         "missing_fields": [
           "AccountName",
           "EventID",
@@ -1547,12 +1443,8 @@
       ],
       "status": "indeterminate",
       "because": {
-        "modifiers": [
-          "windash"
-        ],
         "missing_fields": [
           "EventID",
-          "Hashes",
           "ParentImage"
         ],
         "inapplicable_rules": 8
@@ -1571,6 +1463,49 @@
       "status": "verified",
       "firing": [
         "PUA - AdFind.EXE Execution"
+      ]
+    },
+    {
+      "id": "findstr-creds",
+      "description": "Searching files for passwords via findstr — credential hunting",
+      "techniques": [
+        "T1552.001"
+      ],
+      "claimed": [
+        "Credential search via findstr (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Insensitive Subfolder Search Via Findstr.EXE"
+      ]
+    },
+    {
+      "id": "gpp-cpassword",
+      "description": "Reading Group Policy Preferences cPassword — credentials in SYSVOL",
+      "techniques": [
+        "T1552.006"
+      ],
+      "claimed": [
+        "GPP cPassword access (proc_creation_win / ps_script)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Findstr GPP Passwords",
+        "Suspicious SYSVOL Domain Group Policy Access"
+      ]
+    },
+    {
+      "id": "ipconfig",
+      "description": "Network configuration discovery",
+      "techniques": [
+        "T1016"
+      ],
+      "claimed": [
+        "Network configuration discovery (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Suspicious Network Command"
       ]
     },
     {
