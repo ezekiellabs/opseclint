@@ -1,0 +1,19 @@
+title: Shadow File Read Via Regex
+id: 6f2b1a04-9c3d-4e77-8b21-0d5a7c9e1f30
+status: test
+description: Detects reads of the shadow or gshadow file, matched with a pattern.
+author: opseclint fixtures
+date: 2026-08-05
+tags:
+    - attack.credential-access
+    - attack.t1003.008
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection:
+        CommandLine|re: '/etc/(g)?shadow\b'
+    condition: selection
+falsepositives:
+    - Administrative activity
+level: high

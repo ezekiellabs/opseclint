@@ -1,0 +1,22 @@
+# A pattern using a PCRE lookbehind, which the `regex` crate has no equivalent
+# for. The rule must still index cleanly and must evaluate to INDETERMINATE
+# naming `re` — never to NO-FIRE, which would read as proof it would not fire.
+title: Shadow File Read Via Lookbehind
+id: 1c8e5d92-77af-4b10-9e63-2a4f8b0c6d55
+status: test
+description: Detects a shadow file read, expressed with a construct we cannot compile.
+author: opseclint fixtures
+date: 2026-08-05
+tags:
+    - attack.credential-access
+    - attack.t1003.008
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection:
+        CommandLine|re: '(?<=cat )/etc/shadow'
+    condition: selection
+falsepositives:
+    - Unknown
+level: high
