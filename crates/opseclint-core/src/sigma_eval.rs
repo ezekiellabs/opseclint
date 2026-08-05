@@ -15,6 +15,7 @@
 //! `IntegrityLevel` resolves to `FIRES` / `NO-FIRE` instead of `INDETERMINATE`.
 
 use std::collections::{HashMap, HashSet};
+use std::net::{IpAddr, Ipv4Addr};
 
 use serde::{Deserialize, Serialize};
 use serde_yaml::Value;
@@ -118,6 +119,98 @@ enum MatchOp {
     /// `|re` — one compiled pattern per authored value, so `|re|all` keeps
     /// meaning "every pattern matches".
     Re(Vec<regex::Regex>),
+    /// `|cidr` — the values are networks and the field value is an address.
+    Cidr(Vec<Net>),
+}
+
+/// A network, widened to IPv6 so one comparison covers v4, v6, and the
+/// v4-mapped form. A v4 prefix is shifted by the 96 bits of the mapping, which
+/// is also what makes a cross-family comparison come out false rather than
+/// accidentally true.
+#[derive(Debug, Clone, Copy)]
+struct Net {
+    bits: u128,
+    prefix: u32,
+}
+
+/// Widen an address to the v6 space, returning the bit offset a v4 prefix has
+/// to be shifted by.
+fn to_v6_bits(addr: IpAddr) -> (u128, u32) {
+    match addr {
+        IpAddr::V4(v4) => (u128::from(v4.to_ipv6_mapped()), 96),
+        IpAddr::V6(v6) => (u128::from(v6), 0),
+    }
+}
+
+impl Net {
+    /// Parse `addr/prefix`, or a bare address as a host route.
+    ///
+    /// Host bits outside the prefix are ignored rather than rejected —
+    /// `10.0.0.5/8` is sloppy but unambiguous, and abstaining on it would gain
+    /// nothing.
+    fn parse(s: &str) -> Option<Net> {
+        let s = s.trim();
+        let (addr_text, prefix_text) = match s.split_once('/') {
+            Some((a, p)) => (a.trim(), Some(p.trim())),
+            None => (s, None),
+        };
+        let addr: IpAddr = addr_text.parse().ok()?;
+        let max = if addr.is_ipv4() { 32 } else { 128 };
+        let prefix = match prefix_text {
+            None => max,
+            Some(text) => {
+                let n: u32 = text.parse().ok()?;
+                if n > max {
+                    return None;
+                }
+                n
+            }
+        };
+        let (bits, shift) = to_v6_bits(addr);
+        Some(Net {
+            bits,
+            prefix: prefix + shift,
+        })
+    }
+
+    fn contains(&self, addr: IpAddr) -> bool {
+        // A zero prefix matches everything, and would shift by 128 otherwise.
+        if self.prefix == 0 {
+            return true;
+        }
+        let (bits, _) = to_v6_bits(addr);
+        let shift = 128 - self.prefix;
+        (self.bits >> shift) == (bits >> shift)
+    }
+}
+
+/// Read an address out of a sensor field, which may carry a port, brackets, or
+/// a scope id alongside it.
+///
+/// `None` when the value is not an address at all — a hostname proves nothing
+/// about whether the connection was inside a network, so the caller abstains.
+fn parse_event_ip(value: &str) -> Option<IpAddr> {
+    let v = value.trim();
+    if let Ok(ip) = v.parse::<IpAddr>() {
+        return Some(ip);
+    }
+    // `[fe80::1]:443`
+    if let Some(rest) = v.strip_prefix('[')
+        && let Some((host, _)) = rest.split_once(']')
+    {
+        return host.parse().ok();
+    }
+    // `10.0.0.1:443` — a single colon cannot be v6, so it is a port.
+    if v.matches(':').count() == 1
+        && let Some((host, _)) = v.split_once(':')
+    {
+        return host.parse::<Ipv4Addr>().ok().map(IpAddr::V4);
+    }
+    // `fe80::1%eth0`
+    if let Some((host, _)) = v.split_once('%') {
+        return host.parse().ok();
+    }
+    None
 }
 
 /// `re` sub-modifiers that change how the pattern compiles.
@@ -134,6 +227,7 @@ enum PendingOp {
     StartsWith,
     EndsWith,
     Re(ReFlags),
+    Cidr,
 }
 
 /// Compile a Sigma `re` pattern.
@@ -189,6 +283,20 @@ fn resolve_op(
                 // rule would not fire.
                 None => {
                     unsupported_mods.push("re".to_string());
+                    MatchOp::Glob
+                }
+            }
+        }
+        Some(PendingOp::Cidr) => {
+            if !transforms.is_empty() {
+                unsupported_mods.push("cidr".to_string());
+                return MatchOp::Glob;
+            }
+            let nets: Option<Vec<Net>> = values.iter().map(|v| Net::parse(v)).collect();
+            match nets {
+                Some(nets) => MatchOp::Cidr(nets),
+                None => {
+                    unsupported_mods.push("cidr".to_string());
                     MatchOp::Glob
                 }
             }
@@ -269,6 +377,19 @@ impl From<FieldMatch> for FieldMatchRepr {
 impl FieldMatch {
     fn supported(&self) -> bool {
         self.unsupported_mods.is_empty() && !self.null_values
+    }
+
+    /// A modifier that is implemented but can still abstain at *evaluation*
+    /// time, rather than while lowering.
+    ///
+    /// `cidr` is the case: the values parsed fine, but the event's field may
+    /// not be an address at all. Without this the verdict would be
+    /// `Indeterminate` with nothing in either cause list — an abstention that
+    /// does not say what it is waiting on, which is the thing `Verdict` exists
+    /// to avoid. Naming it here keeps to the same over-approximation the other
+    /// causes already document.
+    fn fallible_mod(&self) -> Option<&'static str> {
+        matches!(self.op, MatchOp::Cidr(_)).then_some("cidr")
     }
 }
 
@@ -396,6 +517,7 @@ fn lower(key: &str, values: Vec<String>) -> FieldMatch {
             "contains" => Some(PendingOp::Contains),
             "startswith" => Some(PendingOp::StartsWith),
             "endswith" => Some(PendingOp::EndsWith),
+            "cidr" => Some(PendingOp::Cidr),
             "re" => {
                 // `re` takes trailing sub-modifiers: `|re|i`, `|re|m`, `|re|s`.
                 let mut flags = ReFlags::default();
@@ -810,6 +932,24 @@ fn eval_field(fm: &FieldMatch, event: &HashMap<String, String>) -> Ternary {
     let Some(raw) = event.get(&fm.field) else {
         return Ternary::Unknown;
     };
+    // Addresses are compared numerically, not as text.
+    if let MatchOp::Cidr(nets) = &fm.op {
+        // Not an address, so we cannot say it is outside the network either.
+        let Some(ip) = parse_event_ip(raw) else {
+            return Ternary::Unknown;
+        };
+        let matched = if fm.all {
+            nets.iter().all(|n| n.contains(ip))
+        } else {
+            nets.iter().any(|n| n.contains(ip))
+        };
+        return if matched {
+            Ternary::True
+        } else {
+            Ternary::False
+        };
+    }
+
     // Patterns compile case-insensitively, so they run against the raw value —
     // a pre-lowercased haystack would defeat an inline `(?-i)`.
     if let MatchOp::Re(res) = &fm.op {
@@ -840,8 +980,8 @@ fn eval_field(fm: &FieldMatch, event: &HashMap<String, String>) -> Ternary {
             MatchOp::Contains => val.contains(&n),
             MatchOp::StartsWith => val.starts_with(&n),
             MatchOp::EndsWith => val.ends_with(&n),
-            // `Re` is handled above; it never reaches the needle loop.
-            MatchOp::Glob | MatchOp::Re(_) => glob_match(&val, &n),
+            // `Re` and `Cidr` are handled above; neither reaches the needle loop.
+            MatchOp::Glob | MatchOp::Re(_) | MatchOp::Cidr(_) => glob_match(&val, &n),
         }
     })
 }
@@ -949,6 +1089,7 @@ fn collect_unsupported(s: &Search, mods: &mut HashSet<String>, null_values: &mut
     let mut scan = |fms: &[FieldMatch]| {
         for f in fms {
             mods.extend(f.unsupported_mods.iter().cloned());
+            mods.extend(f.fallible_mod().map(str::to_string));
             *null_values |= f.null_values;
         }
     };
@@ -1045,6 +1186,16 @@ mod tests {
     fn verdict(yaml: &str, command: &str) -> Verdict {
         let rule = parse_rule(yaml).expect("rule parses");
         evaluate(&rule, &cmd(command), Platform::LinuxAuditd)
+    }
+
+    /// Evaluate against a command plus the fields a sensor would have recorded.
+    fn observed_verdict(yaml: &str, command: &str, fields: &[(&str, &str)]) -> Verdict {
+        let rule = parse_rule(yaml).expect("rule parses");
+        let observed: HashMap<String, String> = fields
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        evaluate_observed(&rule, &cmd(command), Platform::LinuxAuditd, &observed)
     }
 
     const SHADOW: &str = r#"
@@ -1435,6 +1586,141 @@ detection:
         let v = verdict(yaml, "aaaa");
         assert_eq!(v.outcome, Outcome::Indeterminate);
         assert_eq!(v.blocking_modifiers, vec!["re".to_string()]);
+    }
+
+    // --- cidr --------------------------------------------------------------
+
+    /// A rule keyed on a network. Evaluated through `evaluate_observed`,
+    /// because a command line alone never carries a destination address.
+    fn cidr_rule(networks: &str) -> String {
+        format!(
+            "title: t\nid: c1\ndetection:\n    selection:\n        DestinationIp|cidr: {networks}\n    condition: selection\n"
+        )
+    }
+
+    #[test]
+    fn cidr_matches_an_address_inside_the_network() {
+        let v = observed_verdict(
+            &cidr_rule("'10.0.0.0/8'"),
+            "curl http://internal",
+            &[("DestinationIp", "10.1.2.3")],
+        );
+        assert_eq!(v.outcome, Outcome::Fires);
+    }
+
+    #[test]
+    fn cidr_no_fire_outside_the_network() {
+        let v = observed_verdict(
+            &cidr_rule("'10.0.0.0/8'"),
+            "curl http://elsewhere",
+            &[("DestinationIp", "192.168.1.1")],
+        );
+        assert_eq!(v.outcome, Outcome::NoFire);
+    }
+
+    #[test]
+    fn cidr_v6_containment() {
+        let rule = cidr_rule("'fe80::/10'");
+        assert_eq!(
+            observed_verdict(&rule, "curl http://x", &[("DestinationIp", "fe80::1")]).outcome,
+            Outcome::Fires
+        );
+        assert_eq!(
+            observed_verdict(&rule, "curl http://x", &[("DestinationIp", "2001:db8::1")]).outcome,
+            Outcome::NoFire
+        );
+    }
+
+    #[test]
+    fn cidr_across_address_families_does_not_match() {
+        // A definitive negative, not an abstention: a v6 address genuinely is
+        // not inside a v4 network.
+        let v = observed_verdict(
+            &cidr_rule("'10.0.0.0/8'"),
+            "curl http://x",
+            &[("DestinationIp", "2001:db8::1")],
+        );
+        assert_eq!(v.outcome, Outcome::NoFire);
+    }
+
+    #[test]
+    fn cidr_bare_address_is_a_host_route() {
+        let rule = cidr_rule("'10.1.2.3'");
+        assert_eq!(
+            observed_verdict(&rule, "curl http://x", &[("DestinationIp", "10.1.2.3")]).outcome,
+            Outcome::Fires
+        );
+        assert_eq!(
+            observed_verdict(&rule, "curl http://x", &[("DestinationIp", "10.1.2.4")]).outcome,
+            Outcome::NoFire
+        );
+    }
+
+    #[test]
+    fn cidr_prefix_zero_matches_everything() {
+        // Also the regression guard for shifting a u128 by 128.
+        let v = observed_verdict(
+            &cidr_rule("'0.0.0.0/0'"),
+            "curl http://x",
+            &[("DestinationIp", "8.8.8.8")],
+        );
+        assert_eq!(v.outcome, Outcome::Fires);
+    }
+
+    #[test]
+    fn cidr_ignores_a_port_suffix() {
+        assert_eq!(
+            observed_verdict(
+                &cidr_rule("'10.0.0.0/8'"),
+                "curl http://x",
+                &[("DestinationIp", "10.1.2.3:443")]
+            )
+            .outcome,
+            Outcome::Fires
+        );
+        assert_eq!(
+            observed_verdict(
+                &cidr_rule("'fe80::/10'"),
+                "curl http://x",
+                &[("DestinationIp", "[fe80::1]:443")]
+            )
+            .outcome,
+            Outcome::Fires
+        );
+    }
+
+    #[test]
+    fn a_malformed_cidr_stays_indeterminate() {
+        for network in ["'10.0.0.0/99'", "'not-an-ip/8'"] {
+            let v = observed_verdict(
+                &cidr_rule(network),
+                "curl http://x",
+                &[("DestinationIp", "10.1.2.3")],
+            );
+            assert_eq!(
+                v.outcome,
+                Outcome::Indeterminate,
+                "network {network} must abstain"
+            );
+            assert_eq!(v.blocking_modifiers, vec!["cidr".to_string()]);
+        }
+    }
+
+    #[test]
+    fn a_non_ip_field_value_stays_indeterminate() {
+        // A hostname says nothing about whether the address was in the network.
+        // NoFire here would be a claim we cannot support.
+        let v = observed_verdict(
+            &cidr_rule("'10.0.0.0/8'"),
+            "curl http://x",
+            &[("DestinationIp", "example.com")],
+        );
+        assert_eq!(v.outcome, Outcome::Indeterminate);
+        assert_eq!(
+            v.blocking_modifiers,
+            vec!["cidr".to_string()],
+            "an abstention must say what it is waiting on"
+        );
     }
 
     #[test]
