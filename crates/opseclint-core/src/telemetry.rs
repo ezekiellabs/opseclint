@@ -1433,6 +1433,35 @@ mod tests {
     }
 
     #[test]
+    fn sudoers_access_matches_the_file_and_the_include_directory() {
+        // `sudoers-tamper` claims openat()/write() of `/etc/sudoers` *or*
+        // `/etc/sudoers.d/*`, so both shapes must be recognized from a PATH
+        // record with no captured causing execution.
+        let event = |path: &str| {
+            format!(
+                "\
+type=SYSCALL msg=audit(1700000003.100:960): arch=c000003e syscall=257 success=yes exit=3 items=1 ppid=1 pid=4000 uid=0 comm=\"vim\" exe=\"/usr/bin/vim\" key=\"sudoers-watch\"
+type=PATH msg=audit(1700000003.100:960): item=0 name=\"{path}\" nametype=NORMAL
+"
+            )
+        };
+        for path in ["/etc/sudoers", "/etc/sudoers.d/99-backdoor"] {
+            let ingest = parse(&event(path), Format::Auditd).expect("parses");
+            assert_eq!(ingest.event_observations.len(), 1, "no event for {path}");
+            let ids = ids(&analyzer::analyze_telemetry(&ingest, &lnx_kb()));
+            assert!(
+                ids.contains(&"sudoers-tamper".to_string()),
+                "sudoers-tamper did not fire on {path}"
+            );
+        }
+        // `path_under` is segment-aware, so a sibling path that merely shares the
+        // prefix is not sudoers tampering.
+        let ingest = parse(&event("/etc/sudoers.d.bak/notes"), Format::Auditd).expect("parses");
+        let ids = ids(&analyzer::analyze_telemetry(&ingest, &lnx_kb()));
+        assert!(!ids.contains(&"sudoers-tamper".to_string()));
+    }
+
+    #[test]
     fn a_metadata_connect_matches_on_address_and_port_together() {
         // The multi-field predicate the flat axis could not express: the IMDS
         // entry keys on the link-local address *and* port 80.
