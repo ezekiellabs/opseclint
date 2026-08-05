@@ -433,7 +433,7 @@
     },
     {
       "id": "emond-persist",
-      "match": { "line": { "contains": "emond" } },
+      "match": { "line": { "contains": "emond" }, "event": { "class": "file", "any": [{ "field": "TargetFilename", "path_under": "/etc/emond.d" }, { "field": "TargetFilename", "path_under": "/private/var/db/emondClients" }] } },
       "description": "Writing an emond rule — event-monitor persistence",
       "techniques": [{ "id": "T1546.014", "name": "Event Triggered Execution: Emond" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE under /etc/emond.d/ or /private/var/db/emondClients"],

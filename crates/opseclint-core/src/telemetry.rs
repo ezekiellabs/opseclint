@@ -937,8 +937,8 @@ fn parse_esf(text: &str) -> Result<Ingest, String> {
 ///
 /// The ESF counterpart of [`sysmon_event`] and [`auditd_event`], keyed by the same
 /// canonical field names so one knowledge-base entry serves every platform that
-/// reports the class. `NOTIFY_OPEN` and `NOTIFY_CREATE` are `file` events;
-/// `NOTIFY_CONNECT` is a `network` one.
+/// reports the class. `NOTIFY_OPEN`, `NOTIFY_CREATE` and `NOTIFY_WRITE` are
+/// `file` events; `NOTIFY_CONNECT` is a `network` one.
 fn esf_event(ev: &Value) -> Option<(String, String, HashMap<String, String>)> {
     let event = ev.get("event")?;
     let mut fields = HashMap::new();
@@ -957,6 +957,12 @@ fn esf_event(ev: &Value) -> Option<(String, String, HashMap<String, String>)> {
             .or_else(|| nested_str(create, &["file", "path"]))?;
         fields.insert("TargetFilename".to_string(), path.to_string());
         return Some(("file".to_string(), format!("file created {path}"), fields));
+    }
+    if let Some(write) = event.get("write")
+        && let Some(path) = nested_str(write, &["target", "path"])
+    {
+        fields.insert("TargetFilename".to_string(), path.to_string());
+        return Some(("file".to_string(), format!("file written {path}"), fields));
     }
     if let Some(connect) = event.get("connect") {
         let host = nested_str(connect, &["address"])?;
@@ -1772,6 +1778,42 @@ type=EXECVE msg=audit(1.0:1): argc=1 a0=\"whoami\"
             curl.event.get("ParentImage").map(String::as_str),
             Some("/usr/bin/osascript")
         );
+    }
+
+    #[test]
+    fn emond_rule_writes_match_both_claimed_directories() {
+        // `emond-persist` claims NOTIFY_WRITE under `/etc/emond.d/` or
+        // `/private/var/db/emondClients`, so both must be recognized from a write
+        // event with no captured causing execution.
+        let write = |path: &str| {
+            format!(
+                r#"{{"event":{{"write":{{"target":{{"path":"{path}"}}}}}},
+                    "process":{{"executable":{{"path":"/usr/bin/tee"}},
+                                "audit_token":{{"pid":6100}}}},
+                    "event_type":13,"seq_num":1}}"#
+            )
+        };
+        for path in [
+            "/etc/emond.d/rules/evil.plist",
+            "/private/var/db/emondClients/com.evil",
+        ] {
+            let ingest = parse(&write(path), Format::Esf).expect("parses");
+            assert_eq!(ingest.event_observations.len(), 1, "no event for {path}");
+            assert_eq!(
+                ingest.event_observations[0].detail,
+                format!("file written {path}")
+            );
+            let ids = ids(&analyzer::analyze_telemetry(&ingest, &mac_kb()));
+            assert!(
+                ids.contains(&"emond-persist".to_string()),
+                "emond-persist did not fire on {path}"
+            );
+        }
+        // `path_under` is segment-aware, so a sibling directory sharing the prefix
+        // is not emond persistence.
+        let ingest = parse(&write("/etc/emond.d.bak/notes"), Format::Esf).expect("parses");
+        let ids = ids(&analyzer::analyze_telemetry(&ingest, &mac_kb()));
+        assert!(!ids.contains(&"emond-persist".to_string()));
     }
 
     #[test]
