@@ -115,6 +115,85 @@ enum MatchOp {
     Contains,
     StartsWith,
     EndsWith,
+    /// `|re` — one compiled pattern per authored value, so `|re|all` keeps
+    /// meaning "every pattern matches".
+    Re(Vec<regex::Regex>),
+}
+
+/// `re` sub-modifiers that change how the pattern compiles.
+#[derive(Debug, Clone, Copy, Default)]
+struct ReFlags {
+    multi_line: bool,
+    dot_all: bool,
+}
+
+/// A comparison modifier seen during token walking, before the values it
+/// applies to are in hand.
+enum PendingOp {
+    Contains,
+    StartsWith,
+    EndsWith,
+    Re(ReFlags),
+}
+
+/// Compile a Sigma `re` pattern.
+///
+/// Case-insensitive, matching every other comparison here, and matching
+/// `matcher::Re` on the knowledge-base side. A rule that genuinely needs case
+/// can say so with an inline `(?-i)`. The failure direction matters: treating
+/// patterns as case-sensitive would turn real firings into `NO-FIRE`, which is
+/// the claim this evaluator exists not to make.
+///
+/// Unanchored, because SigmaHQ writes patterns like `\bnet\s+user\b` and
+/// expects a search. Size limits are set because the ruleset is third-party
+/// input; the `regex` crate does not backtrack, so the risk is compile-time
+/// blowup rather than ReDoS.
+fn compile_re(pattern: &str, flags: ReFlags) -> Option<regex::Regex> {
+    regex::RegexBuilder::new(pattern)
+        .case_insensitive(true)
+        .multi_line(flags.multi_line)
+        .dot_matches_new_line(flags.dot_all)
+        .size_limit(1 << 20)
+        .dfa_size_limit(1 << 20)
+        .build()
+        .ok()
+}
+
+/// Turn the comparison modifier seen while walking tokens into the op the
+/// evaluator runs, recording the modifier as unevaluated work if it cannot be.
+fn resolve_op(
+    pending: Option<PendingOp>,
+    values: &[String],
+    transforms: &[Transform],
+    unsupported_mods: &mut Vec<String>,
+) -> MatchOp {
+    match pending {
+        None => MatchOp::Glob,
+        Some(PendingOp::Contains) => MatchOp::Contains,
+        Some(PendingOp::StartsWith) => MatchOp::StartsWith,
+        Some(PendingOp::EndsWith) => MatchOp::EndsWith,
+        Some(PendingOp::Re(flags)) => {
+            // A compiled pattern is paired with the value it came from, so a
+            // value transform underneath `re` has no meaning we can honour.
+            if !transforms.is_empty() {
+                unsupported_mods.push("re".to_string());
+                return MatchOp::Glob;
+            }
+            let compiled: Option<Vec<regex::Regex>> =
+                values.iter().map(|v| compile_re(v, flags)).collect();
+            match compiled {
+                Some(res) => MatchOp::Re(res),
+                // SigmaHQ is upstream input and may use PCRE constructs the
+                // `regex` crate has no equivalent for. Abstaining and naming
+                // `re` is honest; a silent no-match would read as proof the
+                // rule would not fire.
+                None => {
+                    unsupported_mods.push("re".to_string());
+                    MatchOp::Glob
+                }
+            }
+        }
+    }
 }
 
 /// A `field|mods: values` match, lowered to the form the evaluator runs on.
@@ -305,7 +384,7 @@ fn lower(key: &str, values: Vec<String>) -> FieldMatch {
     let field = parts.next().unwrap_or("").to_string();
     let tokens: Vec<&str> = parts.collect();
 
-    let mut op: Option<MatchOp> = None;
+    let mut pending: Option<PendingOp> = None;
     let mut all = false;
     let mut transforms: Vec<Transform> = Vec::new();
     let mut unsupported_mods: Vec<String> = Vec::new();
@@ -313,17 +392,34 @@ fn lower(key: &str, values: Vec<String>) -> FieldMatch {
     let mut i = 0;
     while i < tokens.len() {
         let token = tokens[i];
-        let string_op = match token {
-            "contains" => Some(MatchOp::Contains),
-            "startswith" => Some(MatchOp::StartsWith),
-            "endswith" => Some(MatchOp::EndsWith),
+        let next_op = match token {
+            "contains" => Some(PendingOp::Contains),
+            "startswith" => Some(PendingOp::StartsWith),
+            "endswith" => Some(PendingOp::EndsWith),
+            "re" => {
+                // `re` takes trailing sub-modifiers: `|re|i`, `|re|m`, `|re|s`.
+                let mut flags = ReFlags::default();
+                while let Some(sub) = tokens.get(i + 1) {
+                    match *sub {
+                        // `i` is redundant — patterns always compile
+                        // case-insensitively — but accepting it keeps the
+                        // token out of `unsupported_mods`.
+                        "i" => {}
+                        "m" => flags.multi_line = true,
+                        "s" => flags.dot_all = true,
+                        _ => break,
+                    }
+                    i += 1;
+                }
+                Some(PendingOp::Re(flags))
+            }
             _ => None,
         };
-        match (token, string_op) {
+        match (token, next_op) {
             // Two comparison modifiers on one field is not a chain we can
             // resolve; abstain rather than let the first or last one win.
-            (_, Some(next)) => match op {
-                None => op = Some(next),
+            (_, Some(next)) => match pending {
+                None => pending = Some(next),
                 Some(_) => unsupported_mods.push(token.to_string()),
             },
             ("all", _) => all = true,
@@ -334,6 +430,7 @@ fn lower(key: &str, values: Vec<String>) -> FieldMatch {
         i += 1;
     }
 
+    let op = resolve_op(pending, &values, &transforms, &mut unsupported_mods);
     let null_values = values.is_empty();
     let case_sensitive = transforms.contains(&Transform::Base64Offset);
 
@@ -368,7 +465,7 @@ fn lower(key: &str, values: Vec<String>) -> FieldMatch {
         key: key.to_string(),
         field,
         values,
-        op: op.unwrap_or_default(),
+        op,
         all,
         case_sensitive,
         needles,
@@ -713,6 +810,21 @@ fn eval_field(fm: &FieldMatch, event: &HashMap<String, String>) -> Ternary {
     let Some(raw) = event.get(&fm.field) else {
         return Ternary::Unknown;
     };
+    // Patterns compile case-insensitively, so they run against the raw value —
+    // a pre-lowercased haystack would defeat an inline `(?-i)`.
+    if let MatchOp::Re(res) = &fm.op {
+        let matched = if fm.all {
+            res.iter().all(|r| r.is_match(raw))
+        } else {
+            res.iter().any(|r| r.is_match(raw))
+        };
+        return if matched {
+            Ternary::True
+        } else {
+            Ternary::False
+        };
+    }
+
     let val = if fm.case_sensitive {
         raw.to_string()
     } else {
@@ -728,7 +840,8 @@ fn eval_field(fm: &FieldMatch, event: &HashMap<String, String>) -> Ternary {
             MatchOp::Contains => val.contains(&n),
             MatchOp::StartsWith => val.starts_with(&n),
             MatchOp::EndsWith => val.ends_with(&n),
-            MatchOp::Glob => glob_match(&val, &n),
+            // `Re` is handled above; it never reaches the needle loop.
+            MatchOp::Glob | MatchOp::Re(_) => glob_match(&val, &n),
         }
     })
 }
@@ -1011,7 +1124,10 @@ detection:
 
     #[test]
     fn unsupported_modifier_is_indeterminate() {
-        let yaml = "title: t\nid: r5\ndetection:\n    selection:\n        CommandLine|re: '.*shadow.*'\n    condition: selection\n";
+        // `fieldref` stands in for "any modifier we do not implement". If it
+        // ever lands, re-point this test at another unimplemented token rather
+        // than deleting it — the property is that an unknown modifier abstains.
+        let yaml = "title: t\nid: r5\ndetection:\n    selection:\n        CommandLine|fieldref: 'ParentCommandLine'\n    condition: selection\n";
         assert_eq!(
             verdict(yaml, "cat /etc/shadow").outcome,
             Outcome::Indeterminate
@@ -1025,11 +1141,11 @@ detection:
     #[test]
     fn modifier_block_is_reported_and_distinct_from_a_missing_field() {
         let by_modifier = verdict(
-            "title: t\nid: m1\ndetection:\n    selection:\n        CommandLine|re: '.*shadow.*'\n    condition: selection\n",
+            "title: t\nid: m1\ndetection:\n    selection:\n        CommandLine|fieldref: 'ParentCommandLine'\n    condition: selection\n",
             "cat /etc/shadow",
         );
         assert_eq!(by_modifier.outcome, Outcome::Indeterminate);
-        assert_eq!(by_modifier.blocking_modifiers, vec!["re".to_string()]);
+        assert_eq!(by_modifier.blocking_modifiers, vec!["fieldref".to_string()]);
         // CommandLine *is* synthesizable, so nothing is missing — only the
         // modifier is in the way.
         assert!(by_modifier.missing_fields.is_empty());
@@ -1248,6 +1364,77 @@ detection:
         let v = verdict(yaml, "powershell -enc d2hvYW1p");
         assert_eq!(v.outcome, Outcome::Indeterminate);
         assert_eq!(v.blocking_modifiers, vec!["wide".to_string()]);
+    }
+
+    // --- re ----------------------------------------------------------------
+
+    #[test]
+    fn re_matches_and_is_case_insensitive() {
+        let yaml = "title: t\nid: e1\ndetection:\n    selection:\n        CommandLine|re: 'shadow'\n    condition: selection\n";
+        assert_eq!(verdict(yaml, "cat /etc/SHADOW").outcome, Outcome::Fires);
+    }
+
+    #[test]
+    fn re_is_unanchored() {
+        // SigmaHQ writes patterns expecting a search, not a full match. An
+        // anchored implementation returns NoFire here — a false negative.
+        let yaml = "title: t\nid: e2\ndetection:\n    selection:\n        CommandLine|re: '/etc/shadow'\n    condition: selection\n";
+        assert_eq!(verdict(yaml, "cat /etc/shadow").outcome, Outcome::Fires);
+    }
+
+    #[test]
+    fn re_no_fire_on_a_non_match() {
+        let yaml = "title: t\nid: e3\ndetection:\n    selection:\n        CommandLine|re: '\\bpasswd\\b'\n    condition: selection\n";
+        let v = verdict(yaml, "cat /etc/shadow");
+        assert_eq!(v.outcome, Outcome::NoFire);
+        assert!(v.blocking_modifiers.is_empty());
+    }
+
+    #[test]
+    fn re_matches_the_raw_value_not_a_lowercased_one() {
+        // An inline `(?-i)` has to survive, which it cannot if the haystack was
+        // folded before the pattern ever saw it.
+        let yaml = "title: t\nid: e4\ndetection:\n    selection:\n        CommandLine|re: '(?-i)SHADOW'\n    condition: selection\n";
+        assert_eq!(verdict(yaml, "cat /etc/SHADOW").outcome, Outcome::Fires);
+        assert_eq!(verdict(yaml, "cat /etc/shadow").outcome, Outcome::NoFire);
+    }
+
+    #[test]
+    fn re_i_sub_modifier_is_accepted() {
+        let yaml = "title: t\nid: e5\ndetection:\n    selection:\n        CommandLine|re|i: 'SHADOW'\n    condition: selection\n";
+        let v = verdict(yaml, "cat /etc/shadow");
+        assert_eq!(v.outcome, Outcome::Fires);
+        assert!(
+            v.blocking_modifiers.is_empty(),
+            "the `i` sub-modifier must be consumed by `re`, not reported unknown"
+        );
+    }
+
+    #[test]
+    fn an_uncompilable_regex_stays_indeterminate() {
+        // Both patterns would match under a PCRE engine. Answering NO-FIRE here
+        // would convert "this evaluator cannot read the pattern" into "the rule
+        // would not fire" — the one failure this evaluator exists to prevent.
+        for pattern in ["(?<=sudo )su", "(a)\\1"] {
+            let yaml = format!(
+                "title: t\nid: e6\ndetection:\n    selection:\n        CommandLine|re: '{pattern}'\n    condition: selection\n"
+            );
+            let v = verdict(&yaml, "sudo su");
+            assert_eq!(
+                v.outcome,
+                Outcome::Indeterminate,
+                "pattern {pattern} must abstain"
+            );
+            assert_eq!(v.blocking_modifiers, vec!["re".to_string()]);
+        }
+    }
+
+    #[test]
+    fn an_oversized_regex_stays_indeterminate() {
+        let yaml = "title: t\nid: e7\ndetection:\n    selection:\n        CommandLine|re: '(?:a{1000}){1000}'\n    condition: selection\n";
+        let v = verdict(yaml, "aaaa");
+        assert_eq!(v.outcome, Outcome::Indeterminate);
+        assert_eq!(v.blocking_modifiers, vec!["re".to_string()]);
     }
 
     #[test]
