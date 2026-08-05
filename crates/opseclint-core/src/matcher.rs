@@ -4,11 +4,14 @@
 //! *detectability* only — "what would a defender see?" — and encodes no evasion
 //! semantics.
 //!
-//! ## The three axes
+//! ## The axes
 //! - `program` — who ran: an exact basename or an any-of set.
 //! - `args`   — a predicate tree over the resolved argument vector.
 //! - `line`   — a predicate over the whole raw line (for redirections, pipes,
 //!   and markers that span tokens).
+//! - `event`  — a predicate tree over a *non-execution* record's fields
+//!   (network / file / registry). Orthogonal to the three command axes: it
+//!   matches a standalone sensor event, with no command line involved.
 //!
 //! Leaf predicates such as `word` (word-boundary) and `path_under`
 //! (path-segment aware) exist to kill the substring false positives that plain
@@ -51,60 +54,222 @@ pub struct Matcher {
     pub event: Option<EventMatch>,
 }
 
-/// A predicate over a non-execution event's fields: the event `class`
-/// (`network` / `file` / `registry`) and a single string test (`contains` or
-/// `eq`, case-insensitive) on one named `field` (e.g. a registry `TargetObject`).
-/// Deliberately small — hand-authorable, and evaluated against the same field map
-/// the ingest builds for observed Sigma evaluation.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct EventMatch {
-    /// The event class this applies to: `network`, `file`, or `registry`.
-    pub class: String,
-    /// The single event field to test, by its canonical name (e.g. a registry
-    /// `TargetObject`).
-    pub field: String,
-    /// The field must contain this substring, case-insensitively. Mutually
-    /// exclusive with `eq`; exactly one of the two is required.
-    #[serde(default)]
-    pub contains: Option<String>,
-    /// The field must equal this string, case-insensitively. Mutually exclusive
-    /// with `contains`; exactly one of the two is required.
-    #[serde(default)]
-    pub eq: Option<String>,
+/// The class of non-execution record an [`EventMatch`] applies to. Validated at
+/// deserialization, so an unrecognized class is a load error rather than an entry
+/// that silently never fires.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EventClass {
+    /// An outbound connection (Sysmon EID 3, auditd `SOCKADDR`, ESF connect).
+    Network,
+    /// A file create / open (Sysmon EID 11, auditd `PATH`, ESF `NOTIFY_OPEN`).
+    File,
+    /// A registry value set (Sysmon EID 13). Windows-only in practice.
+    Registry,
 }
 
-impl EventMatch {
-    /// Exactly one of `contains` / `eq` must be set and non-empty. Neither, both,
-    /// or an empty predicate is a knowledge-base authoring mistake — an empty
-    /// `contains` would otherwise match every value — so it is rejected at load
-    /// (see [`crate::model::KnowledgeBase::validate`]) rather than matching broadly.
-    pub fn validate(&self) -> Result<(), String> {
-        match (self.contains.as_deref(), self.eq.as_deref()) {
-            (Some(_), Some(_)) => Err("event match sets both `contains` and `eq`".into()),
-            (None, None) => Err("event match sets neither `contains` nor `eq`".into()),
-            (Some(""), None) | (None, Some("")) => Err("event match predicate is empty".into()),
-            _ => Ok(()),
+impl EventClass {
+    /// The lowercase tag the telemetry layer uses on
+    /// [`EventObservation::class`](crate::telemetry::EventObservation::class).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            EventClass::Network => "network",
+            EventClass::File => "file",
+            EventClass::Registry => "registry",
+        }
+    }
+}
+
+/// A predicate over a non-execution event's fields: the event `class`
+/// (`network` / `file` / `registry`) and a predicate tree over the record's named
+/// fields. Evaluated against the same field map the ingest builds for observed
+/// Sigma evaluation.
+///
+/// The single-field form is the degenerate case of the tree, so
+/// `{ "class": "registry", "field": "TargetObject", "contains": "\\Run" }` and
+/// `{ "class": "network", "all": [ … ] }` are the same grammar — the former is one
+/// [`FieldPred`] hoisted to the top.
+#[derive(Debug, Clone, Deserialize)]
+pub struct EventMatch {
+    /// The event class this applies to.
+    pub class: EventClass,
+    /// The predicate over the record's fields.
+    #[serde(flatten)]
+    pub pred: EventPred,
+}
+
+/// A predicate over a non-execution record's field map: either a combinator or a
+/// test on one named field.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum EventPred {
+    /// `all` / `any` / `not` over sub-predicates.
+    Comb(EventComb),
+    /// A test on a single named field.
+    Field(FieldPred),
+}
+
+/// The `all` / `any` / `not` combinators of the [`event`](EventMatch) axis. They
+/// compose predicates, mirroring [`ArgPred`] and [`LinePred`].
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EventComb {
+    /// Every sub-predicate holds.
+    All(Vec<EventPred>),
+    /// Some sub-predicate holds.
+    Any(Vec<EventPred>),
+    /// The sub-predicate does not hold.
+    Not(Box<EventPred>),
+}
+
+/// A test on one named event field. Exactly one leaf must be set — several, or
+/// none, is an authoring mistake rejected at load (see [`EventMatch::validate`]).
+/// The leaves mirror the `line` axis, plus `path_under`, because event fields are
+/// so often filesystem or registry paths.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FieldPred {
+    /// The event field to test, by its canonical name (e.g. `TargetObject`).
+    /// Looked up case-insensitively.
+    pub field: String,
+    /// The field contains this substring.
+    #[serde(default)]
+    pub contains: Option<String>,
+    /// The field equals this string.
+    #[serde(default)]
+    pub eq: Option<String>,
+    /// The field starts with this string.
+    #[serde(default)]
+    pub prefix: Option<String>,
+    /// The field ends with this string.
+    #[serde(default)]
+    pub suffix: Option<String>,
+    /// The field contains this token on word boundaries.
+    #[serde(default)]
+    pub word: Option<String>,
+    /// The field is a path equal to, or nested under, this directory
+    /// (segment-aware).
+    #[serde(default)]
+    pub path_under: Option<String>,
+    /// The field matches this regular expression.
+    #[serde(default)]
+    pub regex: Option<Re>,
+}
+
+impl FieldPred {
+    /// Exactly one leaf must be set and non-empty. An empty `contains` would match
+    /// every value, so it is rejected rather than matching broadly.
+    fn validate(&self) -> Result<(), String> {
+        let literals = [
+            &self.contains,
+            &self.eq,
+            &self.prefix,
+            &self.suffix,
+            &self.word,
+            &self.path_under,
+        ];
+        let set =
+            literals.iter().filter(|l| l.is_some()).count() + usize::from(self.regex.is_some());
+        match set {
+            0 => Err(format!("event field `{}` sets no predicate", self.field)),
+            1 => {
+                if literals.iter().any(|l| l.as_deref() == Some("")) {
+                    Err(format!(
+                        "event field `{}` has an empty predicate",
+                        self.field
+                    ))
+                } else if self.field.is_empty() {
+                    Err("event predicate has an empty `field`".into())
+                } else {
+                    Ok(())
+                }
+            }
+            _ => Err(format!(
+                "event field `{}` sets more than one predicate",
+                self.field
+            )),
         }
     }
 
-    /// Whether this predicate holds for a record of the given `class` and fields.
-    /// An empty or ambiguous predicate never matches (it is rejected at load, but
-    /// `eval` is explicit rather than relying on that).
-    fn eval(&self, class: &str, fields: &HashMap<String, String>) -> bool {
-        if !self.class.eq_ignore_ascii_case(class) {
-            return false;
-        }
-        let Some(val) = fields.get(&self.field) else {
+    /// Whether this leaf holds against `fields`. The field name is matched
+    /// case-insensitively: the ingest layer canonicalizes casing, but each format
+    /// names its own extras, so an author should not have to guess the casing.
+    fn eval(&self, fields: &HashMap<String, String>) -> bool {
+        let Some(val) = lookup_ci(fields, &self.field) else {
             return false;
         };
-        match (self.contains.as_deref(), self.eq.as_deref()) {
-            (Some(needle), None) if !needle.is_empty() => {
-                val.to_lowercase().contains(&needle.to_lowercase())
-            }
-            (None, Some(exact)) if !exact.is_empty() => val.eq_ignore_ascii_case(exact),
-            _ => false,
+        if let Some(s) = &self.contains {
+            return !s.is_empty() && contains_ci(val, s);
         }
+        if let Some(s) = &self.eq {
+            return !s.is_empty() && val.eq_ignore_ascii_case(s);
+        }
+        if let Some(s) = &self.prefix {
+            return !s.is_empty() && starts_with_ci(val, s);
+        }
+        if let Some(s) = &self.suffix {
+            return !s.is_empty() && ends_with_ci(val, s);
+        }
+        if let Some(s) = &self.word {
+            return word_match(val, s);
+        }
+        if let Some(s) = &self.path_under {
+            return path_under(val, s);
+        }
+        if let Some(re) = &self.regex {
+            return re.is_match(val);
+        }
+        false
+    }
+}
+
+/// Look a field up by name, case-insensitively. Exact hit first — the common case
+/// and a plain hash lookup — falling back to a scan only when that misses.
+fn lookup_ci<'a>(fields: &'a HashMap<String, String>, name: &str) -> Option<&'a str> {
+    if let Some(v) = fields.get(name) {
+        return Some(v.as_str());
+    }
+    fields
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case(name))
+        .map(|(_, v)| v.as_str())
+}
+
+impl EventPred {
+    fn eval(&self, fields: &HashMap<String, String>) -> bool {
+        match self {
+            EventPred::Comb(EventComb::All(v)) => v.iter().all(|p| p.eval(fields)),
+            EventPred::Comb(EventComb::Any(v)) => v.iter().any(|p| p.eval(fields)),
+            EventPred::Comb(EventComb::Not(p)) => !p.eval(fields),
+            EventPred::Field(f) => f.eval(fields),
+        }
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        match self {
+            EventPred::Comb(EventComb::All(v)) | EventPred::Comb(EventComb::Any(v)) => {
+                if v.is_empty() {
+                    return Err("event `all`/`any` group is empty".into());
+                }
+                v.iter().try_for_each(EventPred::validate)
+            }
+            EventPred::Comb(EventComb::Not(p)) => p.validate(),
+            EventPred::Field(f) => f.validate(),
+        }
+    }
+}
+
+impl EventMatch {
+    /// Validate the whole predicate tree: every leaf sets exactly one non-empty
+    /// test, and no `all`/`any` group is empty. Rejected at load (see
+    /// [`crate::model::KnowledgeBase::validate`]) rather than matching broadly.
+    pub fn validate(&self) -> Result<(), String> {
+        self.pred.validate()
+    }
+
+    /// Whether this predicate holds for a record of the given `class` and fields.
+    fn eval(&self, class: &str, fields: &HashMap<String, String>) -> bool {
+        self.class.as_str().eq_ignore_ascii_case(class) && self.pred.eval(fields)
     }
 }
 
@@ -497,6 +662,27 @@ impl Matcher {
         (!line.is_empty()).then(|| line.to_string())
     }
 
+    /// A representative non-execution event this matcher's `event` axis would
+    /// match: the class, and a field map built from the predicate's literals.
+    /// `None` when the entry has no `event` axis, or when nothing positive can be
+    /// derived (a bare `regex` or a purely-negated predicate).
+    ///
+    /// This is the `event`-axis counterpart of [`representative_line`] and drives
+    /// the same self-consistency guard: an event entry must fire on its own
+    /// representative.
+    ///
+    /// [`representative_line`]: Matcher::representative_line
+    pub fn representative_event(&self) -> Option<(EventClass, HashMap<String, String>)> {
+        let event = self.event.as_ref()?;
+        let mut by_field: Vec<(String, FieldRepr)> = Vec::new();
+        collect_event_repr(&event.pred, &mut by_field);
+        let fields: HashMap<String, String> = by_field
+            .into_iter()
+            .filter_map(|(name, repr)| repr.compose().map(|v| (name, v)))
+            .collect();
+        (!fields.is_empty()).then_some((event.class, fields))
+    }
+
     /// A representative program basename (exact value, or the first of an
     /// any-of set).
     fn program_representative(&self) -> Option<String> {
@@ -504,6 +690,98 @@ impl Matcher {
             Some(ProgramMatch::Exact(p)) => Some(p.clone()),
             Some(ProgramMatch::AnyOf { any }) => any.first().cloned(),
             None => None,
+        }
+    }
+}
+
+/// The literals gathered for one event field, before they are composed into a
+/// single representative value. Several leaves can constrain the same field — the
+/// LaunchAgents case is `contains "/LaunchAgents/"` **and** `suffix ".plist"` —
+/// so the pieces are accumulated and assembled once, rather than overwriting each
+/// other.
+#[derive(Default)]
+struct FieldRepr {
+    eq: Option<String>,
+    prefix: Option<String>,
+    suffix: Option<String>,
+    parts: Vec<String>,
+}
+
+impl FieldRepr {
+    /// Assemble one value satisfying every gathered leaf: `prefix`, then the
+    /// `contains` / `word` / `path_under` fragments in the order authored, then
+    /// `suffix`. An `eq` pins the value outright.
+    ///
+    /// A `/` is inserted where two pieces would otherwise fuse into one word, so a
+    /// `word` fragment keeps the boundaries it asked for. `/` is safe filler here:
+    /// it is a non-word character, and event fields are paths.
+    fn compose(self) -> Option<String> {
+        if let Some(eq) = self.eq {
+            return (!eq.is_empty()).then_some(eq);
+        }
+        let mut out = self.prefix.unwrap_or_default();
+        for piece in self.parts.into_iter().chain(self.suffix) {
+            if piece.is_empty() {
+                continue;
+            }
+            let fuses = out
+                .chars()
+                .next_back()
+                .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
+                && piece
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
+            if fuses {
+                out.push('/');
+            }
+            out.push_str(&piece);
+        }
+        (!out.is_empty()).then_some(out)
+    }
+}
+
+/// Gather the positive literals of an event predicate, per field, in authored
+/// order. Mirrors the command-side derivation: `any` contributes only its first
+/// branch, `not` contributes nothing, and a `regex` leaf contributes nothing —
+/// which is what makes a bare-`regex` event predicate underivable, and so a load
+/// error rather than an entry that cannot be self-checked.
+fn collect_event_repr(pred: &EventPred, out: &mut Vec<(String, FieldRepr)>) {
+    match pred {
+        EventPred::Comb(EventComb::All(v)) => {
+            for p in v {
+                collect_event_repr(p, out);
+            }
+        }
+        EventPred::Comb(EventComb::Any(v)) => {
+            if let Some(first) = v.first() {
+                collect_event_repr(first, out);
+            }
+        }
+        EventPred::Comb(EventComb::Not(_)) => {}
+        EventPred::Field(f) => {
+            let slot = match out
+                .iter_mut()
+                .find(|(name, _)| name.eq_ignore_ascii_case(&f.field))
+            {
+                Some((_, repr)) => repr,
+                None => {
+                    out.push((f.field.clone(), FieldRepr::default()));
+                    &mut out.last_mut().expect("just pushed").1
+                }
+            };
+            if let Some(s) = &f.eq {
+                slot.eq = Some(s.clone());
+            } else if let Some(s) = &f.prefix {
+                slot.prefix = Some(s.clone());
+            } else if let Some(s) = &f.suffix {
+                slot.suffix = Some(s.clone());
+            } else if let Some(s) = f.contains.as_ref().or(f.word.as_ref()) {
+                slot.parts.push(s.clone());
+            } else if let Some(base) = &f.path_under {
+                // A path is under itself, so the base is its own representative.
+                slot.parts.push(base.clone());
+            }
         }
     }
 }
@@ -888,6 +1166,128 @@ mod tests {
         let mut fields = HashMap::new();
         fields.insert("T".to_string(), "anything".to_string());
         assert!(!empty.evaluate_event("registry", &fields));
+    }
+
+    #[test]
+    fn event_axis_tests_several_fields_at_once() {
+        // The case a flat one-field axis could not express: a network event is
+        // only interesting when the address *and* the port both match.
+        let c2 = m(r#"{ "event": { "class": "network", "all": [
+            { "field": "DestinationIp",   "eq": "192.0.2.10" },
+            { "field": "DestinationPort", "eq": "4444" } ] } }"#);
+        let ev = |ip: &str, port: &str| {
+            HashMap::from([
+                ("DestinationIp".to_string(), ip.to_string()),
+                ("DestinationPort".to_string(), port.to_string()),
+            ])
+        };
+        assert!(c2.evaluate_event("network", &ev("192.0.2.10", "4444")));
+        // Either half alone is not the detection.
+        assert!(!c2.evaluate_event("network", &ev("192.0.2.10", "443")));
+        assert!(!c2.evaluate_event("network", &ev("10.0.0.5", "4444")));
+    }
+
+    #[test]
+    fn event_axis_supports_any_not_and_boundary_aware_leaves() {
+        let pred = m(r#"{ "event": { "class": "file", "all": [
+            { "field": "TargetFilename", "path_under": "/etc/cron.d" },
+            { "not": { "field": "TargetFilename", "suffix": ".swp" } } ] } }"#);
+        let f = |p: &str| HashMap::from([("TargetFilename".to_string(), p.to_string())]);
+        assert!(pred.evaluate_event("file", &f("/etc/cron.d/backdoor")));
+        // `path_under` is segment-aware, so the sibling directory is not a match.
+        assert!(!pred.evaluate_event("file", &f("/etc/cron.daily/x")));
+        // …and the negated editor swapfile is excluded.
+        assert!(!pred.evaluate_event("file", &f("/etc/cron.d/backdoor.swp")));
+
+        let any = m(r#"{ "event": { "class": "network", "any": [
+            { "field": "DestinationPort", "eq": "4444" },
+            { "field": "DestinationPort", "eq": "1337" } ] } }"#);
+        let p = |v: &str| HashMap::from([("DestinationPort".to_string(), v.to_string())]);
+        assert!(any.evaluate_event("network", &p("4444")));
+        assert!(any.evaluate_event("network", &p("1337")));
+        assert!(!any.evaluate_event("network", &p("443")));
+    }
+
+    #[test]
+    fn event_field_names_are_matched_case_insensitively() {
+        // Each ingest format names its own extras, so an author should not have to
+        // guess the casing the reduction happened to use.
+        let pred = m(
+            r#"{ "event": { "class": "file", "field": "targetfilename", "eq": "/etc/shadow" } }"#,
+        );
+        let fields = HashMap::from([("TargetFilename".to_string(), "/etc/shadow".to_string())]);
+        assert!(pred.evaluate_event("file", &fields));
+    }
+
+    #[test]
+    fn unknown_event_class_or_leaf_is_a_load_time_error() {
+        // A typo'd class or leaf would otherwise be an entry that silently never
+        // fires. `EventMatch` gives up `deny_unknown_fields` to flatten its
+        // predicate, so this pins the strictness that `FieldPred` and the
+        // externally-tagged combinators provide in its place.
+        for json in [
+            r#"{ "event": { "class": "registery", "field": "T", "eq": "x" } }"#,
+            r#"{ "event": { "class": "registry", "field": "T", "containz": "x" } }"#,
+            r#"{ "event": { "class": "registry", "evry": [ { "field": "T", "eq": "x" } ] } }"#,
+            // A missing `class` is not a "match everything" licence.
+            r#"{ "event": { "field": "T", "eq": "x" } }"#,
+        ] {
+            assert!(
+                serde_json::from_str::<Matcher>(json).is_err(),
+                "expected a load error for {json}"
+            );
+        }
+    }
+
+    #[test]
+    fn event_representative_round_trips_through_the_engine() {
+        for json in [
+            r#"{ "event": { "class": "registry", "field": "TargetObject", "contains": "\\Run" } }"#,
+            r#"{ "event": { "class": "network", "all": [
+                { "field": "DestinationIp", "eq": "192.0.2.10" },
+                { "field": "DestinationPort", "eq": "4444" } ] } }"#,
+            // Two leaves constraining one field must compose into a single value
+            // that satisfies both, not overwrite each other.
+            r#"{ "event": { "class": "file", "all": [
+                { "field": "TargetFilename", "contains": "/LaunchAgents/" },
+                { "field": "TargetFilename", "suffix": ".plist" } ] } }"#,
+            r#"{ "event": { "class": "file", "field": "TargetFilename", "path_under": "/etc/cron.d" } }"#,
+            r#"{ "event": { "class": "file", "field": "TargetFilename", "word": "id_rsa" } }"#,
+            // `any` takes its first branch; `not` contributes nothing.
+            r#"{ "event": { "class": "file", "all": [
+                { "any": [ { "field": "TargetFilename", "eq": "/etc/shadow" } ] },
+                { "not": { "field": "TargetFilename", "suffix": ".bak" } } ] } }"#,
+        ] {
+            let matcher = m(json);
+            let (class, fields) = matcher
+                .representative_event()
+                .unwrap_or_else(|| panic!("no representative event for {json}"));
+            assert!(
+                matcher.evaluate_event(class.as_str(), &fields),
+                "representative event {fields:?} did not match its own matcher {json}",
+            );
+        }
+    }
+
+    #[test]
+    fn a_bare_regex_event_predicate_has_no_representative() {
+        // A pattern cannot be reversed into a field value, so such an entry could
+        // never be self-checked — `KnowledgeBase::validate` rejects it on this.
+        let bare = m(r#"{ "event": { "class": "file", "field": "TargetFilename",
+                                     "regex": "^/etc/cron\\.[a-z]+/" } }"#);
+        assert!(bare.representative_event().is_none());
+        // It still evaluates normally against a real record.
+        let fields = HashMap::from([(
+            "TargetFilename".to_string(),
+            "/etc/cron.daily/x".to_string(),
+        )]);
+        assert!(bare.evaluate_event("file", &fields));
+        // Pairing the pattern with a literal makes it derivable again.
+        let paired = m(r#"{ "event": { "class": "file", "all": [
+            { "field": "TargetFilename", "prefix": "/etc/cron.daily/" },
+            { "field": "TargetFilename", "regex": "^/etc/cron\\.[a-z]+/" } ] } }"#);
+        let (class, repr) = paired.representative_event().expect("derivable");
+        assert!(paired.evaluate_event(class.as_str(), &repr));
     }
 
     #[test]

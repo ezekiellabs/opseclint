@@ -126,6 +126,18 @@ impl KnowledgeBase {
                 event
                     .validate()
                     .map_err(|m| format!("entry `{}`: {m}", e.id))?;
+                // The `event` counterpart of the regex/`example` rule above. A
+                // command `example` cannot stand in for an event, so instead of
+                // widening the entry schema the representative must be derivable
+                // from the predicate's own literals — otherwise the entry could
+                // never be checked against itself.
+                if e.matcher.representative_event().is_none() {
+                    return Err(format!(
+                        "entry `{}` has an `event` axis with no derivable representative \
+                         (a bare `regex` or a purely-negated predicate); pair it with a literal leaf",
+                        e.id
+                    ));
+                }
             }
         }
         Ok(())
@@ -298,6 +310,41 @@ mod tests {
             kb_with(r#"{ "line": { "contains": "foo" } }"#, None)
                 .validate()
                 .is_ok()
+        );
+    }
+
+    #[test]
+    fn validate_requires_a_derivable_event_representative() {
+        // A bare `regex` event predicate cannot be reversed into a field value, so
+        // the entry could never be checked against itself.
+        assert!(
+            kb_with(
+                r#"{ "event": { "class": "file", "field": "TargetFilename", "regex": "^/etc/" } }"#,
+                None
+            )
+            .validate()
+            .is_err()
+        );
+        // A purely-negated predicate is underivable for the same reason.
+        assert!(
+            kb_with(
+                r#"{ "event": { "class": "file",
+                                "not": { "field": "TargetFilename", "eq": "/etc/shadow" } } }"#,
+                None
+            )
+            .validate()
+            .is_err()
+        );
+        // Pairing the pattern with a literal makes it derivable, and accepted.
+        assert!(
+            kb_with(
+                r#"{ "event": { "class": "file", "all": [
+                    { "field": "TargetFilename", "prefix": "/etc/" },
+                    { "field": "TargetFilename", "regex": "^/etc/" } ] } }"#,
+                None
+            )
+            .validate()
+            .is_ok()
         );
     }
 }
