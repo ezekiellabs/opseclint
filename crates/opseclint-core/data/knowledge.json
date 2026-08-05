@@ -409,7 +409,7 @@
     },
     {
       "id": "sudoers-tamper",
-      "match": { "line": { "contains": "/etc/sudoers" } },
+      "match": { "line": { "contains": "/etc/sudoers" }, "event": { "class": "file", "any": [{ "field": "TargetFilename", "eq": "/etc/sudoers" }, { "field": "TargetFilename", "path_under": "/etc/sudoers.d" }] } },
       "description": "Reading or modifying /etc/sudoers — privilege escalation / persistence",
       "techniques": [{ "id": "T1548.003", "name": "Abuse Elevation Control Mechanism: Sudo and Sudo Caching" }],
       "telemetry": ["openat()/write() of /etc/sudoers or /etc/sudoers.d/* — high-signal auditd file watch"],
