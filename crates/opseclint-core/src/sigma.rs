@@ -28,7 +28,9 @@ const MAX_RULES_PER_FINDING: usize = 5;
 
 /// Bump when the cached rule shape changes, to invalidate stale cache files.
 // 3: SigmaRule gained `category` (logsource), so v2 caches lack it.
-const CACHE_VERSION: u32 = 3;
+// 4: a field match is cached as its source key plus raw values and re-lowered
+//    on load, so v3 caches carry the old expanded shape.
+const CACHE_VERSION: u32 = 4;
 
 /// A resolved Sigma rule: metadata plus its parsed detection logic (when the
 /// rule could be lowered for evaluation).

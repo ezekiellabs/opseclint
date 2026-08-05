@@ -70,32 +70,102 @@ fn not_(t: Ternary) -> Ternary {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-enum Modifier {
+/// A value transform: rewrites each authored value into a set of candidate
+/// needles *before* any comparison happens. Applied in the order the tokens
+/// appear in the field key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Transform {
+    /// `|windash` — the same flag written with any of Windows' dash characters.
+    Windash,
+}
+
+impl Transform {
+    fn apply(self, value: &str) -> Vec<String> {
+        match self {
+            Transform::Windash => windash_variants(value),
+        }
+    }
+}
+
+/// How one candidate needle is compared against the event's field value.
+///
+/// Separate from [`Transform`] on purpose: `field|contains|windash` is a
+/// transform *then* a comparison, and a single flat "which modifier is this"
+/// switch cannot express the chain.
+#[derive(Debug, Clone, Default)]
+enum MatchOp {
+    /// Sigma's default: `*` / `?` globbing.
+    #[default]
+    Glob,
     Contains,
     StartsWith,
     EndsWith,
-    All,
 }
 
-/// A `field|mods: values` match.
+/// A `field|mods: values` match, lowered to the form the evaluator runs on.
 ///
 /// Two distinct things make a match unevaluable, and they are recorded
 /// separately so a caller can tell them apart: a modifier we don't implement
-/// yet (`re`, `cidr`, `base64`, `windash`, …), and an empty value list — Sigma's
-/// field-absent (`null`) semantics. Both evaluate to `Unknown`, but only the
-/// first is work we could do.
+/// yet, and an empty value list — Sigma's field-absent (`null`) semantics. Both
+/// evaluate to `Unknown`, but only the first is work we could do.
+///
+/// Any unrecognized token lands in `unsupported_mods`, and [`Self::supported`]
+/// then gates the *whole* match to `Unknown`. That is what makes partial
+/// modifier support sound: a chain like `wide|base64offset|contains` cannot
+/// quietly produce ASCII needles for a UTF-16 rule, because `wide` is unknown
+/// and the match abstains as a unit.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(from = "FieldMatchRepr", into = "FieldMatchRepr")]
 struct FieldMatch {
+    /// The key exactly as written (`CommandLine|contains|windash`), so the
+    /// cached form can be re-lowered without loss.
+    key: String,
     field: String,
-    mods: Vec<Modifier>,
+    /// The authored values, as written. `needles` is derived from these.
     values: Vec<String>,
+    op: MatchOp,
+    /// `|all` — every value group must match, rather than any.
+    all: bool,
+    /// One group per authored value: that value's transform expansion. OR
+    /// within a group, AND/OR across groups per `all`. Keeping the grouping is
+    /// what makes `|all|windash` mean "every authored flag, in any dash form"
+    /// rather than "every variant of every flag".
+    needles: Vec<Vec<String>>,
     /// Modifier tokens as written in the rule, for the ones we cannot evaluate.
-    #[serde(default)]
     unsupported_mods: Vec<String>,
     /// `field|…: null` — the rule asserts the field is absent.
-    #[serde(default)]
     null_values: bool,
+}
+
+/// The cached form of a [`FieldMatch`]: the source key and the raw values,
+/// nothing derived.
+///
+/// The lowered form holds things that do not serialize (compiled patterns) and
+/// things that are pure functions of these two fields (the needle expansion),
+/// so the cache stores the input and re-runs [`lower`] on load. That keeps one
+/// code path for degradation — a pattern that will not compile is recorded as
+/// an unsupported modifier at load exactly as it is at parse — and means a
+/// later fix to a transform's semantics needs no cache-version bump.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct FieldMatchRepr {
+    key: String,
+    #[serde(default)]
+    values: Vec<String>,
+}
+
+impl From<FieldMatchRepr> for FieldMatch {
+    fn from(r: FieldMatchRepr) -> Self {
+        lower(&r.key, r.values)
+    }
+}
+
+impl From<FieldMatch> for FieldMatchRepr {
+    fn from(f: FieldMatch) -> Self {
+        FieldMatchRepr {
+            key: f.key,
+            values: f.values,
+        }
+    }
 }
 
 impl FieldMatch {
@@ -197,35 +267,89 @@ fn value_to_string(v: &Value) -> Option<String> {
     }
 }
 
-fn parse_field_match(key: &str, val: &Value) -> FieldMatch {
+/// Drop repeated needles while keeping the order they were generated in, so a
+/// value with no expandable position collapses back to a single needle.
+fn dedup_in_order(mut items: Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    items.retain(|s| seen.insert(s.clone()));
+    items
+}
+
+/// Lower a `field|mods` key and its values into the form the evaluator runs on.
+///
+/// Order-aware: tokens are walked left to right, because some modifiers take
+/// trailing sub-modifiers. Anything unrecognized is recorded by name rather
+/// than ignored, so `--verify-detections` can report which modifiers are
+/// actually costing coverage instead of just that something was unknown.
+fn lower(key: &str, values: Vec<String>) -> FieldMatch {
     let mut parts = key.split('|');
     let field = parts.next().unwrap_or("").to_string();
-    let mut mods = Vec::new();
-    let mut unsupported_mods = Vec::new();
-    for m in parts {
-        match m {
-            "contains" => mods.push(Modifier::Contains),
-            "startswith" => mods.push(Modifier::StartsWith),
-            "endswith" => mods.push(Modifier::EndsWith),
-            "all" => mods.push(Modifier::All),
-            // re, cidr, base64, base64offset, windash, lt/gt, … Recorded by name
-            // so `--verify-detections` can report which ones are actually
-            // costing coverage, rather than just that something was unknown.
-            other => unsupported_mods.push(other.to_string()),
+    let tokens: Vec<&str> = parts.collect();
+
+    let mut op: Option<MatchOp> = None;
+    let mut all = false;
+    let mut transforms: Vec<Transform> = Vec::new();
+    let mut unsupported_mods: Vec<String> = Vec::new();
+
+    let mut i = 0;
+    while i < tokens.len() {
+        let token = tokens[i];
+        let string_op = match token {
+            "contains" => Some(MatchOp::Contains),
+            "startswith" => Some(MatchOp::StartsWith),
+            "endswith" => Some(MatchOp::EndsWith),
+            _ => None,
+        };
+        match (token, string_op) {
+            // Two comparison modifiers on one field is not a chain we can
+            // resolve; abstain rather than let the first or last one win.
+            (_, Some(next)) => match op {
+                None => op = Some(next),
+                Some(_) => unsupported_mods.push(token.to_string()),
+            },
+            ("all", _) => all = true,
+            ("windash", _) => transforms.push(Transform::Windash),
+            (other, _) => unsupported_mods.push(other.to_string()),
         }
+        i += 1;
     }
+
+    let null_values = values.is_empty();
+    // Only expand once every token is understood: a value transform under an
+    // unknown modifier would be answering a question we did not parse.
+    let needles = if unsupported_mods.is_empty() {
+        values
+            .iter()
+            .map(|v| {
+                let mut group = vec![v.clone()];
+                for t in &transforms {
+                    group = group.iter().flat_map(|s| t.apply(s)).collect();
+                }
+                dedup_in_order(group)
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    FieldMatch {
+        key: key.to_string(),
+        field,
+        values,
+        op: op.unwrap_or_default(),
+        all,
+        needles,
+        unsupported_mods,
+        null_values,
+    }
+}
+
+fn parse_field_match(key: &str, val: &Value) -> FieldMatch {
     let values: Vec<String> = match val {
         Value::Sequence(seq) => seq.iter().filter_map(value_to_string).collect(),
         other => value_to_string(other).into_iter().collect(),
     };
-    let null_values = values.is_empty();
-    FieldMatch {
-        field,
-        mods,
-        values,
-        unsupported_mods,
-        null_values,
-    }
+    lower(key, values)
 }
 
 fn parse_fields_map(m: &serde_yaml::Mapping) -> Vec<FieldMatch> {
@@ -424,6 +548,68 @@ fn synthesize(cmd: &Command, platform: Platform) -> HashMap<String, String> {
     m
 }
 
+/// The Windows dash characters `windash` treats as interchangeable. The set
+/// includes `-` and `/` themselves, so a value authored either way gains the
+/// other's form.
+const WINDASHES: [char; 5] = ['-', '/', '\u{2013}', '\u{2014}', '\u{2015}'];
+
+/// Expand a value into its `windash` variants.
+///
+/// Mirrors pySigma's `re.sub(r"\B[-/]", c, value)` for each dash character.
+/// The `\B` reduces to "the preceding character is absent or is a non-word
+/// character", which is what keeps `foo-bar` intact while rewriting the flag in
+/// ` -s `. All eligible positions are rewritten to the *same* character in each
+/// variant, so ` -a -b` yields five variants rather than twenty-five.
+///
+/// Wildcard segments need no special handling: a dash following `*` has a
+/// non-word predecessor here just as it has no predecessor in a per-segment
+/// substitution, so both agree.
+fn windash_variants(value: &str) -> Vec<String> {
+    let is_word = |c: char| c.is_alphanumeric() || c == '_';
+    let mut sites = Vec::new();
+    let mut prev: Option<char> = None;
+    for (i, c) in value.char_indices() {
+        if (c == '-' || c == '/') && prev.is_none_or(|p| !is_word(p)) {
+            sites.push(i);
+        }
+        prev = Some(c);
+    }
+    if sites.is_empty() {
+        return vec![value.to_string()];
+    }
+    dedup_in_order(
+        WINDASHES
+            .iter()
+            .map(|&d| {
+                let mut out = String::with_capacity(value.len() + sites.len() * 3);
+                let mut last = 0;
+                for &i in &sites {
+                    out.push_str(&value[last..i]);
+                    out.push(d);
+                    last = i + 1; // '-' and '/' are one byte each
+                }
+                out.push_str(&value[last..]);
+                out
+            })
+            .collect(),
+    )
+}
+
+/// Reduce the needle groups to a verdict: any needle satisfies its own group,
+/// and `all` decides whether every group or merely one has to be satisfied.
+fn group_reduce(fm: &FieldMatch, hit: impl Fn(&str) -> bool) -> Ternary {
+    let matched = if fm.all {
+        fm.needles.iter().all(|g| g.iter().any(|n| hit(n)))
+    } else {
+        fm.needles.iter().any(|g| g.iter().any(|n| hit(n)))
+    };
+    if matched {
+        Ternary::True
+    } else {
+        Ternary::False
+    }
+}
+
 fn eval_field(fm: &FieldMatch, event: &HashMap<String, String>) -> Ternary {
     if !fm.supported() {
         return Ternary::Unknown;
@@ -432,28 +618,15 @@ fn eval_field(fm: &FieldMatch, event: &HashMap<String, String>) -> Ternary {
         return Ternary::Unknown;
     };
     let val = raw.to_lowercase();
-    let hit = |needle: &str| {
+    group_reduce(fm, |needle| {
         let n = needle.to_lowercase();
-        if fm.mods.contains(&Modifier::Contains) {
-            val.contains(&n)
-        } else if fm.mods.contains(&Modifier::StartsWith) {
-            val.starts_with(&n)
-        } else if fm.mods.contains(&Modifier::EndsWith) {
-            val.ends_with(&n)
-        } else {
-            glob_match(&val, &n)
+        match fm.op {
+            MatchOp::Contains => val.contains(&n),
+            MatchOp::StartsWith => val.starts_with(&n),
+            MatchOp::EndsWith => val.ends_with(&n),
+            MatchOp::Glob => glob_match(&val, &n),
         }
-    };
-    let matched = if fm.mods.contains(&Modifier::All) {
-        fm.values.iter().all(|v| hit(v))
-    } else {
-        fm.values.iter().any(|v| hit(v))
-    };
-    if matched {
-        Ternary::True
-    } else {
-        Ternary::False
-    }
+    })
 }
 
 fn eval_search(s: &Search, event: &HashMap<String, String>) -> Ternary {
@@ -767,19 +940,109 @@ detection:
 
     #[test]
     fn every_unsupported_modifier_in_a_rule_is_named() {
-        // Chained modifiers: `base64offset` is unimplemented, `contains` is not.
-        // Only the unimplemented one should be reported, and the chain must not
-        // hide it behind the one we do support.
+        // Chained modifiers: `utf16le` is unimplemented, `contains` is not. Only
+        // the unimplemented one should be reported, and the chain must not hide
+        // it behind the one we do support.
+        //
+        // `utf16le` and `fieldref` stand in for "any modifier we do not
+        // implement". If either one ever lands, re-point this test at another
+        // unimplemented token — the property it guards outlives the example.
         let v = verdict(
-            "title: t\nid: m2\ndetection:\n    selection:\n        CommandLine|base64offset|contains: 'whoami'\n        Image|windash: '-enc'\n    condition: selection\n",
+            "title: t\nid: m2\ndetection:\n    selection:\n        CommandLine|utf16le|contains: 'whoami'\n        Image|fieldref: 'ParentImage'\n    condition: selection\n",
             "cat /etc/shadow",
         );
         assert_eq!(v.outcome, Outcome::Indeterminate);
         assert_eq!(
             v.blocking_modifiers,
-            vec!["base64offset".to_string(), "windash".to_string()],
+            vec!["fieldref".to_string(), "utf16le".to_string()],
             "sorted, deduplicated, and excluding the supported `contains`"
         );
+    }
+
+    // --- windash -----------------------------------------------------------
+
+    const WINDASH: &str = r#"
+title: Findstr subfolder search
+id: w1
+detection:
+    selection:
+        CommandLine|contains|windash: ' -s '
+    condition: selection
+"#;
+
+    #[test]
+    fn windash_matches_a_forward_slash_variant() {
+        assert_eq!(
+            verdict(WINDASH, "findstr /s /i password *.txt").outcome,
+            Outcome::Fires
+        );
+    }
+
+    #[test]
+    fn windash_matches_a_unicode_dash_variant() {
+        // U+2013 EN DASH — what a copied-from-a-blog-post command line carries.
+        let yaml = "title: t\nid: w2\ndetection:\n    selection:\n        CommandLine|contains|windash: ' -enc '\n    condition: selection\n";
+        assert_eq!(
+            verdict(yaml, "powershell \u{2013}enc SQBFAFgA").outcome,
+            Outcome::Fires
+        );
+        // U+2014 EM DASH is in the set too.
+        assert_eq!(
+            verdict(yaml, "powershell \u{2014}enc SQBFAFgA").outcome,
+            Outcome::Fires
+        );
+        assert_eq!(
+            verdict(yaml, "powershell \u{2022}enc SQBFAFgA").outcome,
+            Outcome::NoFire,
+            "a bullet is not a dash character"
+        );
+    }
+
+    #[test]
+    fn windash_does_not_match_an_unrelated_command() {
+        // Expansion must not become so broad that it swallows everything.
+        assert_eq!(verdict(WINDASH, "ls -la").outcome, Outcome::NoFire);
+    }
+
+    #[test]
+    fn windash_only_rewrites_a_dash_at_a_word_boundary() {
+        // pySigma's `\B[-/]`: the dash in `a-b` is preceded by a word
+        // character, so `a/b` is *not* one of its variants. An implementation
+        // that rewrites every dash passes every other windash test but fails
+        // this one.
+        let yaml = "title: t\nid: w3\ndetection:\n    selection:\n        CommandLine|contains|windash: 'a-b'\n    condition: selection\n";
+        assert_eq!(verdict(yaml, "echo a/b").outcome, Outcome::NoFire);
+        assert_eq!(verdict(yaml, "echo a-b").outcome, Outcome::Fires);
+    }
+
+    #[test]
+    fn windash_with_all_requires_every_authored_value() {
+        // `all` ANDs across the values as authored; each value is satisfied by
+        // any of *its own* dash variants. Flattening the expansion into one
+        // list makes the first case pass, which is the bug this guards.
+        let yaml = "title: t\nid: w4\ndetection:\n    selection:\n        CommandLine|contains|all|windash:\n            - ' -s '\n            - ' -i '\n    condition: selection\n";
+        assert_eq!(
+            verdict(yaml, "findstr /s /q password").outcome,
+            Outcome::NoFire
+        );
+        assert_eq!(
+            verdict(yaml, "findstr /s /i password").outcome,
+            Outcome::Fires
+        );
+    }
+
+    #[test]
+    fn windash_expansion_is_five_variants_deduplicated() {
+        assert_eq!(windash_variants(" -s ").len(), 5);
+        assert!(windash_variants(" -s ").contains(&" /s ".to_string()));
+        assert!(windash_variants(" /s ").contains(&" -s ".to_string()));
+        // No eligible position collapses back to the value itself.
+        assert_eq!(windash_variants("plain"), vec!["plain".to_string()]);
+        // Both dashes move together, so this is 5 variants and not 25.
+        let two = windash_variants(" -a -b");
+        assert_eq!(two.len(), 5);
+        assert!(two.contains(&" /a /b".to_string()));
+        assert!(!two.contains(&" /a -b".to_string()));
     }
 
     #[test]
