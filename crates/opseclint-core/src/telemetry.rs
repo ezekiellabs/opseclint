@@ -455,8 +455,15 @@ struct AuditRecord {
 /// `audit(<ts>:<serial>)` id; an event that carries an `EXECVE` record is a
 /// process execution and reduces to a `Command`, with the argv rebuilt from the
 /// `EXECVE` `a0…aN` fields, the program from the `SYSCALL` `exe` path, and the
-/// working directory from the `CWD` record. Every other event class (a `connect`,
-/// an `open`, …) carries no `EXECVE` and is skipped and counted.
+/// working directory from the `CWD` record.
+///
+/// An event with no `EXECVE` is not a process launch, but it is not thrown away
+/// either: a `SOCKADDR` record makes it a `network` event and a `PATH` record a
+/// `file` one (see [`auditd_event`]). Those are correlated to the execution that
+/// most recently held their `pid` and attached as side-effects, or — with no such
+/// execution — kept as standalone [`EventObservation`]s for the knowledge base's
+/// `event` axis, exactly as the Sysmon path does. Anything else is skipped and
+/// counted.
 ///
 /// Only fields opseclint can map honestly are carried onto the event: auditd
 /// records the parent as a numeric `ppid` (no path), so `ParentImage` is absent
@@ -479,15 +486,43 @@ fn parse_auditd(text: &str, users: &UserMap) -> Result<Ingest, String> {
         return Err("no auditd records found".to_string());
     }
 
-    let mut observations = Vec::new();
+    let mut observations: Vec<Observation> = Vec::new();
+    let mut event_observations: Vec<EventObservation> = Vec::new();
+    // pid -> index of the most recent execution with that pid, so a non-execution
+    // event attributes to the right process even when a pid is reused within the
+    // file. Mirrors the Sysmon path.
+    let mut latest_by_pid: HashMap<String, usize> = HashMap::new();
     let mut skipped = 0;
     for (idx, id) in order.iter().enumerate() {
         let recs = &groups[id];
+        let syscall = recs.iter().find(|r| r.kind == "SYSCALL");
+        // `pid` is numeric and never quoted or hex-encoded, so it is taken raw:
+        // `decode_value` would read "1203" as valid hex and decode it to bytes.
+        let pid = syscall.and_then(|s| s.fields.get("pid")).cloned();
         let execve = recs.iter().find(|r| r.kind == "EXECVE");
         // An EXECVE record is emitted only for execve/execveat, so its presence
         // is an arch-independent signal that this event is a process launch.
         let Some(execve) = execve else {
+            // Not a launch. A recognized network/file event still carries meaning:
+            // attach it to the execution that most recently held its pid, or keep
+            // it as a standalone observation for the `event` axis.
             skipped += 1;
+            if let Some((class, detail, mut fields)) = auditd_event(recs) {
+                if let Some(pid) = &pid {
+                    fields.insert("ProcessId".to_string(), pid.clone());
+                }
+                match pid.as_ref().and_then(|p| latest_by_pid.get(p)) {
+                    Some(&i) => observations[i]
+                        .side_effects
+                        .push(SideEffect { class, detail }),
+                    None => event_observations.push(EventObservation {
+                        record: idx + 1,
+                        class,
+                        detail,
+                        event: Arc::new(fields),
+                    }),
+                }
+            }
             continue;
         };
 
@@ -496,7 +531,7 @@ fn parse_auditd(text: &str, users: &UserMap) -> Result<Ingest, String> {
         if !cmdline.is_empty() {
             fields.insert("CommandLine".to_string(), cmdline);
         }
-        if let Some(syscall) = recs.iter().find(|r| r.kind == "SYSCALL") {
+        if let Some(syscall) = syscall {
             // Resolve the numeric uid to a name only when `--users` maps it.
             if let Some(uid) = syscall.fields.get("uid")
                 && let Some(name) = users.get(uid)
@@ -530,25 +565,139 @@ fn parse_auditd(text: &str, users: &UserMap) -> Result<Ingest, String> {
             }
         }
 
+        // The pid the non-execution events correlate against, carried onto the
+        // event so an `event`-axis entry and observed Sigma evaluation see the
+        // same field the other two formats supply.
+        if let Some(pid) = &pid {
+            fields.insert("ProcessId".to_string(), pid.clone());
+        }
+
         match execution_from_fields(&fields) {
-            Some((commands, raw)) => observations.push(Observation {
-                // The event's ordinal position in the source log (skipped events
-                // consume a number too), so a finding points back at the right
-                // event — matching the Sysmon path's `record`.
-                record: idx + 1,
-                commands,
-                raw,
-                event: Arc::new(fields),
-                side_effects: Vec::new(),
-            }),
+            Some((commands, raw)) => {
+                if let Some(pid) = pid {
+                    latest_by_pid.insert(pid, observations.len());
+                }
+                observations.push(Observation {
+                    // The event's ordinal position in the source log (skipped
+                    // events consume a number too), so a finding points back at
+                    // the right event — matching the Sysmon path's `record`.
+                    record: idx + 1,
+                    commands,
+                    raw,
+                    event: Arc::new(fields),
+                    side_effects: Vec::new(),
+                });
+            }
             None => skipped += 1,
         }
     }
     Ok(Ingest {
         observations,
         skipped,
-        event_observations: Vec::new(),
+        event_observations,
     })
+}
+
+/// The class, human detail and field map of a non-execution auditd event, or
+/// `None` when the event carries nothing opseclint can read.
+///
+/// The auditd counterpart of [`sysmon_event`]: a `SOCKADDR` record makes the event
+/// a `network` connection, a `PATH` record makes it a `file` access. Fields are
+/// keyed by the same canonical Sysmon names the rest of the ingest uses
+/// (`DestinationIp`, `DestinationPort`, `TargetFilename`), so one knowledge-base
+/// entry can be written once and match on any platform that reports the class.
+///
+/// Only successful syscalls are reported. auditd records failed calls too, but a
+/// `connect()` that never completed is not the action an entry describes, and
+/// reporting it as observed telemetry would overstate what happened.
+fn auditd_event(recs: &[AuditRecord]) -> Option<(String, String, HashMap<String, String>)> {
+    let syscall = recs.iter().find(|r| r.kind == "SYSCALL");
+    if let Some(s) = syscall
+        && let Some(success) = s.fields.get("success")
+        && decode_value(success) != "yes"
+    {
+        return None;
+    }
+    let mut fields = HashMap::new();
+
+    if let Some(sockaddr) = recs.iter().find(|r| r.kind == "SOCKADDR")
+        && let Some(saddr) = sockaddr.fields.get("saddr")
+        && let Some((ip, port)) = decode_saddr(&decode_value(saddr))
+    {
+        fields.insert("DestinationIp".to_string(), ip.clone());
+        let detail = match &port {
+            Some(p) => {
+                fields.insert("DestinationPort".to_string(), p.clone());
+                format!("network connection to {ip}:{p}")
+            }
+            None => format!("network connection to {ip}"),
+        };
+        return Some(("network".to_string(), detail, fields));
+    }
+
+    // A `PATH` record names a filesystem object the syscall touched. `nametype`
+    // says how: `PARENT` is only the containing directory an operation resolved
+    // through, never the object itself, so it is not an observation of its own.
+    let path = recs.iter().find(|r| {
+        r.kind == "PATH"
+            && r.fields
+                .get("nametype")
+                .map(|n| decode_value(n))
+                .is_none_or(|n| n != "PARENT")
+    })?;
+    let name = decode_value(path.fields.get("name")?);
+    if name.is_empty() {
+        return None;
+    }
+    let created = path
+        .fields
+        .get("nametype")
+        .map(|n| decode_value(n))
+        .is_some_and(|n| n == "CREATE");
+    let detail = if created {
+        format!("file created {name}")
+    } else {
+        format!("file opened {name}")
+    };
+    fields.insert("TargetFilename".to_string(), name);
+    Some(("file".to_string(), detail, fields))
+}
+
+/// Decode an auditd `SOCKADDR` `saddr` hex blob into a destination address and
+/// port. The blob is a raw `struct sockaddr`, so this works on bytes rather than
+/// reusing [`hex_decode`] — that helper requires valid UTF-8, and an address such
+/// as `C0000210` (192.0.2.16) is not.
+///
+/// `AF_INET` and `AF_INET6` are decoded; everything else (`AF_UNIX`, netlink, …)
+/// returns `None`. A unix socket path is not a destination host, and inventing
+/// one would be a fabricated answer where an honest absence is available.
+fn decode_saddr(hex: &str) -> Option<(String, Option<String>)> {
+    let bytes: Option<Vec<u8>> = (0..hex.len().saturating_sub(1))
+        .step_by(2)
+        .map(|i| u8::from_str_radix(hex.get(i..i + 2)?, 16).ok())
+        .collect();
+    let b = bytes?;
+    if b.len() < 4 {
+        return None;
+    }
+    // `sa_family` is a host-order u16; every architecture opseclint targets is
+    // little-endian, which is also how auditd emits it.
+    let family = u16::from_le_bytes([b[0], b[1]]);
+    let port = u16::from_be_bytes([b[2], b[3]]);
+    let port = (port != 0).then(|| port.to_string());
+    match family {
+        // AF_INET
+        2 if b.len() >= 8 => Some((format!("{}.{}.{}.{}", b[4], b[5], b[6], b[7]), port)),
+        // AF_INET6
+        10 if b.len() >= 24 => {
+            let groups: Vec<String> = b[8..24]
+                .chunks(2)
+                .map(|c| format!("{:x}", u16::from_be_bytes([c[0], c[1]])))
+                .collect();
+            Some((groups.join(":"), port))
+        }
+        _ => None,
+    }
 }
 
 /// Parse one auditd log line into a record, or `None` if it is not an
@@ -1114,10 +1263,14 @@ mod tests {
     #[test]
     fn ingests_auditd_execve_and_skips_non_exec() {
         let ingest = parse(&fixture("auditd-execve.log"), Format::Auditd).expect("parses");
-        // Three execve events (cat, wget, whoami); the connect event (syscall 42,
-        // no EXECVE record) is skipped.
+        // Three execve events (cat, wget, whoami). The connect event (syscall 42,
+        // no EXECVE record) is not an execution — it is counted as skipped and,
+        // because its pid matches no captured execution, kept as a standalone
+        // network observation rather than dropped.
         assert_eq!(ingest.observations.len(), 3);
         assert_eq!(ingest.skipped, 1);
+        assert_eq!(ingest.event_observations.len(), 1);
+        assert_eq!(ingest.event_observations[0].class, "network");
         // Record numbers are the events' source positions: the skipped connect
         // event is #3, so whoami (the 4th event) is record 4 — not 3.
         assert_eq!(
@@ -1138,6 +1291,130 @@ mod tests {
         assert!(ids.contains(&"shadow-read".to_string()));
         assert!(ids.contains(&"wget".to_string()));
         assert!(ids.contains(&"whoami".to_string()));
+    }
+
+    #[test]
+    fn auditd_decodes_sockaddr_into_a_standalone_network_event() {
+        // The connect event's pid (1203) matches no captured execution, so it is
+        // matched on its own rather than attached to one. The destination comes
+        // from the raw `struct sockaddr` in `saddr` — 0x0050 is port 80 and
+        // C0000210 is 192.0.2.16.
+        let ingest = parse(&fixture("auditd-execve.log"), Format::Auditd).expect("parses");
+        let ev = &ingest.event_observations[0];
+        assert_eq!(ev.class, "network");
+        assert_eq!(ev.detail, "network connection to 192.0.2.16:80");
+        assert_eq!(
+            ev.event.get("DestinationIp").map(String::as_str),
+            Some("192.0.2.16")
+        );
+        assert_eq!(
+            ev.event.get("DestinationPort").map(String::as_str),
+            Some("80")
+        );
+        // The pid rides along so the record is addressable like any other.
+        assert_eq!(ev.event.get("ProcessId").map(String::as_str), Some("1203"));
+    }
+
+    #[test]
+    fn auditd_correlates_a_connect_to_the_execution_that_made_it() {
+        let ingest =
+            parse(&fixture("auditd-with-side-effects.log"), Format::Auditd).expect("parses");
+        // curl (pid 1300) is captured, and the connect from the same pid attaches
+        // to it as a side-effect instead of standing alone.
+        let curl = ingest
+            .observations
+            .iter()
+            .find(|o| o.commands[0].program == "curl")
+            .expect("curl execution");
+        assert_eq!(curl.side_effects.len(), 1);
+        assert_eq!(curl.side_effects[0].class, "network");
+        assert_eq!(
+            curl.side_effects[0].detail,
+            "network connection to 192.0.2.10:4444"
+        );
+        // …and it is not also counted standalone, so it cannot double-count.
+        assert!(
+            !ingest
+                .event_observations
+                .iter()
+                .any(|e| e.detail.contains("192.0.2.10:4444"))
+        );
+    }
+
+    #[test]
+    fn auditd_reads_path_records_as_file_events() {
+        let ingest =
+            parse(&fixture("auditd-with-side-effects.log"), Format::Auditd).expect("parses");
+        let files: Vec<&EventObservation> = ingest
+            .event_observations
+            .iter()
+            .filter(|e| e.class == "file")
+            .collect();
+        assert_eq!(files.len(), 2);
+        // An `open` reports the object read...
+        assert_eq!(files[0].detail, "file opened /etc/shadow");
+        assert_eq!(
+            files[0].event.get("TargetFilename").map(String::as_str),
+            Some("/etc/shadow")
+        );
+        // ...and `nametype=CREATE` reports a write. The event's other PATH record
+        // is the `PARENT` directory the operation resolved through, which is not
+        // an observation of its own and must not be reported instead.
+        assert_eq!(files[1].detail, "file created /etc/cron.d/backdoor");
+        assert_eq!(
+            files[1].event.get("TargetFilename").map(String::as_str),
+            Some("/etc/cron.d/backdoor")
+        );
+    }
+
+    #[test]
+    fn auditd_does_not_report_a_failed_syscall_as_observed() {
+        // The fixture's `nc` connect has success=no. Reporting a connection that
+        // never completed would overstate what the host actually did.
+        let ingest =
+            parse(&fixture("auditd-with-side-effects.log"), Format::Auditd).expect("parses");
+        assert!(
+            !ingest
+                .event_observations
+                .iter()
+                .any(|e| e.detail.contains("192.0.2.11")),
+            "a failed connect was reported as observed telemetry"
+        );
+    }
+
+    #[test]
+    fn auditd_execve_path_records_are_not_mistaken_for_file_events() {
+        // Every execve carries PATH records for the binary it loaded. They belong
+        // to an execution, which is reduced as a command — reading them as file
+        // events too would invent a second observation for one action.
+        let log = "\
+type=SYSCALL msg=audit(1700000001.100:900): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=1 pid=2000 uid=0 comm=\"cat\" exe=\"/usr/bin/cat\" key=\"exec\"
+type=EXECVE msg=audit(1700000001.100:900): argc=2 a0=\"cat\" a1=\"/etc/shadow\"
+type=PATH msg=audit(1700000001.100:900): item=0 name=\"/usr/bin/cat\" nametype=NORMAL
+";
+        let ingest = parse(log, Format::Auditd).expect("parses");
+        assert_eq!(ingest.observations.len(), 1);
+        assert!(ingest.event_observations.is_empty());
+    }
+
+    #[test]
+    fn decode_saddr_reads_ipv4_and_ipv6_and_abstains_otherwise() {
+        // AF_INET: family 0200 (LE 2), port 0x115C = 4444, C000020A = 192.0.2.10.
+        assert_eq!(
+            decode_saddr("0200115CC000020A"),
+            Some(("192.0.2.10".to_string(), Some("4444".to_string())))
+        );
+        // AF_INET6: family 000A (LE 10), port 0x0050 = 80, then the 16-byte address.
+        assert_eq!(
+            decode_saddr("0A0000500000000020010db8000000000000000000000001"),
+            Some(("2001:db8:0:0:0:0:0:1".to_string(), Some("80".to_string())))
+        );
+        // AF_UNIX carries a socket path, not a destination host — decoding one into
+        // an address would be a fabricated answer, so abstain.
+        assert_eq!(decode_saddr("0100002F746D702F78"), None);
+        // Truncated or non-hex input is not guessed at either.
+        assert_eq!(decode_saddr("0200"), None);
+        assert_eq!(decode_saddr("zzzz"), None);
     }
 
     #[test]

