@@ -1399,6 +1399,59 @@ mod tests {
     }
 
     #[test]
+    fn standalone_auditd_events_match_the_linux_event_axis() {
+        // The end the whole `event` axis exists for, on a platform that could not
+        // reach it before: two file events with no captured causing execution,
+        // recognized against the shipped Linux knowledge base.
+        let ingest =
+            parse(&fixture("auditd-with-side-effects.log"), Format::Auditd).expect("parses");
+        let report = analyzer::analyze_telemetry(&ingest, &lnx_kb());
+        let ids = ids(&report);
+        assert!(ids.contains(&"shadow-read".to_string()));
+        assert!(ids.contains(&"cron-persist".to_string()));
+        // The observed detail rides onto the finding as confirmed telemetry.
+        let shadow = report
+            .findings
+            .iter()
+            .find(|f| f.rule_id == "shadow-read")
+            .expect("shadow finding");
+        assert!(
+            shadow
+                .observed_side_effects
+                .iter()
+                .any(|se| se.detail == "file opened /etc/shadow")
+        );
+    }
+
+    #[test]
+    fn standalone_esf_events_match_the_macos_event_axis() {
+        let ingest = parse(&fixture("esf-with-side-effects.jsonl"), Format::Esf).expect("parses");
+        let report = analyzer::analyze_telemetry(&ingest, &mac_kb());
+        let ids = ids(&report);
+        assert!(ids.contains(&"launch-agent-persist".to_string()));
+        assert!(ids.contains(&"tcc-tamper".to_string()));
+    }
+
+    #[test]
+    fn a_metadata_connect_matches_on_address_and_port_together() {
+        // The multi-field predicate the flat axis could not express: the IMDS
+        // entry keys on the link-local address *and* port 80.
+        // saddr: family 0200 (AF_INET), port 0050 (80), A9FEA9FE (169.254.169.254).
+        let log = "\
+type=SYSCALL msg=audit(1700000002.100:950): arch=c000003e syscall=42 success=yes exit=0 ppid=1 pid=3000 uid=1000 comm=\"curl\" exe=\"/usr/bin/curl\" key=\"net\"
+type=SOCKADDR msg=audit(1700000002.100:950): saddr=02000050A9FEA9FE
+";
+        let ingest = parse(log, Format::Auditd).expect("parses");
+        assert_eq!(ingest.event_observations.len(), 1);
+        assert_eq!(
+            ingest.event_observations[0].detail,
+            "network connection to 169.254.169.254:80"
+        );
+        let ids = ids(&analyzer::analyze_telemetry(&ingest, &lnx_kb()));
+        assert!(ids.contains(&"cloud-imds".to_string()));
+    }
+
+    #[test]
     fn auditd_decodes_sockaddr_into_a_standalone_network_event() {
         // The connect event's pid (1203) matches no captured execution, so it is
         // matched on its own rather than attached to one. The destination comes
