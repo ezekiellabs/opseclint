@@ -544,8 +544,11 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 
 Honest about what isn't done yet:
 
-- **Sigma modifiers `base64`, `utf16`/`wide`, `fieldref`, `expand`** still
-  evaluate to `Unknown` ([design note](docs/design/rule-logic-evaluator.md)).
+- **Sigma modifiers `base64`, `utf16`/`utf16le`/`wide`, `fieldref`, `expand`**
+  still evaluate to `Unknown`
+  ([design note](docs/design/rule-logic-evaluator.md)). Each is a distinct
+  token: a rule written with `utf16le` is as unsupported as one written with
+  `wide`.
   `re`, `cidr`, `base64offset` and `windash` are implemented; an unsupported
   token anywhere in a chain still gates the whole field match, which is what
   keeps a UTF-16 rule from being answered with ASCII needles.
