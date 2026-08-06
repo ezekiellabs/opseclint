@@ -10,8 +10,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **Non-execution telemetry on Linux and macOS.** `--telemetry` reads auditd
   `SOCKADDR` and `PATH` records, and macOS ESF `NOTIFY_OPEN` / `NOTIFY_CREATE` /
-  `NOTIFY_CONNECT`, as network and file events. Each is correlated by process id
-  to the execution that caused it and shown as a confirmed `◉ observed:` line,
+  `NOTIFY_WRITE` / `NOTIFY_CONNECT`, as network and file events. Each is
+  correlated by process id to the execution that caused it and shown as a
+  confirmed `◉ observed:` line,
   or — with no captured causing execution — matched standalone against the
   knowledge base's `event` axis. Previously only Sysmon produced these, so on
   the other two platforms the `event` axis had nothing to match against at all.

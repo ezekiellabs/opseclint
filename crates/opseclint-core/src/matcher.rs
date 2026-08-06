@@ -62,7 +62,8 @@ pub struct Matcher {
 pub enum EventClass {
     /// An outbound connection (Sysmon EID 3, auditd `SOCKADDR`, ESF connect).
     Network,
-    /// A file create / open (Sysmon EID 11, auditd `PATH`, ESF `NOTIFY_OPEN`).
+    /// A file create / open / write (Sysmon EID 11, auditd `PATH`, ESF
+    /// `NOTIFY_OPEN` / `NOTIFY_CREATE` / `NOTIFY_WRITE`).
     File,
     /// A registry value set (Sysmon EID 13). Windows-only in practice.
     Registry,

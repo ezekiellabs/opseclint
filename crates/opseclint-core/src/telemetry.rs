@@ -868,8 +868,8 @@ fn parse_kv(s: &str) -> HashMap<String, String> {
 /// is what lets ESF resolve `ParentImage`-keyed detections where auditd cannot.
 ///
 /// Non-exec messages are not executions but are not featureless either: an
-/// `open` / `create` / `connect` becomes a `file` or `network` event (see
-/// [`esf_event`]), correlated to the execution that most recently held its
+/// `open` / `create` / `write` / `connect` becomes a `file` or `network` event
+/// (see [`esf_event`]), correlated to the execution that most recently held its
 /// audit-token pid or kept standalone for the knowledge base's `event` axis,
 /// exactly as the Sysmon and auditd paths do. Anything else is skipped and
 /// counted.
