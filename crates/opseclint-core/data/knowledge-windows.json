@@ -691,7 +691,7 @@
     },
     {
       "id": "ifeo-debugger",
-      "match": { "line": { "contains": "image file execution options" } },
+      "match": { "line": { "contains": "image file execution options" }, "event": { "class": "registry", "all": [{ "field": "TargetObject", "contains": "\\Image File Execution Options\\" }, { "field": "TargetObject", "suffix": "\\Debugger" }] } },
       "description": "Image File Execution Options Debugger — persistence / hijack",
       "techniques": [{ "id": "T1546.012", "name": "Event Triggered Execution: Image File Execution Options Injection" }],
       "telemetry": ["Sysmon EID 13 (Registry Set): Debugger value under Image File Execution Options"],
@@ -700,7 +700,7 @@
     },
     {
       "id": "winlogon-persist",
-      "match": { "line": { "contains": "\\winlogon" } },
+      "match": { "line": { "contains": "\\winlogon" }, "event": { "class": "registry", "all": [{ "field": "TargetObject", "contains": "\\Winlogon\\" }, { "any": [{ "field": "TargetObject", "suffix": "\\Shell" }, { "field": "TargetObject", "suffix": "\\Userinit" }] }] } },
       "description": "Modifying Winlogon Shell/Userinit — logon persistence",
       "techniques": [{ "id": "T1547.004", "name": "Boot or Logon Autostart Execution: Winlogon Helper DLL" }],
       "telemetry": ["Sysmon EID 13 (Registry Set): Winlogon Shell or Userinit value modified"],
