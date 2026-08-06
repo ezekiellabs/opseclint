@@ -1164,6 +1164,59 @@ mod tests {
     }
 
     #[test]
+    fn windows_registry_persistence_matches_the_value_not_just_the_key() {
+        // Both entries key on a *value* under a well-known key, not the key
+        // itself: IFEO is only persistence when `Debugger` is set, and Winlogon
+        // when `Shell` or `Userinit` is. Matching the path alone would fire on
+        // any benign value set elsewhere under the same key — EID 13 records a
+        // registry *set*, so every one of these is a write.
+        let reg = |target: &str| {
+            // Registry paths are backslash-separated, so escape them for JSON.
+            let escaped = target.replace('\\', "\\\\");
+            format!(r#"[{{"EventID":13,"ProcessId":"9001","TargetObject":"{escaped}"}}]"#)
+        };
+        let kb = win_kb();
+        let fires = |target: &str| -> Vec<String> {
+            let ingest = parse(&reg(target), Format::Sysmon).expect("parses");
+            assert_eq!(ingest.event_observations.len(), 1, "no event for {target}");
+            ids(&analyzer::analyze_telemetry(&ingest, &kb))
+        };
+
+        let ifeo = "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\sethc.exe\\Debugger";
+        assert!(fires(ifeo).contains(&"ifeo-debugger".to_string()));
+        // A GlobalFlag value under the same key is not the Debugger hijack this
+        // entry describes.
+        let ifeo_other = "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\sethc.exe\\GlobalFlag";
+        assert!(!fires(ifeo_other).contains(&"ifeo-debugger".to_string()));
+
+        let winlogon = "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Shell";
+        for value in ["Shell", "Userinit"] {
+            let target =
+                format!("HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\{value}");
+            assert!(
+                fires(&target).contains(&"winlogon-persist".to_string()),
+                "winlogon-persist did not fire on {value}"
+            );
+        }
+        // Another value under the Winlogon key is not Shell/Userinit hijacking.
+        let winlogon_other =
+            "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\AutoRestartShell";
+        assert!(!fires(winlogon_other).contains(&"winlogon-persist".to_string()));
+
+        // Neither path is a Run key, so the pre-existing registry entry must not
+        // fire on either — the three registry entries stay distinct.
+        for target in [ifeo, winlogon] {
+            assert!(
+                !fires(target).contains(&"run-key-persist".to_string()),
+                "run-key-persist fired on {target}"
+            );
+        }
+        // …and neither of the two new entries fires on the other's key.
+        assert!(!fires(ifeo).contains(&"winlogon-persist".to_string()));
+        assert!(!fires(winlogon).contains(&"ifeo-debugger".to_string()));
+    }
+
+    #[test]
     fn standalone_registry_event_matches_the_event_axis() {
         // A registry Run-key set whose causing process was not captured: no
         // execution to correlate to, so it becomes a standalone event observation
