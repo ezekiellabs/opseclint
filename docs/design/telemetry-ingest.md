@@ -1,6 +1,6 @@
 # Reference: ingesting real telemetry
 
-**Status:** current (Windows Sysmon EID 1/3/11/13; Linux auditd `execve` / `SOCKADDR` / `PATH`; macOS ESF `NOTIFY_EXEC` / `NOTIFY_OPEN` / `NOTIFY_CREATE` / `NOTIFY_CONNECT`)
+**Status:** current (Windows Sysmon EID 1/3/11/13; Linux auditd `execve` / `SOCKADDR` / `PATH`; macOS ESF `NOTIFY_EXEC` / `NOTIFY_OPEN` / `NOTIFY_CREATE` / `NOTIFY_WRITE` / `NOTIFY_CONNECT`)
 **Scope:** how opseclint maps recorded host telemetry back to the knowledge base.
 
 opseclint's original direction is *predictive*: given a command, resolve the
@@ -220,7 +220,7 @@ names so one knowledge-base entry serves every platform that reports the class:
 |---|---|---|---|
 | Sysmon | EID 3 → `DestinationIp` / `DestinationPort` | EID 11 → `TargetFilename` | EID 13 → `TargetObject` |
 | auditd | `SOCKADDR` `saddr` decoded | `PATH` `name` | — |
-| ESF | `NOTIFY_CONNECT` | `NOTIFY_OPEN` / `NOTIFY_CREATE` | — |
+| ESF | `NOTIFY_CONNECT` | `NOTIFY_OPEN` / `NOTIFY_CREATE` / `NOTIFY_WRITE` | — |
 
 The pid each correlates on is a flat `ProcessId` for Sysmon, the `SYSCALL` `pid`
 for auditd, and the audit-token pid for ESF. Two details are worth naming because

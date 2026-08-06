@@ -200,8 +200,8 @@ Three formats are supported, selected with `--format`:
 - `esf` — macOS **Endpoint Security** `NOTIFY_EXEC` events, as `eslogger exec`
   JSON (array, single object, or JSONL). The image, argv, and working directory come from
   `event.exec.target`; the calling process supplies a real `ParentImage`.
-  `NOTIFY_OPEN` / `NOTIFY_CREATE` / `NOTIFY_CONNECT` supply file and network
-  events.
+  `NOTIFY_OPEN` / `NOTIFY_CREATE` / `NOTIFY_WRITE` / `NOTIFY_CONNECT` supply
+  file and network events.
 
 ```bash
 opseclint --telemetry sysmon-events.json --platform windows-sysmon

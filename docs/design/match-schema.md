@@ -109,7 +109,7 @@ Fields are keyed by their canonical Sysmon names on every platform —
 `DestinationIp`, `DestinationPort`, `TargetFilename`, `TargetObject` — so an
 entry is written once rather than once per sensor vocabulary. auditd `SOCKADDR`
 and `PATH` records and macOS ESF `NOTIFY_OPEN` / `NOTIFY_CREATE` /
-`NOTIFY_CONNECT` all reduce into the same names.
+`NOTIFY_WRITE` / `NOTIFY_CONNECT` all reduce into the same names.
 
 Prefer the boundary-aware leaves here for the same reason as on the command
 axes — event fields are usually paths, where a bare `contains` over-matches most.
