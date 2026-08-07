@@ -33,6 +33,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Three Windows knowledge-base claims that previously read `INDETERMINATE` are
   now verified against the live SigmaHQ ruleset: `findstr-creds`,
   `gpp-cpassword` and `ipconfig`.
+- **No Windows knowledge-base entry claims a Sigma rule that no rule can
+  satisfy.** The last ten `UNVERIFIED` claims were adjudicated one at a time;
+  nine now verify (13 → 22) and the tenth was withdrawn. Seven were probe
+  artifacts: `--verify-detections` evaluates an entry's representative line,
+  which is derived from the matcher's own literals when no `example` is
+  authored, and `attrib +h` or `shadowcopy delete` carries no program — so an
+  `Image|endswith` test resolves to a definite *false* and the claim reads
+  contradicted rather than untested. `accessibility-sethc`, `attrib-hidden`,
+  `bcdedit-recovery`, `regsvr32-squiblydoo`, `run-key-persist`,
+  `wbadmin-delete` and `wmic-shadow-delete` now carry a realistic `example`.
 
 ### Changed
 
@@ -60,6 +70,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   derive from — a bare `regex`, or pure negation — is rejected at load, as is an
   unrecognized `class`. Event field names are matched case-insensitively, which
   values already were.
+- **Four Windows detection claims were wrong rather than untested.**
+  `av-discovery` and `cmdkey-creds` are covered by real rules that SigmaHQ tags
+  under a technique the entries did not carry — `Potential Product Class
+  Reconnaissance Via Wmic.EXE` under T1047, `Potential Reconnaissance For Cached
+  Credentials Via Cmdkey.EXE` under T1003.005 — so the rule was never a
+  candidate. Both techniques are now listed, and `av-discovery`, which named a
+  security-software-discovery rule SigmaHQ does not carry for this action, now
+  names the wmic reconnaissance rule that does answer it.
+  `wbadmin-delete` claimed backup deletion at `high` confidence,
+  but every wbadmin rule requires `backup` in the command line, so the
+  catalog-only form it also matches fires nothing: the claim now says so and
+  reads `medium`. `netstat` claimed a network-connection-discovery rule that
+  does not exist — SigmaHQ has no `netstat.exe` process-creation rule under
+  T1049 — and the claim is withdrawn. An entry with no `detections` is now a
+  deliberate statement that nothing covers the action, reported by
+  `--coverage-gaps` and scaffoldable with `--scaffold`; claiming a detection
+  that does not exist is worse than claiming none.
 - `docs/design/match-schema.md` documents the `event` axis, which it had never
   mentioned despite being the canonical `match` reference, and
   `docs/design/telemetry-ingest.md` no longer contradicts itself about whether

@@ -3,116 +3,6 @@
   "rules_indexed": 2220,
   "results": [
     {
-      "id": "accessibility-sethc",
-      "description": "Accessibility feature hijack (sticky keys / utilman) — persistence / backdoor",
-      "techniques": [
-        "T1546.008"
-      ],
-      "claimed": [
-        "Accessibility feature hijack (registry_set_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "attrib-hidden",
-      "description": "Setting the hidden attribute — hide artifacts",
-      "techniques": [
-        "T1564.001"
-      ],
-      "claimed": [
-        "Hidden file attribute set (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "av-discovery",
-      "description": "Enumerating installed AV via the AntiVirusProduct WMI class — security-software discovery",
-      "techniques": [
-        "T1518.001"
-      ],
-      "claimed": [
-        "Security software discovery (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "bcdedit-recovery",
-      "description": "Modifying boot configuration — inhibit system recovery",
-      "techniques": [
-        "T1490"
-      ],
-      "claimed": [
-        "Boot recovery tampering via bcdedit (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "cmdkey-creds",
-      "description": "Enumerating stored credentials via cmdkey — Credential Manager access",
-      "techniques": [
-        "T1555.004"
-      ],
-      "claimed": [
-        "Credential Manager enumeration via cmdkey (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "netstat",
-      "description": "Network connection discovery",
-      "techniques": [
-        "T1049"
-      ],
-      "claimed": [
-        "Network connection discovery (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "regsvr32-squiblydoo",
-      "description": "regsvr32 scrobj.dll (Squiblydoo) — LOLBin proxy execution",
-      "techniques": [
-        "T1218.010"
-      ],
-      "claimed": [
-        "Squiblydoo regsvr32 execution (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "run-key-persist",
-      "description": "Writing a Run key — registry autostart persistence",
-      "techniques": [
-        "T1547.001"
-      ],
-      "claimed": [
-        "Run key modification (registry_set_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "wbadmin-delete",
-      "description": "Deleting backups/catalog via wbadmin — inhibit system recovery",
-      "techniques": [
-        "T1490"
-      ],
-      "claimed": [
-        "Backup deletion via wbadmin (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "wmic-shadow-delete",
-      "description": "Deleting volume shadow copies via wmic — inhibit system recovery",
-      "techniques": [
-        "T1490"
-      ],
-      "claimed": [
-        "Shadow copy deletion via wmic (proc_creation_win)"
-      ],
-      "status": "unverified"
-    },
-    {
       "id": "amsi-bypass",
       "description": "In-memory AMSI bypass via amsiInitFailed — defense impairment",
       "techniques": [
@@ -1451,6 +1341,20 @@
       }
     },
     {
+      "id": "accessibility-sethc",
+      "description": "Accessibility feature hijack (sticky keys / utilman) — persistence / backdoor",
+      "techniques": [
+        "T1546.008"
+      ],
+      "claimed": [
+        "Accessibility debugger registration (proc_creation_win) / registry_set_win"
+      ],
+      "status": "verified",
+      "firing": [
+        "Suspicious Debugger Registration Cmdline"
+      ]
+    },
+    {
       "id": "adfind",
       "description": "AdFind — Active Directory enumeration",
       "techniques": [
@@ -1463,6 +1367,66 @@
       "status": "verified",
       "firing": [
         "PUA - AdFind.EXE Execution"
+      ]
+    },
+    {
+      "id": "attrib-hidden",
+      "description": "Setting the hidden attribute — hide artifacts",
+      "techniques": [
+        "T1564.001"
+      ],
+      "claimed": [
+        "Hidden file attribute set (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Set Suspicious Files as System Files Using Attrib.EXE",
+        "Hiding Files with Attrib.exe"
+      ]
+    },
+    {
+      "id": "av-discovery",
+      "description": "Enumerating installed AV via the AntiVirusProduct WMI class — security-software discovery",
+      "techniques": [
+        "T1518.001",
+        "T1047"
+      ],
+      "claimed": [
+        "Product class reconnaissance via wmic (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Potential Product Class Reconnaissance Via Wmic.EXE",
+        "Potential Product Reconnaissance Via Wmic.EXE"
+      ]
+    },
+    {
+      "id": "bcdedit-recovery",
+      "description": "Modifying boot configuration — inhibit system recovery",
+      "techniques": [
+        "T1490"
+      ],
+      "claimed": [
+        "Boot recovery tampering via bcdedit (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Boot Configuration Tampering Via Bcdedit.EXE"
+      ]
+    },
+    {
+      "id": "cmdkey-creds",
+      "description": "Enumerating stored credentials via cmdkey — Credential Manager access",
+      "techniques": [
+        "T1555.004",
+        "T1003.005"
+      ],
+      "claimed": [
+        "Credential Manager enumeration via cmdkey (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Potential Reconnaissance For Cached Credentials Via Cmdkey.EXE"
       ]
     },
     {
@@ -1537,6 +1501,20 @@
       ]
     },
     {
+      "id": "regsvr32-squiblydoo",
+      "description": "regsvr32 scrobj.dll (Squiblydoo) — LOLBin proxy execution",
+      "techniques": [
+        "T1218.010"
+      ],
+      "claimed": [
+        "Squiblydoo regsvr32 execution (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Potentially Suspicious Regsvr32 HTTP/FTP Pattern"
+      ]
+    },
+    {
       "id": "rubeus",
       "description": "Rubeus — Kerberos ticket abuse (roasting, ptt, harvesting)",
       "techniques": [
@@ -1548,6 +1526,21 @@
       "status": "verified",
       "firing": [
         "HackTool - Rubeus Execution"
+      ]
+    },
+    {
+      "id": "run-key-persist",
+      "description": "Writing a Run key — registry autostart persistence",
+      "techniques": [
+        "T1547.001"
+      ],
+      "claimed": [
+        "Run key modification via reg.exe (proc_creation_win) / registry_set_win"
+      ],
+      "status": "verified",
+      "firing": [
+        "Direct Autorun Keys Modification",
+        "Potential Persistence Attempt Via Run Keys Using Reg.EXE"
       ]
     },
     {
@@ -1594,6 +1587,20 @@
       ]
     },
     {
+      "id": "wbadmin-delete",
+      "description": "Deleting backups/catalog via wbadmin — inhibit system recovery",
+      "techniques": [
+        "T1490"
+      ],
+      "claimed": [
+        "Backup/systemstatebackup deletion via wbadmin (proc_creation_win); the catalog-only form is uncovered"
+      ],
+      "status": "verified",
+      "firing": [
+        "Windows Backup Deleted Via Wbadmin.EXE"
+      ]
+    },
+    {
       "id": "whoami",
       "description": "Current user discovery",
       "techniques": [
@@ -1634,6 +1641,20 @@
       "status": "verified",
       "firing": [
         "Process Creation Attempt via Wmic.EXE"
+      ]
+    },
+    {
+      "id": "wmic-shadow-delete",
+      "description": "Deleting volume shadow copies via wmic — inhibit system recovery",
+      "techniques": [
+        "T1490"
+      ],
+      "claimed": [
+        "Shadow copy deletion via wmic (proc_creation_win)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Shadow Copies Deletion Using Operating Systems Utilities"
       ]
     }
   ]
