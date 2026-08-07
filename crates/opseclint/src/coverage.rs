@@ -50,10 +50,14 @@ pub fn analyze(report: &Report, index: &SigmaIndex, platform: Platform) -> Vec<C
     let mut out = Vec::new();
     for f in &report.findings {
         let tids: Vec<String> = f.techniques.iter().map(|t| t.id.clone()).collect();
-        // Same partition as verify::classify, so the two stay consistent: a
-        // rule declaring a different event class can never fire on a process
+        // A rule declaring a different event class can never fire on a process
         // execution, and counting it would misreport coverage in both
-        // directions.
+        // directions. Deliberately *not* verify::classify's three-way split:
+        // that one asks a file/registry rule about the synthetic record an
+        // entry's `event` axis derives, and there is no such record here — a
+        // finding's `observed_event` is whatever a sensor actually logged,
+        // already overlaid below, and a rule for a log source the input never
+        // covered is not a gap in the input.
         // Also the full candidate set — a blind spot reported because the rule
         // that fires happened to sort sixth is a false alarm, not a gap.
         let candidates: Vec<_> = index

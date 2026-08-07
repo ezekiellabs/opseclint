@@ -3,6 +3,28 @@
   "rules_indexed": 2220,
   "results": [
     {
+      "id": "ifeo-debugger",
+      "description": "Image File Execution Options Debugger — persistence / hijack",
+      "techniques": [
+        "T1546.012"
+      ],
+      "claimed": [
+        "IFEO debugger persistence (registry_set_win)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "winlogon-persist",
+      "description": "Modifying Winlogon Shell/Userinit — logon persistence",
+      "techniques": [
+        "T1547.004"
+      ],
+      "claimed": [
+        "Winlogon helper persistence (registry_set_win)"
+      ],
+      "status": "unverified"
+    },
+    {
       "id": "amsi-bypass",
       "description": "In-memory AMSI bypass via amsiInitFailed — defense impairment",
       "techniques": [
@@ -80,20 +102,6 @@
       "status": "no-rule"
     },
     {
-      "id": "ifeo-debugger",
-      "description": "Image File Execution Options Debugger — persistence / hijack",
-      "techniques": [
-        "T1546.012"
-      ],
-      "claimed": [
-        "IFEO debugger persistence (registry_set_win)"
-      ],
-      "status": "not-applicable",
-      "because": {
-        "inapplicable_rules": 2
-      }
-    },
-    {
       "id": "installutil",
       "description": "Executing a .NET assembly via InstallUtil — LOLBin proxy execution",
       "techniques": [
@@ -128,20 +136,6 @@
         "Firewall modification via netsh (proc_creation_win)"
       ],
       "status": "no-rule"
-    },
-    {
-      "id": "winlogon-persist",
-      "description": "Modifying Winlogon Shell/Userinit — logon persistence",
-      "techniques": [
-        "T1547.004"
-      ],
-      "claimed": [
-        "Winlogon helper persistence (registry_set_win)"
-      ],
-      "status": "not-applicable",
-      "because": {
-        "inapplicable_rules": 2
-      }
     },
     {
       "id": "arp",
