@@ -172,7 +172,7 @@ opseclint script.sh --navigator     # ATT&CK Navigator layer (JSON)
 opseclint script.sh --sigma ./sigma # enrich with a real SigmaHQ checkout
 opseclint script.sh --check-rule r.yml    # does this Sigma rule fire on each line?
 opseclint script.sh --sigma ./sigma --coverage-gaps   # which actions no rule catches
-opseclint script.sh --scaffold       # starter Sigma rule per action (YAML)
+opseclint script.sh --scaffold       # starter Sigma rule(s) per action (YAML)
 opseclint --sigma ./sigma --verify-detections --platform windows   # do the KB's Sigma claims fire?
 opseclint script.sh --ci --threshold 70   # exit 1 if loudest action >= 70
 
@@ -549,7 +549,7 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - Linux/Windows KBs with cloud, container/Kubernetes, LOLBin, and modern persistence/evasion coverage (83 / 84 entries)
 - [Coverage diff](#coverage-diff---diff): compare a run against a saved report to see what coverage changed, via `--diff`
 - ATT&CK Navigator layer export: visualize technique coverage on the MITRE matrix, via `--navigator`
-- Gap-to-rule scaffolding: generate a starter Sigma rule for a modeled action (or a `--coverage-gaps` blind spot), via `--scaffold`
+- Gap-to-rule scaffolding: generate a starter Sigma rule for a modeled action (or a `--coverage-gaps` blind spot), via `--scaffold` — one rule per log source the action shows up in, so an entry with an `event` axis also scaffolds its `network_connection` / `file_event` / `registry_set` rule
 - [Ingest real telemetry](docs/design/telemetry-ingest.md): map recorded sensor events back to techniques and coverage, via `--telemetry` — Windows Sysmon Event ID 1 JSON, Linux auditd `execve` logs, and macOS Endpoint Security `NOTIFY_EXEC` (`eslogger`); non-execution network/file/registry events on every format, correlated to the process that caused them or matched standalone against the knowledge base's `event` axis; with `--sigma`, evaluate detections against the real event so parent/integrity/working-directory-keyed rules resolve instead of reading indeterminate
 
 ### Next
@@ -573,10 +573,12 @@ Honest about what isn't done yet:
   platform-general and the `event` axis now works on all three formats, but
   only Sysmon reports a registry event — no auditd or ESF equivalent exists to
   match against.
-- **`--scaffold` does not lower the `event` axis.** It mirrors the command axes
-  into a Sigma `selection`; an entry that matches only a standalone event
-  scaffolds an empty one. A `file_event` / `registry_set` logsource mapping is
-  the natural follow-on.
+- **`--scaffold` lowers the `event` axis approximately.** An entry carrying one
+  scaffolds a second rule under its class's logsource, but `word` and
+  `path_under` have no Sigma equivalent and stand in as `|contains` and
+  `|startswith` — broader than opseclint's own match, never narrower. So is a
+  dropped `not`. Each is flagged with a `# NOTE:` in the rule rather than
+  passed off as exact.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Have an idea or a gap to
 report? Open a [coverage request][coverage-url] or start a

@@ -251,13 +251,17 @@ fn emit_scaffold(entries: &[&model::KbEntry], platform: kb::Platform) {
         eprintln!("opseclint: no actions to scaffold");
         return;
     }
-    print!(
-        "{}",
-        scaffold::rules_for(entries, platform, &scaffold::today())
-    );
+    let docs = scaffold::documents_for(entries, platform, &scaffold::today());
+    print!("{}", docs.join("---\n"));
     // Flush stdout before the stderr note so combined streams stay ordered.
     let _ = std::io::stdout().flush();
-    eprintln!("opseclint: scaffolded {} starter rule(s)", entries.len());
+    // An action modeled on both a command axis and an `event` axis scaffolds a
+    // rule per log source, so rules and actions are no longer the same count.
+    eprintln!(
+        "opseclint: scaffolded {} starter rule(s) for {} action(s)",
+        docs.len(),
+        entries.len()
+    );
 }
 
 /// Verify the knowledge base's Sigma detection claims against a real ruleset.

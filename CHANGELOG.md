@@ -16,6 +16,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   or — with no captured causing execution — matched standalone against the
   knowledge base's `event` axis. Previously only Sysmon produced these, so on
   the other two platforms the `event` axis had nothing to match against at all.
+- **`--scaffold` lowers the `event` axis.** An action modeled on both a command
+  and a sensor record now scaffolds two Sigma rules — the `process_creation` one
+  it always did, plus one under the event class's own logsource
+  (`network_connection` / `file_event` / `registry_set`) — and an entry
+  recognized only by an event scaffolds just the second, instead of an empty
+  `selection:` under the wrong log source. Previously the logsource was
+  hardcoded, so `cloud-imds` scaffolded a `process_creation` rule keyed on a
+  command-line substring while the `DestinationIp` / `DestinationPort` pair the
+  knowledge base already held went unmentioned. Sigma's own map semantics carry
+  most of the lowering: leaves ANDed by an `all` become keys in one selection,
+  and an `any` whose branches share a field and a modifier becomes one key with
+  a value sequence, so `winlogon-persist`'s nested alternation stays a single
+  idiomatic selection. Only an alternation spanning different keys needs sibling
+  selections and a composed `condition`. `word` and `path_under` have no Sigma
+  equivalent and stand in as `|contains` and `|startswith` — broader than
+  opseclint's own match, never narrower — and say so in a `# NOTE:`.
 - **The `event` axis is a predicate tree.** `all` / `any` / `not` over per-field
   leaves (`contains`, `eq`, `prefix`, `suffix`, `word`, `path_under`, `regex`),
   reaching parity with the `args` and `line` axes. An entry can now require
