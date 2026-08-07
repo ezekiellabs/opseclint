@@ -138,9 +138,12 @@ struct DetectionRule {
 }
 ```
 
-`SigmaRuleRaw` gains `detection` (parsed from `serde_yaml::Value`) and
-`logsource.category`. Parsed `DetectionRule`s live in `SigmaIndex` and the
-on-disk cache (bump the cache fingerprint/version so stale caches rebuild).
+`sigma_eval::parse_documents` splits a rule file — which may hold several
+`---`-separated documents — and reduces each to an owned `RuleDoc`: `id`,
+`title`, `level`, `logsource.category`, `tags`, and the parsed `DetectionRule`.
+YAML types stop at that boundary, so `sigma.rs` builds its index without naming
+a YAML crate. Parsed `DetectionRule`s live in `SigmaIndex` and the on-disk cache
+(bump the cache fingerprint/version so stale caches rebuild).
 
 ### Three-valued evaluation
 

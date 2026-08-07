@@ -36,6 +36,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **YAML parsing moved off the archived `serde_yaml`** (which resolved to
+  `0.9.34+deprecated`) and onto the maintained `serde_norway` fork of that same
+  release. The parsing path is identical, so no rule parses differently than it
+  did before: `rules_indexed` holds at 251 (linux), 2220 (windows) and 124
+  (macos) against the live SigmaHQ ruleset, with every `--verify-detections`
+  verdict unchanged. `--sigma` and `--check-rule` are back on a dependency that
+  still receives fixes.
+- **YAML types are confined to `sigma_eval`.** `sigma.rs` used to navigate a raw
+  YAML value to pull a rule's metadata out; it now consumes an owned `RuleDoc`
+  per document from `sigma_eval::parse_documents` and names no YAML type. A
+  future parser change is a one-file change.
+- The Sigma fixture tests assert exact rule counts instead of a `>= 2` floor. A
+  parser that silently skipped documents — the failure mode a YAML migration
+  actually has, since an unreadable document is skipped rather than reported —
+  would have shrunk the ruleset without failing anything.
 - A field match is cached as its source key plus raw values and re-lowered on
   load, so nothing derived is persisted. Stale caches are invalidated
   automatically.

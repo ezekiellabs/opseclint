@@ -577,8 +577,6 @@ Honest about what isn't done yet:
   into a Sigma `selection`; an entry that matches only a standalone event
   scaffolds an empty one. A `file_event` / `registry_set` logsource mapping is
   the natural follow-on.
-- **[`serde_yaml` is deprecated][issue-58]** and sits on the `--sigma` and
-  `--check-rule` paths.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Have an idea or a gap to
 report? Open a [coverage request][coverage-url] or start a
@@ -654,7 +652,6 @@ Project Link: [https://github.com/ezekiellabs/opseclint](https://github.com/ezek
 [issues-url]: https://github.com/ezekiellabs/opseclint/issues
 [coverage-url]: https://github.com/ezekiellabs/opseclint/issues/new?labels=detection-logic&template=coverage_request.yml
 [discussions-url]: https://github.com/ezekiellabs/opseclint/discussions
-[issue-58]: https://github.com/ezekiellabs/opseclint/issues/58
 [license-shield]: https://img.shields.io/github/license/ezekiellabs/opseclint?style=flat-square
 [license-url]: https://github.com/ezekiellabs/opseclint/blob/main/LICENSE
 [releases-url]: https://github.com/ezekiellabs/opseclint/releases
