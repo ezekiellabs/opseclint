@@ -160,55 +160,20 @@ impl SigmaIndex {
         Ok(index)
     }
 
+    /// Index every platform-relevant rule in one Sigma file, which may hold
+    /// several YAML documents. Splitting the file is `sigma_eval`'s job — YAML
+    /// does not reach this module.
     fn ingest_file(&mut self, content: &str, product: &str) {
-        // A Sigma file may hold multiple YAML documents.
-        for doc in serde_norway::Deserializer::from_str(content) {
-            let Ok(value) = serde_norway::Value::deserialize(doc) else {
-                continue;
-            };
-            // Keep platform-relevant rules (matching product or unspecified).
-            if let Some(p) = value
-                .get("logsource")
-                .and_then(|ls| ls.get("product"))
-                .and_then(|p| p.as_str())
-                && !p.eq_ignore_ascii_case(product)
-            {
-                continue;
-            }
-            let (Some(id), Some(title)) = (
-                value.get("id").and_then(|v| v.as_str()),
-                value.get("title").and_then(|v| v.as_str()),
-            ) else {
-                continue;
-            };
-            let level = value
-                .get("level")
-                .and_then(|l| l.as_str())
-                .unwrap_or("medium")
-                .to_string();
-            let category = value
-                .get("logsource")
-                .and_then(|ls| ls.get("category"))
-                .and_then(|c| c.as_str())
-                .unwrap_or("")
-                .to_string();
-            let detection = crate::sigma_eval::parse_rule_value(&value);
-
+        for doc in crate::sigma_eval::parse_documents(content, product) {
             let mut indexed_any = false;
-            for tag in value
-                .get("tags")
-                .and_then(|t| t.as_sequence())
-                .into_iter()
-                .flatten()
-                .filter_map(|t| t.as_str())
-            {
+            for tag in &doc.tags {
                 if let Some(tech) = technique_from_tag(tag) {
                     self.by_technique.entry(tech).or_default().push(SigmaRule {
-                        id: id.to_string(),
-                        title: title.to_string(),
-                        level: level.clone(),
-                        category: category.clone(),
-                        rule: detection.clone(),
+                        id: doc.id.clone(),
+                        title: doc.title.clone(),
+                        level: doc.level.clone(),
+                        category: doc.category.clone(),
+                        rule: doc.rule.clone(),
                     });
                     indexed_any = true;
                 }
