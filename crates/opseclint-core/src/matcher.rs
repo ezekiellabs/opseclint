@@ -79,6 +79,18 @@ impl EventClass {
             EventClass::Registry => "registry",
         }
     }
+
+    /// The Sigma `logsource.category` a rule over this class of record declares.
+    /// A scaffolded event rule is emitted under this category; the same mapping
+    /// is what tells whether a candidate rule is asking about the same kind of
+    /// record an entry's `event` axis describes.
+    pub fn sigma_category(self) -> &'static str {
+        match self {
+            EventClass::Network => "network_connection",
+            EventClass::File => "file_event",
+            EventClass::Registry => "registry_set",
+        }
+    }
 }
 
 /// A predicate over a non-execution event's fields: the event `class`
@@ -632,6 +644,33 @@ impl Matcher {
         sel
     }
 
+    /// Lower the `event` axis into the selection blocks a starter Sigma rule over
+    /// non-execution records should test (see [`SigmaEventSelection`]). `None`
+    /// when there is no `event` axis, or when nothing positive can be derived
+    /// from it — the same condition that makes [`representative_event`] `None`.
+    ///
+    /// The command axes and the `event` axis describe records in *different* log
+    /// sources, so they cannot share one rule; this is the event half, lowered
+    /// independently of [`sigma_selection`].
+    ///
+    /// [`representative_event`]: Matcher::representative_event
+    /// [`sigma_selection`]: Matcher::sigma_selection
+    pub fn sigma_event_selection(&self) -> Option<SigmaEventSelection> {
+        let event = self.event.as_ref()?;
+        let mut notes = Vec::new();
+        let blocks = lower_event_pred(&event.pred, &mut notes);
+        let blocks: Vec<SigmaBlock> = blocks
+            .into_iter()
+            .filter(|b| !b.fields.is_empty())
+            .collect();
+        let blocks = merge_alternatives(blocks);
+        (!blocks.is_empty()).then_some(SigmaEventSelection {
+            class: event.class,
+            blocks,
+            notes,
+        })
+    }
+
     /// Whether any leaf in this matcher is a `regex`. Such an entry cannot derive
     /// its own representative from literals, so it must carry an `example`.
     pub fn has_regex(&self) -> bool {
@@ -972,6 +1011,224 @@ fn line_or_literals(branches: &[LinePred]) -> Option<Vec<String>> {
             _ => None,
         })
         .collect()
+}
+
+// --- event-axis lowering ----------------------------------------------------
+
+/// One `field|modifier:` test of a scaffolded Sigma selection.
+///
+/// A single value renders as a scalar. Several render as a YAML sequence, which
+/// Sigma reads as an **OR** — unless [`all_of`](SigmaField::all_of) says the
+/// values were ANDed, which Sigma writes with an extra `|all`.
+#[derive(Debug, Clone)]
+pub struct SigmaField {
+    /// The event field being tested, by its canonical name.
+    pub field: String,
+    /// The Sigma modifier chain, leading `|` included — `""` for a bare equality
+    /// test, else `|contains` / `|startswith` / `|endswith` / `|re`.
+    pub modifier: &'static str,
+    /// The values tested, in authored order.
+    pub values: Vec<String>,
+    /// Several `values` are ANDed rather than ORed (`|all`).
+    pub all_of: bool,
+}
+
+/// One named `selection:` block. Its fields are ANDed, as a Sigma map is.
+#[derive(Debug, Clone, Default)]
+pub struct SigmaBlock {
+    /// The field tests, at most one per `(field, modifier)` pair.
+    pub fields: Vec<SigmaField>,
+}
+
+impl SigmaBlock {
+    /// Add a field test, folding it into an existing test of the same field and
+    /// modifier. Two constraints on one key inside one selection are ANDed, and
+    /// a Sigma map cannot repeat a key, so they become one `|all` value set.
+    fn push_field(&mut self, incoming: SigmaField) {
+        if let Some(existing) = self.fields.iter_mut().find(|f| {
+            f.field.eq_ignore_ascii_case(&incoming.field) && f.modifier == incoming.modifier
+        }) {
+            for v in incoming.values {
+                if !existing.values.contains(&v) {
+                    existing.values.push(v);
+                }
+            }
+            existing.all_of = existing.values.len() > 1;
+            return;
+        }
+        self.fields.push(incoming);
+    }
+}
+
+/// An `event` axis lowered for scaffolding: the class the rule's logsource comes
+/// from, the selection blocks its `detection:` should carry, and any place the
+/// lowering had to approximate.
+///
+/// Several `blocks` are alternatives the scaffold ORs together in its
+/// `condition`, because one flat Sigma map cannot express a disjunction across
+/// different keys.
+#[derive(Debug)]
+pub struct SigmaEventSelection {
+    /// The class of record this rule is about.
+    pub class: EventClass,
+    /// One or more alternative selections, ORed.
+    pub blocks: Vec<SigmaBlock>,
+    /// Where the lowering widened or dropped a leaf, for the scaffold to flag
+    /// rather than let the difference pass silently.
+    pub notes: Vec<String>,
+}
+
+/// Lower one leaf to a Sigma field test.
+///
+/// `word` and `path_under` have no Sigma modifier. Each widens to the nearest
+/// one that can only ever match *more* than the leaf did — never less — and says
+/// so, so a scaffold is over-broad and visibly flagged rather than quietly
+/// missing the cases the entry was written to catch.
+fn lower_field_pred(f: &FieldPred, notes: &mut Vec<String>) -> Option<SigmaField> {
+    let (modifier, value) = if let Some(s) = &f.eq {
+        ("", s.clone())
+    } else if let Some(s) = &f.contains {
+        ("|contains", s.clone())
+    } else if let Some(s) = &f.prefix {
+        ("|startswith", s.clone())
+    } else if let Some(s) = &f.suffix {
+        ("|endswith", s.clone())
+    } else if let Some(re) = &f.regex {
+        ("|re", re.as_str().to_string())
+    } else if let Some(s) = &f.word {
+        notes.push(format!(
+            "`{}` tests `word: {s}` — Sigma has no word-boundary modifier, so \
+             `|contains` stands in and also matches `{s}` inside a longer word.",
+            f.field
+        ));
+        ("|contains", s.clone())
+    } else if let Some(s) = &f.path_under {
+        notes.push(format!(
+            "`{}` tests `path_under: {s}` — Sigma has no segment-aware modifier, \
+             so `|startswith` stands in and also matches sibling paths that \
+             merely share the prefix.",
+            f.field
+        ));
+        ("|startswith", s.clone())
+    } else {
+        return None;
+    };
+    Some(SigmaField {
+        field: f.field.clone(),
+        modifier,
+        values: vec![value],
+        all_of: false,
+    })
+}
+
+/// Lower an event predicate to alternative selection blocks, distributing `all`
+/// over `any` so every alternative is a plain conjunction of field tests. The
+/// alternatives that differ in only one key are folded back together afterwards
+/// by [`merge_alternatives`].
+fn lower_event_pred(pred: &EventPred, notes: &mut Vec<String>) -> Vec<SigmaBlock> {
+    match pred {
+        EventPred::Field(f) => lower_field_pred(f, notes)
+            .map(|field| {
+                vec![SigmaBlock {
+                    fields: vec![field],
+                }]
+            })
+            .unwrap_or_default(),
+        EventPred::Comb(EventComb::Not(_)) => {
+            notes.push(
+                "A `not` was dropped: a Sigma selection is a positive test, so \
+                 the exclusion it expressed is not represented here and this \
+                 rule matches more than the entry does."
+                    .to_string(),
+            );
+            Vec::new()
+        }
+        EventPred::Comb(EventComb::Any(branches)) => branches
+            .iter()
+            .flat_map(|b| lower_event_pred(b, notes))
+            .collect(),
+        EventPred::Comb(EventComb::All(parts)) => {
+            let mut acc = vec![SigmaBlock::default()];
+            for part in parts {
+                let alts = lower_event_pred(part, notes);
+                // A part that lowered to nothing (a dropped `not`) constrains
+                // nothing; the remaining conjuncts still stand.
+                if alts.is_empty() {
+                    continue;
+                }
+                acc = acc
+                    .iter()
+                    .flat_map(|base| {
+                        alts.iter().map(|alt| {
+                            let mut merged = base.clone();
+                            for f in &alt.fields {
+                                merged.push_field(f.clone());
+                            }
+                            merged
+                        })
+                    })
+                    .collect();
+            }
+            acc
+        }
+    }
+}
+
+/// Fold alternatives that differ in exactly one key's values into a single block
+/// whose key carries a value sequence — `X and (Y=a or Y=b)` rather than
+/// `(X and Y=a) or (X and Y=b)`. The two are equivalent, but the first is one
+/// selection instead of two, which is how a hand-written rule would say it.
+fn merge_alternatives(mut blocks: Vec<SigmaBlock>) -> Vec<SigmaBlock> {
+    'again: loop {
+        for i in 0..blocks.len() {
+            for j in (i + 1)..blocks.len() {
+                if let Some(merged) = merge_pair(&blocks[i], &blocks[j]) {
+                    blocks[i] = merged;
+                    blocks.remove(j);
+                    continue 'again;
+                }
+            }
+        }
+        return blocks;
+    }
+}
+
+/// Merge two alternatives when they test the same keys and differ in at most one
+/// key's values. An ANDed (`|all`) value set never merges: appending an
+/// alternative to it would silently turn the `or` into another `and`.
+fn merge_pair(a: &SigmaBlock, b: &SigmaBlock) -> Option<SigmaBlock> {
+    if a.fields.len() != b.fields.len() {
+        return None;
+    }
+    let counterpart = |block: &SigmaBlock, f: &SigmaField| -> Option<SigmaField> {
+        block
+            .fields
+            .iter()
+            .find(|c| c.field.eq_ignore_ascii_case(&f.field) && c.modifier == f.modifier)
+            .cloned()
+    };
+    let mut differing = None;
+    for (i, fa) in a.fields.iter().enumerate() {
+        let fb = counterpart(b, fa)?;
+        if fa.values == fb.values {
+            continue;
+        }
+        if fa.all_of || fb.all_of || differing.is_some() {
+            return None;
+        }
+        differing = Some((i, fb));
+    }
+    let mut out = a.clone();
+    // No differing key at all means the two alternatives are the same test
+    // written twice; keeping one is the merge.
+    if let Some((i, fb)) = differing {
+        for v in fb.values {
+            if !out.fields[i].values.contains(&v) {
+                out.fields[i].values.push(v);
+            }
+        }
+    }
+    Some(out)
 }
 
 /// Collect literals from a line predicate.
@@ -1392,5 +1649,210 @@ mod tests {
         let sel = matcher.sigma_selection();
         assert_eq!(sel.contains_all, vec!["id_rsa"]);
         assert!(sel.simplified);
+    }
+
+    /// One block's field tests as `(key, values, all_of)`, for terse assertions.
+    fn keys(block: &SigmaBlock) -> Vec<(String, Vec<String>, bool)> {
+        block
+            .fields
+            .iter()
+            .map(|f| {
+                (
+                    format!("{}{}", f.field, f.modifier),
+                    f.values.clone(),
+                    f.all_of,
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn sigma_category_covers_every_event_class() {
+        // Pinned: `--scaffold` emits these as a rule's logsource category, and
+        // the same mapping is what makes a candidate rule comparable to an
+        // entry's event axis.
+        assert_eq!(EventClass::Network.sigma_category(), "network_connection");
+        assert_eq!(EventClass::File.sigma_category(), "file_event");
+        assert_eq!(EventClass::Registry.sigma_category(), "registry_set");
+    }
+
+    #[test]
+    fn sigma_event_selection_is_none_without_an_event_axis() {
+        assert!(
+            m(r#"{ "line": { "contains": "x" } }"#)
+                .sigma_event_selection()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn sigma_event_lowers_each_leaf_to_its_sigma_modifier() {
+        let leaf = |json: &str| {
+            let sel = m(json).sigma_event_selection().expect("lowers");
+            let block = sel.blocks.first().expect("one block").clone();
+            (keys(&block), sel.notes.len())
+        };
+        let case = |leaf_json: &str| {
+            format!(r#"{{ "event": {{ "class": "file", "field": "F", {leaf_json} }} }}"#)
+        };
+
+        assert_eq!(
+            leaf(&case(r#""eq": "v""#)).0,
+            vec![("F".into(), vec!["v".to_string()], false)]
+        );
+        assert_eq!(leaf(&case(r#""contains": "v""#)).0[0].0, "F|contains");
+        assert_eq!(leaf(&case(r#""prefix": "v""#)).0[0].0, "F|startswith");
+        assert_eq!(leaf(&case(r#""suffix": "v""#)).0[0].0, "F|endswith");
+        assert_eq!(leaf(&case(r#""regex": "a.b""#)).0[0].0, "F|re");
+        assert_eq!(leaf(&case(r#""regex": "a.b""#)).0[0].1, vec!["a.b"]);
+        // The two leaves Sigma cannot express widen, and say so.
+        assert_eq!(leaf(&case(r#""word": "v""#)).0[0].0, "F|contains");
+        assert_eq!(leaf(&case(r#""word": "v""#)).1, 1);
+        assert_eq!(leaf(&case(r#""path_under": "/v""#)).0[0].0, "F|startswith");
+        assert_eq!(leaf(&case(r#""path_under": "/v""#)).1, 1);
+        // The leaves with an exact Sigma equivalent approximate nothing.
+        assert_eq!(leaf(&case(r#""contains": "v""#)).1, 0);
+    }
+
+    #[test]
+    fn sigma_event_folds_a_same_key_any_into_one_value_list() {
+        // Sigma reads a sequence under one key as an OR, so an alternation whose
+        // branches share a field *and* a modifier needs no second selection.
+        let sel = m(r#"{ "event": { "class": "registry", "any": [
+            { "field": "TargetObject", "suffix": "\\Shell" },
+            { "field": "TargetObject", "suffix": "\\Userinit" }
+        ] } }"#)
+        .sigma_event_selection()
+        .expect("lowers");
+        assert_eq!(sel.blocks.len(), 1);
+        assert_eq!(
+            keys(&sel.blocks[0]),
+            vec![(
+                "TargetObject|endswith".into(),
+                vec!["\\Shell".to_string(), "\\Userinit".to_string()],
+                false
+            )]
+        );
+    }
+
+    #[test]
+    fn sigma_event_keeps_a_nested_homogeneous_any_in_one_block() {
+        // The `winlogon-persist` shape: `all` of a leaf and an `any` that folds.
+        let sel = m(r#"{ "event": { "class": "registry", "all": [
+            { "field": "TargetObject", "contains": "\\Winlogon\\" },
+            { "any": [
+                { "field": "TargetObject", "suffix": "\\Shell" },
+                { "field": "TargetObject", "suffix": "\\Userinit" } ] }
+        ] } }"#)
+        .sigma_event_selection()
+        .expect("lowers");
+        assert_eq!(sel.blocks.len(), 1);
+        assert_eq!(
+            keys(&sel.blocks[0]),
+            vec![
+                (
+                    "TargetObject|contains".into(),
+                    vec!["\\Winlogon\\".to_string()],
+                    false
+                ),
+                (
+                    "TargetObject|endswith".into(),
+                    vec!["\\Shell".to_string(), "\\Userinit".to_string()],
+                    false
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn sigma_event_splits_a_heterogeneous_any_into_alternatives() {
+        // The `sudoers-tamper` shape: two modifiers cannot share one key, so the
+        // alternation has to become two selections.
+        let sel = m(r#"{ "event": { "class": "file", "any": [
+            { "field": "TargetFilename", "eq": "/etc/sudoers" },
+            { "field": "TargetFilename", "path_under": "/etc/sudoers.d" }
+        ] } }"#)
+        .sigma_event_selection()
+        .expect("lowers");
+        assert_eq!(sel.blocks.len(), 2);
+        assert_eq!(keys(&sel.blocks[0])[0].0, "TargetFilename");
+        assert_eq!(keys(&sel.blocks[1])[0].0, "TargetFilename|startswith");
+    }
+
+    #[test]
+    fn sigma_event_distributes_an_all_over_a_heterogeneous_any() {
+        // `X and (A or B)` has no flat form, so it becomes `(X and A) or (X and
+        // B)` — every alternative keeps the conjunct, so nothing is narrowed.
+        let sel = m(r#"{ "event": { "class": "file", "all": [
+            { "field": "A", "eq": "x" },
+            { "any": [ { "field": "B", "eq": "y" }, { "field": "C", "contains": "z" } ] }
+        ] } }"#)
+        .sigma_event_selection()
+        .expect("lowers");
+        assert_eq!(sel.blocks.len(), 2);
+        assert_eq!(
+            keys(&sel.blocks[0]),
+            vec![
+                ("A".into(), vec!["x".to_string()], false),
+                ("B".into(), vec!["y".to_string()], false)
+            ]
+        );
+        assert_eq!(
+            keys(&sel.blocks[1]),
+            vec![
+                ("A".into(), vec!["x".to_string()], false),
+                ("C|contains".into(), vec!["z".to_string()], false)
+            ]
+        );
+    }
+
+    #[test]
+    fn sigma_event_ands_a_repeated_key_with_all() {
+        // A YAML map cannot repeat a key, so two ANDed tests of the same field
+        // and modifier become one `|all` value set.
+        let sel = m(r#"{ "event": { "class": "file", "all": [
+            { "field": "F", "contains": "a" },
+            { "field": "F", "contains": "b" }
+        ] } }"#)
+        .sigma_event_selection()
+        .expect("lowers");
+        assert_eq!(sel.blocks.len(), 1);
+        assert_eq!(
+            keys(&sel.blocks[0]),
+            vec![(
+                "F|contains".into(),
+                vec!["a".to_string(), "b".to_string()],
+                true
+            )]
+        );
+    }
+
+    #[test]
+    fn sigma_event_drops_a_negation_with_a_note() {
+        // A Sigma selection is a positive test; the exclusion is lost, which
+        // broadens the rule rather than narrowing it, and is flagged.
+        let sel = m(r#"{ "event": { "class": "file", "all": [
+            { "field": "F", "eq": "x" },
+            { "not": { "field": "F", "contains": "y" } }
+        ] } }"#)
+        .sigma_event_selection()
+        .expect("lowers");
+        assert_eq!(
+            keys(&sel.blocks[0]),
+            vec![("F".into(), vec!["x".to_string()], false)]
+        );
+        assert_eq!(sel.notes.len(), 1);
+        assert!(sel.notes[0].contains("`not`"));
+    }
+
+    #[test]
+    fn sigma_event_is_none_when_nothing_positive_survives() {
+        // A purely-negated predicate would lower to a rule matching everything.
+        // The knowledge base rejects one at load; the lowering declines it too.
+        assert!(
+            m(r#"{ "event": { "class": "file", "not": { "field": "F", "eq": "x" } } }"#)
+                .sigma_event_selection()
+                .is_none()
+        );
     }
 }
