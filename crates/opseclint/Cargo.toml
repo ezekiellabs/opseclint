@@ -28,7 +28,12 @@ clap = { workspace = true }
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-serde_yaml.workspace = true
+
+# None of this crate's own code parses YAML — only the scaffold tests, which
+# re-read the emitted Sigma to prove it round-trips. The binary still links a
+# YAML parser through opseclint-core, which is what reads Sigma rules.
+[dev-dependencies]
+serde_norway.workspace = true
 
 [[bin]]
 name = "opseclint"

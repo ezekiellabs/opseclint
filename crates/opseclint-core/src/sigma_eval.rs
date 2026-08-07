@@ -18,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr};
 
 use serde::{Deserialize, Serialize};
-use serde_yaml::Value;
+use serde_norway::Value;
 
 use crate::kb::Platform;
 use crate::parser::Command;
@@ -604,7 +604,7 @@ fn parse_field_match(key: &str, val: &Value) -> FieldMatch {
     lower(key, values)
 }
 
-fn parse_fields_map(m: &serde_yaml::Mapping) -> Vec<FieldMatch> {
+fn parse_fields_map(m: &serde_norway::Mapping) -> Vec<FieldMatch> {
     m.iter()
         .filter_map(|(k, v)| k.as_str().map(|key| parse_field_match(key, v)))
         .collect()
@@ -634,12 +634,12 @@ fn parse_search(v: &Value) -> Option<Search> {
 /// the rule has no usable `detection`/`condition` (it is then simply skipped by
 /// callers rather than mis-evaluated).
 pub fn parse_rule(yaml: &str) -> Option<DetectionRule> {
-    let doc: Value = serde_yaml::from_str(yaml).ok()?;
+    let doc: Value = serde_norway::from_str(yaml).ok()?;
     parse_rule_value(&doc)
 }
 
 /// Parse an already-deserialized Sigma rule document into a [`DetectionRule`].
-pub(crate) fn parse_rule_value(doc: &Value) -> Option<DetectionRule> {
+fn parse_rule_value(doc: &Value) -> Option<DetectionRule> {
     let det = doc.get("detection")?.as_mapping()?;
 
     let mut searches = HashMap::new();
@@ -667,6 +667,77 @@ pub(crate) fn parse_rule_value(doc: &Value) -> Option<DetectionRule> {
         searches,
         condition: condition?,
     })
+}
+
+/// One Sigma document, reduced to what the index needs. YAML types stop here.
+pub(crate) struct RuleDoc {
+    pub id: String,
+    pub title: String,
+    pub level: String,
+    pub category: String,
+    pub tags: Vec<String>,
+    pub rule: Option<DetectionRule>,
+}
+
+/// Split a Sigma file — which may hold several `---`-separated documents — into
+/// the documents relevant to `product`. A document is skipped when it fails to
+/// parse, declares a different `logsource.product`, or has no `id`/`title`.
+///
+/// A document that fails to parse is skipped rather than reported. That is a
+/// deliberate tolerance for a ruleset we do not control, but it also means a
+/// parser that got stricter would quietly shrink the index instead of erroring
+/// — which is what the exact fixture counts in `sigma.rs` are there to catch.
+///
+/// `product` is filtered here rather than by the caller so a rule for another
+/// platform is discarded *before* its detection logic is lowered; a Linux index
+/// should not pay to parse two thousand Windows detections.
+pub(crate) fn parse_documents(content: &str, product: &str) -> Vec<RuleDoc> {
+    let mut out = Vec::new();
+    for doc in serde_norway::Deserializer::from_str(content) {
+        let Ok(value) = Value::deserialize(doc) else {
+            continue;
+        };
+        // Keep platform-relevant rules (matching product or unspecified).
+        if let Some(p) = value
+            .get("logsource")
+            .and_then(|ls| ls.get("product"))
+            .and_then(|p| p.as_str())
+            && !p.eq_ignore_ascii_case(product)
+        {
+            continue;
+        }
+        let (Some(id), Some(title)) = (
+            value.get("id").and_then(|v| v.as_str()),
+            value.get("title").and_then(|v| v.as_str()),
+        ) else {
+            continue;
+        };
+        out.push(RuleDoc {
+            id: id.to_string(),
+            title: title.to_string(),
+            level: value
+                .get("level")
+                .and_then(|l| l.as_str())
+                .unwrap_or("medium")
+                .to_string(),
+            category: value
+                .get("logsource")
+                .and_then(|ls| ls.get("category"))
+                .and_then(|c| c.as_str())
+                .unwrap_or("")
+                .to_string(),
+            tags: value
+                .get("tags")
+                .and_then(|t| t.as_sequence())
+                .into_iter()
+                .flatten()
+                .filter_map(|t| t.as_str())
+                .map(str::to_string)
+                .collect(),
+            rule: parse_rule_value(&value),
+        });
+    }
+    out
 }
 
 fn parse_condition(s: &str) -> Option<Cond> {

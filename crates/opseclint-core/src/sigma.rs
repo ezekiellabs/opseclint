@@ -160,55 +160,20 @@ impl SigmaIndex {
         Ok(index)
     }
 
+    /// Index every platform-relevant rule in one Sigma file, which may hold
+    /// several YAML documents. Splitting the file is `sigma_eval`'s job — YAML
+    /// does not reach this module.
     fn ingest_file(&mut self, content: &str, product: &str) {
-        // A Sigma file may hold multiple YAML documents.
-        for doc in serde_yaml::Deserializer::from_str(content) {
-            let Ok(value) = serde_yaml::Value::deserialize(doc) else {
-                continue;
-            };
-            // Keep platform-relevant rules (matching product or unspecified).
-            if let Some(p) = value
-                .get("logsource")
-                .and_then(|ls| ls.get("product"))
-                .and_then(|p| p.as_str())
-                && !p.eq_ignore_ascii_case(product)
-            {
-                continue;
-            }
-            let (Some(id), Some(title)) = (
-                value.get("id").and_then(|v| v.as_str()),
-                value.get("title").and_then(|v| v.as_str()),
-            ) else {
-                continue;
-            };
-            let level = value
-                .get("level")
-                .and_then(|l| l.as_str())
-                .unwrap_or("medium")
-                .to_string();
-            let category = value
-                .get("logsource")
-                .and_then(|ls| ls.get("category"))
-                .and_then(|c| c.as_str())
-                .unwrap_or("")
-                .to_string();
-            let detection = crate::sigma_eval::parse_rule_value(&value);
-
+        for doc in crate::sigma_eval::parse_documents(content, product) {
             let mut indexed_any = false;
-            for tag in value
-                .get("tags")
-                .and_then(|t| t.as_sequence())
-                .into_iter()
-                .flatten()
-                .filter_map(|t| t.as_str())
-            {
+            for tag in &doc.tags {
                 if let Some(tech) = technique_from_tag(tag) {
                     self.by_technique.entry(tech).or_default().push(SigmaRule {
-                        id: id.to_string(),
-                        title: title.to_string(),
-                        level: level.clone(),
-                        category: category.clone(),
-                        rule: detection.clone(),
+                        id: doc.id.clone(),
+                        title: doc.title.clone(),
+                        level: doc.level.clone(),
+                        category: doc.category.clone(),
+                        rule: doc.rule.clone(),
                     });
                     indexed_any = true;
                 }
@@ -448,6 +413,31 @@ mod tests {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/sigma-modifiers")
     }
 
+    /// The exact shape of `fixtures()` when loaded for linux, asserted rather
+    /// than floored.
+    ///
+    /// Five files are read. Four are linux: `lnx_crowded_technique.yml` holds
+    /// **six** `---`-separated documents, and three more hold one apiece, for
+    /// nine indexed rules. The fifth declares `product: windows`, so it is read
+    /// and counted in `files_scanned` but filtered out before indexing.
+    ///
+    /// The nine is the load-bearing number. A YAML parser that got stricter
+    /// about anything upstream does — anchors, merge keys, duplicate keys, tabs
+    /// — would not error, because `parse_documents` skips a document it cannot
+    /// read. It would quietly index four rules instead of nine, and every
+    /// downstream count would shrink with it. A floor of `>= 2` passes that
+    /// happily; this does not.
+    fn assert_fixture_counts(index: &SigmaIndex) {
+        assert_eq!(
+            index.files_scanned, 5,
+            "every fixture file should be read, including the filtered windows one"
+        );
+        assert_eq!(
+            index.rules_indexed, 9,
+            "6 documents from the multi-document fixture + 3 single-document linux files"
+        );
+    }
+
     /// Verdicts for every candidate rule on a technique, keyed by rule title.
     fn verdicts_for(
         index: &SigmaIndex,
@@ -542,7 +532,7 @@ mod tests {
     #[test]
     fn indexes_and_enriches_from_fixtures() {
         let index = SigmaIndex::load_dir(&fixtures(), "linux").expect("fixtures load");
-        assert!(index.rules_indexed >= 2, "expected fixture rules indexed");
+        assert_fixture_counts(&index);
 
         let kb = kb::load(kb::Platform::LinuxAuditd).unwrap();
         let mut report = analyzer::analyze("cat /etc/shadow", &kb);
@@ -723,6 +713,10 @@ mod tests {
         // linux-only shadow rule is not.
         assert!(!index.rules_for(&["T1057".to_string()]).is_empty());
         assert!(index.rules_for(&["T1003.008".to_string()]).is_empty());
+        // The mirror of `assert_fixture_counts`: the same five files are read,
+        // and only the one windows rule survives the product filter.
+        assert_eq!(index.files_scanned, 5);
+        assert_eq!(index.rules_indexed, 1);
     }
 
     #[test]
@@ -734,14 +728,16 @@ mod tests {
         let (fresh, from_cache) =
             load_with_cache(&fixtures(), "linux", Some(&cache)).expect("fresh load");
         assert!(!from_cache, "first load should parse, not hit cache");
-        assert!(fresh.rules_indexed >= 2);
+        assert_fixture_counts(&fresh);
         assert!(cache.exists(), "cache file should have been written");
 
         let (cached, from_cache) =
             load_with_cache(&fixtures(), "linux", Some(&cache)).expect("cached load");
         assert!(from_cache, "second load should hit the cache");
-        // Same content served from cache.
+        // Same content served from cache — both counts, since the cache
+        // carries `files_scanned` too and nothing else proves it round-trips.
         assert_eq!(cached.rules_indexed, fresh.rules_indexed);
+        assert_eq!(cached.files_scanned, fresh.files_scanned);
         assert!(!cached.rules_for(&["T1003.008".to_string()]).is_empty());
 
         let _ = std::fs::remove_file(&cache);
@@ -764,10 +760,8 @@ mod tests {
         let (index, from_cache) =
             load_with_cache(&fixtures(), "linux", Some(&cache)).expect("load");
         assert!(!from_cache, "fingerprint mismatch must not be a cache hit");
-        assert!(
-            index.rules_indexed >= 2,
-            "should reflect a real parse, not the bogus 999"
-        );
+        // A real parse, not the bogus 999.
+        assert_fixture_counts(&index);
 
         let _ = std::fs::remove_file(&cache);
     }
