@@ -114,6 +114,19 @@ and `PATH` records and macOS ESF `NOTIFY_OPEN` / `NOTIFY_CREATE` /
 Prefer the boundary-aware leaves here for the same reason as on the command
 axes — event fields are usually paths, where a bare `contains` over-matches most.
 
+`--scaffold` lowers this axis to a Sigma rule of its own, under the class's
+logsource category (`network` → `network_connection`, `file` → `file_event`,
+`registry` → `registry_set`), because one rule cannot span two log sources — an
+entry with both a command axis and an `event` axis scaffolds two documents. Each
+leaf becomes a field modifier: `eq` → a bare key, `contains` → `|contains`,
+`prefix` → `|startswith`, `suffix` → `|endswith`, `regex` → `|re`. `word` and
+`path_under` have no Sigma equivalent and stand in as `|contains` and
+`|startswith` — broader than the leaf, never narrower — as does a dropped `not`;
+each widening is flagged with a `# NOTE:` in the rule. `all` becomes keys in one
+selection and `any` becomes a value sequence under one key, which Sigma reads as
+an OR; only an alternation spanning different keys needs a second selection and
+an `or` in the `condition`.
+
 ## `regex` and the `example` field
 
 Reach for `regex` only when the fixed leaves can't express the shape — an

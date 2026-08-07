@@ -259,8 +259,8 @@ opseclint --telemetry audit.log --format auditd --platform linux
 ```
 
 An entry that keeps a command axis still derives a `representative_line`, so
-`--verify-detections` / `--scaffold` treat it exactly as before; the `event` axis
-is additive. A non-execution event that correlates to an execution is attached as
+`--verify-detections` treats it exactly as before, and the command rule
+`--scaffold` writes for it is unchanged; the `event` axis is additive. A non-execution event that correlates to an execution is attached as
 that execution's side-effect and is **not** also matched standalone, so it can't
 double-count.
 
@@ -281,10 +281,17 @@ negation — is a load error rather than an entry that cannot be checked.
   dropped.
 - **`registry` is Windows-only in practice**, because only Sysmon reports it.
   The class is platform-general; no other sensor emits one.
+- **`--scaffold` covers both halves.** An entry with an `event` axis scaffolds a
+  second Sigma document under the class's logsource category
+  (`network_connection` / `file_event` / `registry_set`), and an event-only
+  entry scaffolds only that one rather than an empty `selection:`. Sigma's own
+  map semantics carry most of the lowering — keys in a block are ANDed, a value
+  sequence under one key is ORed — so only an alternation spanning *different*
+  keys needs sibling selections and a composed `condition`.
 
 The natural extensions from here are richer per-format field coverage (resolving
 ESF's audit-token uid to a name, as `--users` already does for auditd), more
 `event` classes as sensors report them (process termination, module load), and
-teaching `--scaffold` to lower an `event` axis to a Sigma `file_event` /
-`registry_set` logsource — today it lowers only the command axes, so an
-event-only entry scaffolds an empty selection.
+teaching `--verify-detections` to evaluate a candidate rule whose logsource
+matches an entry's event class — today it sets those rules aside unevaluated,
+so a `file_event` or `registry_set` claim can never be verified.
