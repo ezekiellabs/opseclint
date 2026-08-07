@@ -80,6 +80,17 @@
       "status": "unverified"
     },
     {
+      "id": "emond-persist",
+      "description": "Writing an emond rule — event-monitor persistence",
+      "techniques": [
+        "T1546.014"
+      ],
+      "claimed": [
+        "Emond rule persistence (file_event_macos)"
+      ],
+      "status": "unverified"
+    },
+    {
       "id": "gatekeeper-disable",
       "description": "Disabling Gatekeeper via spctl --master-disable — defense evasion",
       "techniques": [
@@ -401,20 +412,6 @@
         "DYLD_INSERT_LIBRARIES injection (proc_creation_macos)"
       ],
       "status": "no-rule"
-    },
-    {
-      "id": "emond-persist",
-      "description": "Writing an emond rule — event-monitor persistence",
-      "techniques": [
-        "T1546.014"
-      ],
-      "claimed": [
-        "Emond rule persistence (file_event_macos)"
-      ],
-      "status": "not-applicable",
-      "because": {
-        "inapplicable_rules": 1
-      }
     },
     {
       "id": "firewall-disable",

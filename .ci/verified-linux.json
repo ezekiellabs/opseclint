@@ -36,17 +36,6 @@
       "status": "unverified"
     },
     {
-      "id": "cron-persist",
-      "description": "Writing to system cron locations — scheduled-task persistence",
-      "techniques": [
-        "T1053.003"
-      ],
-      "claimed": [
-        "System cron persistence (file_event_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
       "id": "crontab-l",
       "description": "Scheduled task (cron) discovery",
       "techniques": [
@@ -111,6 +100,17 @@
       ],
       "claimed": [
         "Network connection discovery utility (proc_creation_lnx)"
+      ],
+      "status": "unverified"
+    },
+    {
+      "id": "sudoers-tamper",
+      "description": "Reading or modifying /etc/sudoers — privilege escalation / persistence",
+      "techniques": [
+        "T1548.003"
+      ],
+      "claimed": [
+        "Sudoers file modification (file_event_lnx)"
       ],
       "status": "unverified"
     },
@@ -491,20 +491,6 @@
         "Sudo privilege enumeration (proc_creation_lnx / auth logs)"
       ],
       "status": "no-rule"
-    },
-    {
-      "id": "sudoers-tamper",
-      "description": "Reading or modifying /etc/sudoers — privilege escalation / persistence",
-      "techniques": [
-        "T1548.003"
-      ],
-      "claimed": [
-        "Sudoers file modification (file_event_lnx)"
-      ],
-      "status": "not-applicable",
-      "because": {
-        "inapplicable_rules": 1
-      }
     },
     {
       "id": "systemd-timer-persist",
@@ -976,6 +962,20 @@
       "status": "verified",
       "firing": [
         "Scheduled Task/Job At"
+      ]
+    },
+    {
+      "id": "cron-persist",
+      "description": "Writing to system cron locations — scheduled-task persistence",
+      "techniques": [
+        "T1053.003"
+      ],
+      "claimed": [
+        "System cron persistence (file_event_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "New Cron File Created"
       ]
     },
     {

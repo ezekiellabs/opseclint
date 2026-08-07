@@ -8,6 +8,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`--verify-detections` can verify a `file_event` / `registry_set` claim.** A
+  candidate rule whose logsource is not process-execution was set aside
+  unevaluated, and an entry whose candidates were *all* set aside reported
+  `NOT-APPLICABLE` — the claim was never tested, and no amount of ruleset
+  improvement could move it, because the rule was never asked. That was correct
+  when the only synthetic event was a command line. It is not any more: an entry
+  carrying an `event` axis derives a representative *record* too, so a rule put
+  to an entry that models the same class of record is now evaluated against it.
+  Four claims that were permanently unverifiable are now tested —
+  `sudoers-tamper`, `emond-persist`, `ifeo-debugger`, `winlogon-persist` — and
+  `cron-persist` verifies against SigmaHQ's *New Cron File Created*. The
+  original hazard stays shut: the gate is the rule's category matching the
+  entry's own event class, so a `registry_set` rule is never answered with a
+  file record, and an entry with no `event` axis is classified exactly as
+  before. Event rules are evaluated against the record alone, with no command
+  line synthesized underneath it, so a file rule keying on `CommandLine`
+  abstains rather than firing on evidence from another log source — the cost
+  being that a rule keyed on the writing process reads `INDETERMINATE` on
+  `Image`, the same honest abstention `ParentImage` produces on the process
+  side. One firing rule verifies an entry whichever log source it asked about:
+  the claim is that a real rule catches the action, not that every record the
+  entry models is separately covered.
+- A `path_under` event leaf derives a file *inside* the directory as its
+  representative, not the directory itself. Both satisfy the leaf, so the
+  self-consistency guard passed either way — but `--verify-detections` puts that
+  same record to real Sigma rules, and a rule watching a drop-in directory keys
+  on `startswith '/etc/cron.d/'`, which `/etc/cron.d` does not satisfy. A
+  representative has to stand for the action to a third party, not only to
+  opseclint's own matcher; deriving the bare base made every `path_under` entry
+  read as contradicted the moment its rule was actually asked.
+
 - **Non-execution telemetry on Linux and macOS.** `--telemetry` reads auditd
   `SOCKADDR` and `PATH` records, and macOS ESF `NOTIFY_OPEN` / `NOTIFY_CREATE` /
   `NOTIFY_WRITE` / `NOTIFY_CONNECT`, as network and file events. Each is
@@ -59,6 +90,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   contradicted rather than untested. `accessibility-sethc`, `attrib-hidden`,
   `bcdedit-recovery`, `regsvr32-squiblydoo`, `run-key-persist`,
   `wbadmin-delete` and `wmic-shadow-delete` now carry a realistic `example`.
+  (Two Windows claims have since become `UNVERIFIED` again, but only because
+  they became testable at all — see the `--verify-detections` entry above.
+  `ifeo-debugger` and `winlogon-persist` claim a `registry_set` rule for the
+  IFEO `Debugger` value and the Winlogon `Shell` / `Userinit` values; the rules
+  SigmaHQ tags with those techniques cover `GlobalFlag` / `SilentProcessExit`
+  and `Winlogon\Notify\logon` instead. Both claims are awaiting the same
+  one-at-a-time adjudication the ten above got.)
 
 ### Changed
 

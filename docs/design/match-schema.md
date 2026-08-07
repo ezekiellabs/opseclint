@@ -218,7 +218,12 @@ and a field map built from the predicate's literals, run through the same
 standalone-matching path real telemetry takes. Where several leaves constrain one
 field they are composed into a single value rather than overwriting each other,
 so `contains "/LaunchAgents/"` plus `suffix ".plist"` yields a value satisfying
-both.
+both. A `path_under` leaf derives a file *inside* the directory rather than the
+directory itself: both satisfy the leaf, but `--verify-detections` puts the same
+record to real Sigma rules, and a rule watching a drop-in directory keys on
+`startswith '/etc/cron.d/'` — which the bare base does not satisfy. A
+representative has to stand for the action to a third party, not only to
+opseclint's own matcher.
 
 `example` has no event counterpart, because a command line cannot stand in for a
 record. Instead the representative must be derivable from the predicate itself:

@@ -41,6 +41,23 @@ rule keyed on `Hashes` or `Description` stays evaluable and correctly reads
 indeterminate — Sysmon Event ID 1 carries those, so richer telemetry really
 could resolve it.
 
+"Set aside" is about what we have to evaluate against, not about the rule. An
+entry carrying an `event` axis derives a representative *record* as well as a
+representative command line, so a `file_event` rule put to an entry that models
+a file record does have something to fire on and is evaluated against it — an
+argument that only reaches as far as the classes match. A `registry_set` rule is
+never answered with a file record, and an entry with no `event` axis is
+classified exactly as before. `NOT-APPLICABLE` accordingly means every candidate
+asked about a record this entry does not model at all; the count went down
+because rules got evaluated, not because they got hidden.
+
+Those event rules are evaluated against the record **alone** — no command line is
+synthesized underneath it. That is the point of the gate: a `file_event` rule
+that happens to key on `CommandLine` must abstain, not fire on evidence from a
+log source the record never came from. It also means a rule keyed on the writing
+process reads indeterminate on `Image`, which is the same honest abstention
+`ParentImage` produces on the process side.
+
 The same argument fixes which rules get asked in the first place. Rules for a
 technique are ranked by severity then title and truncated for display, because a
 widely-tagged technique carries more rules than a report can show. That cap must

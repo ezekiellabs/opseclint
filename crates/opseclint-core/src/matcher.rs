@@ -819,8 +819,15 @@ fn collect_event_repr(pred: &EventPred, out: &mut Vec<(String, FieldRepr)>) {
             } else if let Some(s) = f.contains.as_ref().or(f.word.as_ref()) {
                 slot.parts.push(s.clone());
             } else if let Some(base) = &f.path_under {
-                // A path is under itself, so the base is its own representative.
-                slot.parts.push(base.clone());
+                // A member of the directory, not the directory itself. Both
+                // satisfy `path_under`, but only one of them is a record a file
+                // event would ever carry: a rule watching a drop-in directory
+                // keys on `startswith '/etc/cron.d/'`, which the bare base — no
+                // trailing separator, no leaf — does not satisfy. Deriving the
+                // base made this representative unable to stand for the thing
+                // it represents.
+                slot.parts
+                    .push(format!("{}/{PATH_LEAF}", base.trim_end_matches('/')));
             }
         }
     }
@@ -830,6 +837,11 @@ fn collect_event_repr(pred: &EventPred, out: &mut Vec<(String, FieldRepr)>) {
 /// so a later `at` index can be reached. Chosen to be inert: it satisfies no
 /// leaf a real matcher keys on and trips no typical negation.
 const ARG_FILLER: &str = "_";
+
+/// Stand-in leaf name for the representative of a `path_under` event field —
+/// the file inside the directory the leaf names. Inert for the same reason
+/// [`ARG_FILLER`] is: it satisfies no leaf a real matcher keys on.
+const PATH_LEAF: &str = "_";
 
 /// Build a representative argument vector satisfying `pred`, honoring `at`
 /// positions. Positional constraints fix specific indices; existential leaves
@@ -1525,6 +1537,30 @@ mod tests {
                 "representative event {fields:?} did not match its own matcher {json}",
             );
         }
+    }
+
+    /// The round-trip above only proves the representative satisfies *opseclint's
+    /// own* matcher, which a bare directory does too. It has to stand for the
+    /// action to a third party as well: a Sigma rule watching a drop-in directory
+    /// keys on the separator, and `/etc/cron.d` alone would read as no-fire and
+    /// contradict a claim the ruleset does substantiate.
+    #[test]
+    fn a_path_under_representative_is_a_file_in_the_directory() {
+        let matcher = m(
+            r#"{ "event": { "class": "file", "field": "TargetFilename", "path_under": "/etc/cron.d" } }"#,
+        );
+        let (_, fields) = matcher.representative_event().expect("derivable");
+        let repr = &fields["TargetFilename"];
+        assert!(
+            repr.starts_with("/etc/cron.d/") && repr.len() > "/etc/cron.d/".len(),
+            "expected a member of the directory, got {repr}"
+        );
+        // A trailing separator on the base must not double up.
+        let slashed = m(
+            r#"{ "event": { "class": "file", "field": "TargetFilename", "path_under": "/etc/cron.d/" } }"#,
+        );
+        let (_, fields) = slashed.representative_event().expect("derivable");
+        assert_eq!(fields["TargetFilename"], *repr);
     }
 
     #[test]
