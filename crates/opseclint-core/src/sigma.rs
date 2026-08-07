@@ -20,6 +20,7 @@ use std::time::UNIX_EPOCH;
 use serde::{Deserialize, Serialize};
 
 use crate::kb::Platform;
+use crate::matcher::EventClass;
 use crate::model::{Detection, Report};
 
 /// Maximum real Sigma rules to attach per finding, to keep output readable.
@@ -76,6 +77,26 @@ impl SigmaRule {
     /// those, so richer telemetry really could resolve it.
     pub fn applies_to_process_execution(&self) -> bool {
         self.category.is_empty() || self.category.eq_ignore_ascii_case("process_creation")
+    }
+
+    /// Whether this rule asks about the same kind of record a knowledge-base
+    /// entry's `event` axis describes — the non-execution counterpart of
+    /// [`applies_to_process_execution`].
+    ///
+    /// A `file_event` rule cannot fire on a synthesized command line, but it can
+    /// fire on the synthetic *file* record an entry's `event` axis derives (see
+    /// `Matcher::representative_event`). Which of the two it is depends entirely
+    /// on the entry, so the class has to be passed in.
+    ///
+    /// Deliberately an exact category match rather than "the entry has an event
+    /// axis": a `registry_set` rule must never be answered with a file record.
+    /// A rule with no category stays in the process bucket — `sigma_category`
+    /// never yields the empty string — so the two predicates can never both
+    /// claim the same rule.
+    ///
+    /// [`applies_to_process_execution`]: SigmaRule::applies_to_process_execution
+    pub fn applies_to_event_class(&self, class: EventClass) -> bool {
+        self.category.eq_ignore_ascii_case(class.sigma_category())
     }
 }
 
@@ -416,25 +437,25 @@ mod tests {
     /// The exact shape of `fixtures()` when loaded for linux, asserted rather
     /// than floored.
     ///
-    /// Five files are read. Four are linux: `lnx_crowded_technique.yml` holds
-    /// **six** `---`-separated documents, and three more hold one apiece, for
-    /// nine indexed rules. The fifth declares `product: windows`, so it is read
+    /// Six files are read. Five are linux: `lnx_crowded_technique.yml` holds
+    /// **six** `---`-separated documents, and four more hold one apiece, for
+    /// ten indexed rules. The sixth declares `product: windows`, so it is read
     /// and counted in `files_scanned` but filtered out before indexing.
     ///
-    /// The nine is the load-bearing number. A YAML parser that got stricter
+    /// The ten is the load-bearing number. A YAML parser that got stricter
     /// about anything upstream does — anchors, merge keys, duplicate keys, tabs
     /// — would not error, because `parse_documents` skips a document it cannot
-    /// read. It would quietly index four rules instead of nine, and every
+    /// read. It would quietly index four rules instead of ten, and every
     /// downstream count would shrink with it. A floor of `>= 2` passes that
     /// happily; this does not.
     fn assert_fixture_counts(index: &SigmaIndex) {
         assert_eq!(
-            index.files_scanned, 5,
+            index.files_scanned, 6,
             "every fixture file should be read, including the filtered windows one"
         );
         assert_eq!(
-            index.rules_indexed, 9,
-            "6 documents from the multi-document fixture + 3 single-document linux files"
+            index.rules_indexed, 10,
+            "6 documents from the multi-document fixture + 4 single-document linux files"
         );
     }
 
@@ -706,6 +727,43 @@ mod tests {
         assert!(index.rules_for(&["T1057".to_string()]).is_empty());
     }
 
+    /// The two logsource predicates carve the candidate set into three disjoint
+    /// buckets, and verification depends on that: a rule claimed by both would
+    /// be evaluated twice, once against a record it was never asking about.
+    #[test]
+    fn the_logsource_predicates_never_claim_the_same_rule() {
+        let rule = |category: &str| SigmaRule {
+            id: "id".into(),
+            title: "title".into(),
+            level: "high".into(),
+            category: category.into(),
+            rule: None,
+        };
+        let classes = [EventClass::Network, EventClass::File, EventClass::Registry];
+
+        // Each event class is matched by its own category and no other.
+        for c in classes {
+            let r = rule(c.sigma_category());
+            assert!(r.applies_to_event_class(c));
+            assert!(!r.applies_to_process_execution());
+            for other in classes.iter().filter(|o| **o != c) {
+                assert!(!r.applies_to_event_class(*other));
+            }
+        }
+
+        // The process bucket — an explicit category and the empty one alike —
+        // is never also an event bucket.
+        for r in [rule("process_creation"), rule("")] {
+            assert!(r.applies_to_process_execution());
+            assert!(classes.iter().all(|c| !r.applies_to_event_class(*c)));
+        }
+
+        // A logsource no entry models stays in neither.
+        let proxy = rule("proxy");
+        assert!(!proxy.applies_to_process_execution());
+        assert!(classes.iter().all(|c| !proxy.applies_to_event_class(*c)));
+    }
+
     #[test]
     fn windows_product_selects_windows_rules() {
         let index = SigmaIndex::load_dir(&fixtures(), "windows").expect("fixtures load");
@@ -713,9 +771,9 @@ mod tests {
         // linux-only shadow rule is not.
         assert!(!index.rules_for(&["T1057".to_string()]).is_empty());
         assert!(index.rules_for(&["T1003.008".to_string()]).is_empty());
-        // The mirror of `assert_fixture_counts`: the same five files are read,
+        // The mirror of `assert_fixture_counts`: the same six files are read,
         // and only the one windows rule survives the product filter.
-        assert_eq!(index.files_scanned, 5);
+        assert_eq!(index.files_scanned, 6);
         assert_eq!(index.rules_indexed, 1);
     }
 

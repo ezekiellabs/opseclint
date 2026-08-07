@@ -1215,6 +1215,19 @@ pub fn evaluate_observed(
     eval_event(rule, &event)
 }
 
+/// Evaluate a rule against a **non-execution record** — a file, registry or
+/// network event's own fields, with no process-execution base underneath.
+///
+/// Unlike [`evaluate_observed`], nothing is synthesized. A rule keyed on
+/// `CommandLine` or `Image` sees them absent and abstains, rather than being
+/// answered with a command line that was never part of the record: the fields a
+/// file or registry rule is asked about have to come from the record itself, or
+/// a rule that happens to key on `CommandLine` would fire on evidence from a
+/// different log source entirely.
+pub fn evaluate_record(rule: &DetectionRule, event: &HashMap<String, String>) -> Verdict {
+    eval_event(rule, event)
+}
+
 /// Evaluate a rule's condition against a fully-built event, reporting the fields
 /// it referenced but the event did not carry when the verdict is indeterminate.
 fn eval_event(rule: &DetectionRule, event: &HashMap<String, String>) -> Verdict {

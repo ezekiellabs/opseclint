@@ -1,0 +1,20 @@
+---
+title: Crontab Written By An Unexpected Process
+id: 22222222-2222-2222-2222-222222222222
+status: test
+description: >
+  Detects a write to the system crontab. Keys on the writing process as well as
+  the path, so a bare file record cannot resolve it either way — the file-event
+  counterpart of a process rule needing ParentImage.
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    TargetFilename: "/etc/crontab"
+    Image|endswith: "/tee"
+  condition: selection
+level: medium
+tags:
+  - attack.persistence
+  - attack.t1053.003

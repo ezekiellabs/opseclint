@@ -1,9 +1,11 @@
 //! Detection verification. opseclint's knowledge base *claims* that each entry
 //! is caught by a Sigma detection (`detections[].source == "Sigma"`). This
 //! module proves those claims against a real ruleset: for every entry that
-//! carries a Sigma claim, it synthesizes a representative command and checks
-//! whether a genuine SigmaHQ rule for the entry's technique(s) would actually
-//! *fire* on it.
+//! carries a Sigma claim, it synthesizes a representative command — and, for an
+//! entry carrying an `event` axis, a representative file/registry/network record
+//! — then checks whether a genuine SigmaHQ rule for the entry's technique(s)
+//! would actually *fire* on it. A rule is asked about the kind of record it
+//! declares a logsource for, and only that kind.
 //!
 //! Unlike `--coverage-gaps` (which audits the *input* actions a user analyzes),
 //! this audits the knowledge base itself, so it can run in CI as a regression
@@ -16,8 +18,8 @@ use serde::{Deserialize, Serialize};
 use opseclint_core::kb::Platform;
 use opseclint_core::model::{KbEntry, KnowledgeBase};
 use opseclint_core::parser::{self, Command};
-use opseclint_core::sigma::SigmaIndex;
-use opseclint_core::sigma_eval::{self, Outcome};
+use opseclint_core::sigma::{SigmaIndex, SigmaRule};
+use opseclint_core::sigma_eval::{self, Outcome, Verdict};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -33,10 +35,11 @@ pub enum Status {
     /// No rule in the ruleset covers the entry's technique(s) at all.
     NoRule,
     /// Rules exist for the technique(s), but every one of them declares a
-    /// logsource this analysis can never satisfy — a PowerShell script block, a
-    /// file or registry event, a proxy log. Not an abstention: the question was
-    /// never addressed to a command line. Reported apart from `Indeterminate`
-    /// so that count keeps its meaning of "answerable with more data".
+    /// logsource this entry cannot satisfy — a PowerShell script block, a proxy
+    /// log, or a file/registry event from an entry that models no such record.
+    /// Not an abstention: the question was never addressed to anything the
+    /// entry describes. Reported apart from `Indeterminate` so that count keeps
+    /// its meaning of "answerable with more data".
     NotApplicable,
     /// Delta-only: a previously-verified entry vanished from the current run
     /// (its entry or Sigma claim was removed). Never produced by classify.
@@ -95,8 +98,10 @@ pub struct IndeterminateCause {
     /// Candidate rules that could not be lowered to detection logic at all.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub unparsed_rules: usize,
-    /// Candidate rules set aside because their logsource is a different event
-    /// class. Never evaluated, so they contribute to no other cause here.
+    /// Candidate rules set aside because their logsource is a class this entry
+    /// does not model at all — neither a process execution nor the record its
+    /// `event` axis describes. Never evaluated, so they contribute to no other
+    /// cause here.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub inapplicable_rules: usize,
     /// A rule asserted a field is absent (`field: null`). Abstaining is
@@ -189,80 +194,129 @@ fn classify(
     if all_candidates.is_empty() {
         return (Status::NoRule, Vec::new(), IndeterminateCause::default());
     }
-    // Set aside rules whose logsource is a different event class. They cannot
-    // fire on a synthesized process-execution event, so evaluating them would
+    // The synthetic record the entry's `event` axis derives — the non-execution
+    // counterpart of its representative command line. `None` for an entry with
+    // no `event` axis, and (defensively) for one whose axis yields no positive
+    // literal; `KnowledgeBase::validate` rejects the latter at load, and leaving
+    // it `None` here keeps a malformed entry from being credited on a record
+    // that was never derived.
+    let record = entry.matcher.representative_event();
+
+    // Rules whose logsource is a different event class still cannot fire on a
+    // synthesized process-execution event, and evaluating them against one would
     // only manufacture abstentions — or worse, a spurious `Fires` for a
-    // file/registry rule that happens to key on `CommandLine`.
-    let (candidates, inapplicable): (Vec<_>, Vec<_>) = all_candidates
-        .into_iter()
-        .partition(|r| r.applies_to_process_execution());
-    if candidates.is_empty() {
+    // file/registry rule that happens to key on `CommandLine`. But a rule asking
+    // about the *same* class of record the entry's `event` axis describes has
+    // something of its own to fire on, so it is evaluated against that record
+    // rather than set aside. The two buckets cannot overlap: a rule with no
+    // category is process-applicable, and no event class maps to an empty one.
+    let mut process_rules = Vec::new();
+    let mut event_rules = Vec::new();
+    let mut inapplicable = 0usize;
+    for c in all_candidates {
+        if c.applies_to_process_execution() {
+            process_rules.push(c);
+        } else if record
+            .as_ref()
+            .is_some_and(|(class, _)| c.applies_to_event_class(*class))
+        {
+            event_rules.push(c);
+        } else {
+            inapplicable += 1;
+        }
+    }
+    if process_rules.is_empty() && event_rules.is_empty() {
         return (
             Status::NotApplicable,
             Vec::new(),
             IndeterminateCause {
-                inapplicable_rules: inapplicable.len(),
+                inapplicable_rules: inapplicable,
                 ..Default::default()
             },
         );
     }
-    let Some(cmd) = representative_command(entry) else {
-        // No representative line to evaluate against — a knowledge-base gap,
-        // not a rule-side cause. Rules were still set aside on the way here, so
-        // report that too rather than dropping it.
-        return (
-            Status::Indeterminate,
-            Vec::new(),
-            IndeterminateCause {
-                no_representative: true,
-                inapplicable_rules: inapplicable.len(),
-                ..Default::default()
-            },
-        );
-    };
 
-    let mut firing = Vec::new();
-    let mut any_indet = false;
-    let mut mods: BTreeSet<String> = BTreeSet::new();
-    let mut fields: BTreeSet<String> = BTreeSet::new();
-    let mut cause = IndeterminateCause::default();
-    for c in &candidates {
-        match &c.rule {
-            Some(dr) => {
-                let v = sigma_eval::evaluate(dr, &cmd, platform);
-                match v.outcome {
-                    Outcome::Fires => firing.push(c.title.clone()),
-                    Outcome::Indeterminate => {
-                        any_indet = true;
-                        mods.extend(v.blocking_modifiers);
-                        fields.extend(v.missing_fields);
-                        cause.null_value_match |= v.null_value_match;
-                    }
-                    Outcome::NoFire => {}
+    let mut tally = Tally::default();
+    if !process_rules.is_empty() {
+        match representative_command(entry) {
+            Some(cmd) => {
+                for c in &process_rules {
+                    tally.ask(c, |dr| sigma_eval::evaluate(dr, &cmd, platform));
                 }
             }
             None => {
-                // The rule could not be lowered to logic at all — a parser gap,
-                // not an evaluation gap. Counted apart from the rest.
-                any_indet = true;
-                cause.unparsed_rules += 1;
+                // No representative line to evaluate the process rules against —
+                // a knowledge-base gap, not a rule-side cause. Recorded rather
+                // than returned, because the event rules below may still answer.
+                tally.any_indet = true;
+                tally.cause.no_representative = true;
             }
         }
     }
+    // `event_rules` is only ever non-empty when `record` is `Some`.
+    if let Some((_, fields)) = &record {
+        for c in &event_rules {
+            tally.ask(c, |dr| sigma_eval::evaluate_record(dr, fields));
+        }
+    }
 
-    if !firing.is_empty() {
-        (Status::Verified, firing, IndeterminateCause::default())
-    } else if any_indet {
-        cause.modifiers = mods.into_iter().collect();
-        cause.missing_fields = fields.into_iter().collect();
-        cause.inapplicable_rules = inapplicable.len();
-        (Status::Indeterminate, Vec::new(), cause)
-    } else {
-        (
-            Status::Unverified,
-            Vec::new(),
-            IndeterminateCause::default(),
-        )
+    tally.verdict(inapplicable)
+}
+
+/// Accumulates the verdicts of the rules asked about one entry. Both the
+/// process-execution rules and the event rules feed the same tally, so the two
+/// paths cannot drift on how a verdict is folded in.
+#[derive(Default)]
+struct Tally {
+    firing: Vec<String>,
+    any_indet: bool,
+    mods: BTreeSet<String>,
+    fields: BTreeSet<String>,
+    cause: IndeterminateCause,
+}
+
+impl Tally {
+    /// Put the question to one candidate rule, evaluating it with `eval`.
+    fn ask(&mut self, rule: &SigmaRule, eval: impl FnOnce(&sigma_eval::DetectionRule) -> Verdict) {
+        let Some(dr) = &rule.rule else {
+            // The rule could not be lowered to logic at all — a parser gap, not
+            // an evaluation gap. Counted apart from the rest.
+            self.any_indet = true;
+            self.cause.unparsed_rules += 1;
+            return;
+        };
+        let v = eval(dr);
+        match v.outcome {
+            Outcome::Fires => self.firing.push(rule.title.clone()),
+            Outcome::Indeterminate => {
+                self.any_indet = true;
+                self.mods.extend(v.blocking_modifiers);
+                self.fields.extend(v.missing_fields);
+                self.cause.null_value_match |= v.null_value_match;
+            }
+            Outcome::NoFire => {}
+        }
+    }
+
+    /// The entry's status. One firing rule is enough, whichever log source it
+    /// asked about: the claim is that a real rule catches the action, not that
+    /// every record the entry models is separately covered.
+    fn verdict(self, inapplicable: usize) -> (Status, Vec<String>, IndeterminateCause) {
+        if !self.firing.is_empty() {
+            (Status::Verified, self.firing, IndeterminateCause::default())
+        } else if self.any_indet {
+            let mut cause = self.cause;
+            cause.modifiers = self.mods.into_iter().collect();
+            cause.missing_fields = self.fields.into_iter().collect();
+            cause.inapplicable_rules = inapplicable;
+            (Status::Indeterminate, Vec::new(), cause)
+        } else {
+            (
+                Status::Unverified,
+                Vec::new(),
+                IndeterminateCause::default(),
+            )
+        }
     }
 }
 
@@ -599,7 +653,7 @@ pub fn render_delta_json(delta: &VerifyDelta) -> String {
 mod tests {
     use super::*;
     use opseclint_core::kb;
-    use opseclint_core::matcher::{LinePred, Matcher, ProgramMatch};
+    use opseclint_core::matcher::{EventMatch, LinePred, Matcher, ProgramMatch};
     use opseclint_core::model::{Detection, Technique};
     use std::path::PathBuf;
 
@@ -611,11 +665,35 @@ mod tests {
     /// Build a KB entry that claims a Sigma detection, keyed either by an exact
     /// program or by a raw line substring.
     fn entry(id: &str, command: Option<&str>, raw: Option<&str>, tech: &str) -> KbEntry {
+        entry_with(id, command, raw, tech, None)
+    }
+
+    /// The same, plus an `event` axis given as the JSON the knowledge base
+    /// authors — `EventMatch` has no public constructor, and going through serde
+    /// exercises the grammar a real entry is written in.
+    fn event_entry(
+        id: &str,
+        command: Option<&str>,
+        raw: Option<&str>,
+        tech: &str,
+        event: &str,
+    ) -> KbEntry {
+        let event: EventMatch = serde_json::from_str(event).expect("event axis parses");
+        entry_with(id, command, raw, tech, Some(event))
+    }
+
+    fn entry_with(
+        id: &str,
+        command: Option<&str>,
+        raw: Option<&str>,
+        tech: &str,
+        event: Option<EventMatch>,
+    ) -> KbEntry {
         let matcher = Matcher {
             program: command.map(|c| ProgramMatch::Exact(c.to_string())),
             args: None,
             line: raw.map(|r| LinePred::Contains(r.to_string())),
-            event: None,
+            event,
         };
         KbEntry {
             id: id.into(),
@@ -718,6 +796,95 @@ mod tests {
         let r = result_for(&report, "shadow");
         assert_eq!(r.status, Status::NotApplicable);
         assert_eq!(r.because.inapplicable_rules, 1);
+    }
+
+    /// The other side of the same coin. The entry above cannot answer a
+    /// `file_event` rule because it only models a command; this one models the
+    /// file record too, so the rule that was set aside gets asked after all.
+    #[test]
+    fn an_event_axis_verifies_a_rule_in_its_own_logsource() {
+        let kb = kb_of(vec![event_entry(
+            "shadow",
+            None,
+            Some("cat /etc/shadow"),
+            "T1003.008",
+            r#"{"class": "file", "field": "TargetFilename", "eq": "/etc/shadow"}"#,
+        )]);
+        let report = verify(&kb, &index(), kb::Platform::LinuxAuditd);
+        let r = result_for(&report, "shadow");
+        assert_eq!(r.status, Status::Verified);
+        assert_eq!(r.firing, vec!["Access To /etc/shadow File".to_string()]);
+    }
+
+    /// An entry recognized only by an event carries no command line at all. The
+    /// old code returned `Indeterminate` with `no_representative` before ever
+    /// reaching the rule; there is no process rule here to want a line.
+    #[test]
+    fn an_event_only_entry_is_answerable() {
+        let kb = kb_of(vec![event_entry(
+            "shadow-ev",
+            None,
+            None,
+            "T1003.008",
+            r#"{"class": "file", "field": "TargetFilename", "eq": "/etc/shadow"}"#,
+        )]);
+        let report = verify(&kb, &index(), kb::Platform::LinuxAuditd);
+        let r = result_for(&report, "shadow-ev");
+        assert_eq!(r.status, Status::Verified);
+        assert!(!r.because.no_representative);
+    }
+
+    /// The hazard the partition exists to prevent, and the reason the gate is
+    /// the class *matching the axis* rather than "the entry has an event axis".
+    /// A registry entry must not be credited by a file rule.
+    #[test]
+    fn a_rule_of_another_event_class_is_still_set_aside() {
+        let kb = kb_of(vec![event_entry(
+            "shadow",
+            None,
+            Some("cat /etc/shadow"),
+            "T1003.008",
+            r#"{"class": "registry", "field": "TargetObject", "contains": "\\Run"}"#,
+        )]);
+        let report = verify(&kb, &index(), kb::Platform::LinuxAuditd);
+        let r = result_for(&report, "shadow");
+        assert_eq!(r.status, Status::NotApplicable);
+        assert_eq!(r.because.inapplicable_rules, 1);
+    }
+
+    /// The record is evaluated, not assumed. An event axis pointed somewhere the
+    /// rule does not look contradicts the claim rather than proving it.
+    #[test]
+    fn an_event_axis_the_rule_does_not_match_is_unverified() {
+        let kb = kb_of(vec![event_entry(
+            "gshadow",
+            None,
+            None,
+            "T1003.008",
+            r#"{"class": "file", "field": "TargetFilename", "eq": "/etc/gshadow"}"#,
+        )]);
+        let report = verify(&kb, &index(), kb::Platform::LinuxAuditd);
+        assert_eq!(result_for(&report, "gshadow").status, Status::Unverified);
+    }
+
+    /// Event rules are evaluated against the record alone — no command line is
+    /// synthesized underneath it — so a rule keyed on the writing process
+    /// abstains instead of being answered with an `Image` from a different log
+    /// source. The file-event twin of the `ParentImage` case above.
+    #[test]
+    fn an_event_rule_needing_a_field_the_record_lacks_stays_indeterminate() {
+        let kb = kb_of(vec![event_entry(
+            "crontab",
+            None,
+            None,
+            "T1053.003",
+            r#"{"class": "file", "field": "TargetFilename", "eq": "/etc/crontab"}"#,
+        )]);
+        let report = verify(&kb, &index(), kb::Platform::LinuxAuditd);
+        let r = result_for(&report, "crontab");
+        assert_eq!(r.status, Status::Indeterminate);
+        assert_eq!(r.because.missing_fields, vec!["Image".to_string()]);
+        assert_eq!(r.because.inapplicable_rules, 0);
     }
 
     #[test]
