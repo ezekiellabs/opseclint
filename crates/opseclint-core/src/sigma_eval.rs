@@ -18,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr};
 
 use serde::{Deserialize, Serialize};
-use serde_yaml::Value;
+use serde_norway::Value;
 
 use crate::kb::Platform;
 use crate::parser::Command;
@@ -604,7 +604,7 @@ fn parse_field_match(key: &str, val: &Value) -> FieldMatch {
     lower(key, values)
 }
 
-fn parse_fields_map(m: &serde_yaml::Mapping) -> Vec<FieldMatch> {
+fn parse_fields_map(m: &serde_norway::Mapping) -> Vec<FieldMatch> {
     m.iter()
         .filter_map(|(k, v)| k.as_str().map(|key| parse_field_match(key, v)))
         .collect()
@@ -634,7 +634,7 @@ fn parse_search(v: &Value) -> Option<Search> {
 /// the rule has no usable `detection`/`condition` (it is then simply skipped by
 /// callers rather than mis-evaluated).
 pub fn parse_rule(yaml: &str) -> Option<DetectionRule> {
-    let doc: Value = serde_yaml::from_str(yaml).ok()?;
+    let doc: Value = serde_norway::from_str(yaml).ok()?;
     parse_rule_value(&doc)
 }
 

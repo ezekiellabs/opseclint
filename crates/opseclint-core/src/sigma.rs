@@ -162,8 +162,8 @@ impl SigmaIndex {
 
     fn ingest_file(&mut self, content: &str, product: &str) {
         // A Sigma file may hold multiple YAML documents.
-        for doc in serde_yaml::Deserializer::from_str(content) {
-            let Ok(value) = serde_yaml::Value::deserialize(doc) else {
+        for doc in serde_norway::Deserializer::from_str(content) {
+            let Ok(value) = serde_norway::Value::deserialize(doc) else {
                 continue;
             };
             // Keep platform-relevant rules (matching product or unspecified).

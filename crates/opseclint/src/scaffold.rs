@@ -271,7 +271,7 @@ mod tests {
         // docker-sock is a raw entry; use a command entry for the Image assertion.
         let e = entry(&kb, "clear-syslog-rm");
         let yaml = rule_for(e, kb::Platform::LinuxAuditd, "2026-07-29");
-        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: serde_norway::Value = serde_norway::from_str(&yaml).unwrap();
 
         assert_eq!(v["status"].as_str(), Some("experimental"));
         assert_eq!(
@@ -297,7 +297,7 @@ mod tests {
         let kb = linux_kb();
         let e = entry(&kb, "reverse-shell-devtcp"); // raw_contains: /dev/tcp
         let yaml = rule_for(e, kb::Platform::LinuxAuditd, "2026-07-29");
-        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: serde_norway::Value = serde_norway::from_str(&yaml).unwrap();
         let sel = &v["detection"]["selection"];
         assert!(sel.get("Image|endswith").is_none());
         assert_eq!(sel["CommandLine|contains"].as_str(), Some("/dev/tcp"));
@@ -336,7 +336,7 @@ mod tests {
         let kb = kb::load(kb::Platform::WindowsSysmon).unwrap();
         let e = entry(&kb, "certutil-download");
         let yaml = rule_for(e, kb::Platform::WindowsSysmon, "2026-07-29");
-        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: serde_norway::Value = serde_norway::from_str(&yaml).unwrap();
         assert_eq!(v["logsource"]["product"].as_str(), Some("windows"));
         assert_eq!(
             v["detection"]["selection"]["Image|endswith"].as_str(),
@@ -366,7 +366,7 @@ mod tests {
             noise: 80,
         };
         let yaml = rule_for(&e, kb::Platform::WindowsSysmon, "2026-07-29");
-        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: serde_norway::Value = serde_norway::from_str(&yaml).unwrap();
         assert_eq!(
             v["title"].as_str(),
             Some("Dump credentials: full LSASS memory")
@@ -382,7 +382,7 @@ mod tests {
         let kb = kb::load(kb::Platform::WindowsSysmon).unwrap();
         let e = entry(&kb, "powershell-hidden");
         let yaml = rule_for(e, kb::Platform::WindowsSysmon, "2026-07-29");
-        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: serde_norway::Value = serde_norway::from_str(&yaml).unwrap();
         let sel = &v["detection"]["selection"];
         assert!(
             sel["CommandLine|re"].as_str().is_some(),
@@ -410,7 +410,7 @@ mod tests {
             kb::Platform::WindowsSysmon,
             "2026-07-29",
         );
-        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: serde_norway::Value = serde_norway::from_str(&yaml).unwrap();
         let imgs: Vec<&str> = v["detection"]["selection"]["Image|endswith"]
             .as_sequence()
             .unwrap()
@@ -429,7 +429,7 @@ mod tests {
             kb::Platform::LinuxAuditd,
             "2026-07-29",
         );
-        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: serde_norway::Value = serde_norway::from_str(&yaml).unwrap();
         let contains: Vec<&str> = v["detection"]["selection"]["CommandLine|contains"]
             .as_sequence()
             .unwrap()
@@ -454,7 +454,7 @@ mod tests {
             "expected a review NOTE, got:\n{yaml}"
         );
         // The generated rule is still valid YAML.
-        serde_yaml::from_str::<serde_yaml::Value>(&yaml).unwrap();
+        serde_norway::from_str::<serde_norway::Value>(&yaml).unwrap();
     }
 
     #[test]
@@ -479,7 +479,7 @@ mod tests {
             noise: 50,
         };
         let yaml = rule_for(&e, kb::Platform::LinuxAuditd, "2026-07-29");
-        let v: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: serde_norway::Value = serde_norway::from_str(&yaml).unwrap();
         let re = &v["detection"]["selection"]["CommandLine|re"];
         assert_eq!(re.as_sequence().map(|s| s.len()), Some(2), "got:\n{yaml}");
     }
