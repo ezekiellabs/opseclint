@@ -699,16 +699,16 @@
       "description": "Image File Execution Options Debugger — persistence / hijack",
       "techniques": [{ "id": "T1546.012", "name": "Event Triggered Execution: Image File Execution Options Injection" }],
       "telemetry": ["Sysmon EID 13 (Registry Set): Debugger value under Image File Execution Options"],
-      "detections": [{ "source": "Sigma", "rule": "IFEO debugger persistence (registry_set_win)", "confidence": "high" }],
       "noise": 65
     },
     {
       "id": "winlogon-persist",
       "match": { "line": { "contains": "\\winlogon" }, "event": { "class": "registry", "all": [{ "field": "TargetObject", "contains": "\\Winlogon\\" }, { "any": [{ "field": "TargetObject", "suffix": "\\Shell" }, { "field": "TargetObject", "suffix": "\\Userinit" }] }] } },
+      "example": "reg.exe add \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v Shell /t REG_SZ /d \"explorer.exe,C:\\Users\\Public\\x.exe\" /f",
       "description": "Modifying Winlogon Shell/Userinit — logon persistence",
-      "techniques": [{ "id": "T1547.004", "name": "Boot or Logon Autostart Execution: Winlogon Helper DLL" }],
+      "techniques": [{ "id": "T1547.004", "name": "Boot or Logon Autostart Execution: Winlogon Helper DLL" }, { "id": "T1112", "name": "Modify Registry" }],
       "telemetry": ["Sysmon EID 13 (Registry Set): Winlogon Shell or Userinit value modified"],
-      "detections": [{ "source": "Sigma", "rule": "Winlogon helper persistence (registry_set_win)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Winlogon Shell/Userinit modification via reg.exe (proc_creation_win) / registry_set_win", "confidence": "high" }],
       "noise": 60
     },
     {

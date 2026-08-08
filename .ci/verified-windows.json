@@ -3,28 +3,6 @@
   "rules_indexed": 2220,
   "results": [
     {
-      "id": "ifeo-debugger",
-      "description": "Image File Execution Options Debugger — persistence / hijack",
-      "techniques": [
-        "T1546.012"
-      ],
-      "claimed": [
-        "IFEO debugger persistence (registry_set_win)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "winlogon-persist",
-      "description": "Modifying Winlogon Shell/Userinit — logon persistence",
-      "techniques": [
-        "T1547.004"
-      ],
-      "claimed": [
-        "Winlogon helper persistence (registry_set_win)"
-      ],
-      "status": "unverified"
-    },
-    {
       "id": "amsi-bypass",
       "description": "In-memory AMSI bypass via amsiInitFailed — defense impairment",
       "techniques": [
@@ -1621,6 +1599,21 @@
       "firing": [
         "Security Privileges Enumeration Via Whoami.EXE",
         "Local Accounts Discovery"
+      ]
+    },
+    {
+      "id": "winlogon-persist",
+      "description": "Modifying Winlogon Shell/Userinit — logon persistence",
+      "techniques": [
+        "T1547.004",
+        "T1112"
+      ],
+      "claimed": [
+        "Winlogon Shell/Userinit modification via reg.exe (proc_creation_win) / registry_set_win"
+      ],
+      "status": "verified",
+      "firing": [
+        "Reg Add Suspicious Paths"
       ]
     },
     {

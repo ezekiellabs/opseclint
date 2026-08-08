@@ -1821,6 +1821,39 @@ detection:
     }
 
     #[test]
+    fn a_null_filter_under_a_negation_abstains_however_complete_the_record() {
+        // `field: null` is gated to Unknown before the record is consulted, so a
+        // rule shaped `selection and not 1 of filter_*` — SigmaHQ's standard
+        // autorun-key shape — can never resolve to a fire: `1 of filter_*` is
+        // never definitely false, so its negation is never definitely true.
+        // Supplying every field the rule names does not change that. This is why
+        // `ifeo-debugger` withdrew its Sigma claim rather than being re-pointed
+        // at *CurrentVersion NT Autorun Keys Modification*: that rule could not
+        // have verified the claim on any record.
+        let yaml = "title: t\nid: n1\ndetection:\n    selection:\n        TargetObject|contains: '\\Image File Execution Options'\n    filter_main_null:\n        Details: null\n    condition: selection and not 1 of filter_*\n";
+        let rule = parse_rule(yaml).expect("rule parses");
+        let record: HashMap<String, String> = [
+            (
+                "TargetObject",
+                "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\notepad.exe\\Debugger",
+            ),
+            ("Details", "C:\\windows\\system32\\cmd.exe"),
+            ("Image", "C:\\Windows\\System32\\reg.exe"),
+        ]
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+
+        let v = evaluate_record(&rule, &record);
+        assert_eq!(v.outcome, Outcome::Indeterminate);
+        assert!(v.null_value_match, "the cause must name the null assertion");
+        assert!(
+            v.missing_fields.is_empty(),
+            "the record supplies every field the rule names, so absence is not the cause"
+        );
+    }
+
+    #[test]
     fn a_resolved_verdict_reports_no_causes() {
         let fires = verdict(SHADOW, "cat /etc/shadow");
         assert_eq!(fires.outcome, Outcome::Fires);

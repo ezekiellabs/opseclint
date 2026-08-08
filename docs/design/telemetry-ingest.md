@@ -281,6 +281,22 @@ negation — is a load error rather than an entry that cannot be checked.
   dropped.
 - **`registry` is Windows-only in practice**, because only Sysmon reports it.
   The class is platform-general; no other sensor emits one.
+- **`--verify-detections` asks event rules about the record.** A candidate rule
+  whose logsource category matches the entry's own event class is evaluated
+  against the entry's representative record rather than set aside, so a
+  `file_event` or `registry_set` claim can be tested at all. The gate is an exact
+  category match, and the record is asked alone, with no command line synthesized
+  underneath it — a `registry_set` rule is never answered with a file record, and
+  a file rule keyed on `CommandLine` abstains rather than firing on evidence from
+  another log source. Two limits survive. The record is derived from the
+  predicate's own literals, so it carries only the fields the predicate
+  constrains: an entry keyed on a path fragment derives a fragment, and a rule
+  keyed on the full hive path or on the value written cannot be satisfied by it.
+  And a rule whose filter asserts `field: null` can never resolve to a fire —
+  field-absence is gated to `Unknown` before the record is read, so a negated
+  filter over it is never definitely true. Between them, that is why
+  `ifeo-debugger` withdrew its Sigma claim rather than verifying against
+  SigmaHQ's broad autorun-key rule.
 - **`--scaffold` covers both halves.** An entry with an `event` axis scaffolds a
   second Sigma document under the class's logsource category
   (`network_connection` / `file_event` / `registry_set`), and an event-only
@@ -290,8 +306,5 @@ negation — is a load error rather than an entry that cannot be checked.
   keys needs sibling selections and a composed `condition`.
 
 The natural extensions from here are richer per-format field coverage (resolving
-ESF's audit-token uid to a name, as `--users` already does for auditd), more
-`event` classes as sensors report them (process termination, module load), and
-teaching `--verify-detections` to evaluate a candidate rule whose logsource
-matches an entry's event class — today it sets those rules aside unevaluated,
-so a `file_event` or `registry_set` claim can never be verified.
+ESF's audit-token uid to a name, as `--users` already does for auditd) and more
+`event` classes as sensors report them (process termination, module load).
