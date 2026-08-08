@@ -716,6 +716,37 @@ mod tests {
         assert_eq!(repr("pipe-to-sh").as_deref(), Some("| sh"));
     }
 
+    /// `ifeo-debugger` claims no Sigma rule, and that absence is a finding, not
+    /// an oversight. SigmaHQ tags no rule for the IFEO `Debugger` value under
+    /// T1546.012 — the two rules that carry it cover `GlobalFlag` and
+    /// `SilentProcessExit` — and no `process_creation` rule carries it at all,
+    /// so no authored `example` can reach one. The rules that do fire on a
+    /// `Debugger` write are accessibility-scoped under T1546.008, which
+    /// `accessibility-sethc` already claims and verifies.
+    ///
+    /// Re-adding a claim here would go unnoticed: the `--verify-detections`
+    /// baseline gate only flags a `VERIFIED` entry losing its status, so an
+    /// entry re-entering the audit as `UNVERIFIED` passes CI silently. This
+    /// test is that missing gate.
+    #[test]
+    fn the_ifeo_debugger_claim_stays_withdrawn() {
+        let kb = win_kb();
+        let entry = kb
+            .entries
+            .iter()
+            .find(|e| e.id == "ifeo-debugger")
+            .expect("no KB entry with id `ifeo-debugger`");
+        assert!(
+            entry.detections.is_empty(),
+            "ifeo-debugger claims {:?}; SigmaHQ carries no rule for the Debugger \
+             value under T1546.012, so a claim here is one the ruleset contradicts",
+            entry.detections
+        );
+        // The modeling is correct and stays — only the claim was wrong.
+        assert!(entry.matcher.event.is_some());
+        assert!(entry.techniques.iter().any(|t| t.id == "T1546.012"));
+    }
+
     /// The structured leaves (`word`, `path_under`, `not`) tighten entries that
     /// the old substring matcher over-fired on — without blinding the real
     /// detection.

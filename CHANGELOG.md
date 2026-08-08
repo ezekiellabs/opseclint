@@ -90,13 +90,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   contradicted rather than untested. `accessibility-sethc`, `attrib-hidden`,
   `bcdedit-recovery`, `regsvr32-squiblydoo`, `run-key-persist`,
   `wbadmin-delete` and `wmic-shadow-delete` now carry a realistic `example`.
-  (Two Windows claims have since become `UNVERIFIED` again, but only because
-  they became testable at all — see the `--verify-detections` entry above.
-  `ifeo-debugger` and `winlogon-persist` claim a `registry_set` rule for the
-  IFEO `Debugger` value and the Winlogon `Shell` / `Userinit` values; the rules
-  SigmaHQ tags with those techniques cover `GlobalFlag` / `SilentProcessExit`
-  and `Winlogon\Notify\logon` instead. Both claims are awaiting the same
-  one-at-a-time adjudication the ten above got.)
+  Two more claims became `UNVERIFIED` afterwards — not a regression, but the
+  first time they were testable at all (see the `--verify-detections` entry
+  above) — and both have since been adjudicated the same way; `unverified` on
+  Windows now reads 0 against SigmaHQ `8eaafff`.
+- **`winlogon-persist` verifies.** It claimed a `registry_set` rule for the
+  Winlogon `Shell` / `Userinit` values, and the T1547.004 registry rule covers
+  `Winlogon\Notify\logon` with a `.dll` payload instead. But the entry is also a
+  registry *modification*, which it did not say: with `T1112` listed and a
+  realistic `reg.exe add` `example` authored, SigmaHQ's *Reg Add Suspicious
+  Paths* fires on it, and the claim now names the `proc_creation` rule that
+  really answers (22 → 23 verified). The technique was added because it is true
+  of the action, the same bar `cmdkey-creds` and `av-discovery` were held to —
+  not because it reached a rule. `T1547.001` would also have reached one, and
+  was rejected: MITRE assigns `Winlogon\Shell` and `Userinit` to T1547.004
+  explicitly, so listing it would have put a false technique into the report,
+  the `--navigator` layer and the MCP technique lookup.
 
 ### Changed
 
@@ -141,6 +150,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   deliberate statement that nothing covers the action, reported by
   `--coverage-gaps` and scaffoldable with `--scaffold`; claiming a detection
   that does not exist is worse than claiming none.
+- **`ifeo-debugger`'s claim is withdrawn.** It named a `registry_set` rule for
+  the IFEO `Debugger` value, and SigmaHQ tags no rule for that value under
+  T1546.012: the two rules that carry the technique cover `GlobalFlag` and
+  `SilentProcessExit`, and no `process_creation` rule carries it at all, so no
+  `example` could reach one. The rules that do fire on a `Debugger` write are
+  accessibility-scoped under T1546.008 — the coverage `accessibility-sethc`
+  already claims and verifies, which this entry does not lose.
+  What remains is a real blind spot rather than a probe artifact, so the entry
+  keeps its matcher, techniques and telemetry and drops only the claim.
+  One rule does cover the action — *CurrentVersion NT Autorun Keys
+  Modification* lists `\Image File Execution Options` — but it is tagged
+  T1547.001, which MITRE assigns to Run keys and the Startup folder, and
+  SigmaHQ's own rule body points at the GlobalFlags rule for IFEO. Re-tagging
+  the entry to reach it would have been a false mapping, and it would have
+  bought nothing: that rule's `filter_main_null` asserts `Details: null`, which
+  gates to `Unknown` before the record is read, so `not 1 of filter_main_*` is
+  never definitely true and the rule cannot fire on any record. A test now pins
+  both halves — the abstention, and the withdrawal, which the baseline diff
+  cannot catch on its own because it only flags a `VERIFIED` entry losing its
+  status.
 - `docs/design/match-schema.md` documents the `event` axis, which it had never
   mentioned despite being the canonical `match` reference, and
   `docs/design/telemetry-ingest.md` no longer contradicts itself about whether
