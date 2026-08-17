@@ -1,0 +1,94 @@
+name: sigma drift
+
+# The counterpart to the pinned regression gate in ci.yml.
+#
+# ci.yml checks out the revision named in .ci/sigma-ref, so its result is
+# reproducible and upstream churn cannot redden a contributor's pull request.
+# The cost of pinning is that falling behind SigmaHQ becomes invisible. This
+# workflow buys that back: it runs the same comparison against upstream main,
+# on its own schedule, where a failure means "the pin is stale" rather than
+# "your change broke something".
+#
+# A red run here is not a defect. It is the prompt to review the delta and, if
+# the new verdicts are right, move the pin and the baselines together:
+#
+#     scripts/sync-sigma.sh --bump latest
+#
+# Two operational notes: scheduled workflows only run from the default branch,
+# and GitHub disables them after 60 days without repository activity.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: baselines vs upstream main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      # Deliberately no `ref:` — this is the one place upstream is allowed to
+      # move under us.
+      - name: Check out upstream SigmaHQ
+        uses: actions/checkout@v7
+        with:
+          repository: SigmaHQ/sigma
+          path: sigma-rules
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Resolve the pinned and upstream revisions
+        id: refs
+        # Assigned first so a failing --ref fails the step: inside `echo "..."`
+        # the exit status would be echo's, and an empty pin would read as
+        # "upstream matches" rather than as a broken pin file.
+        run: |
+          pinned=$(scripts/sync-sigma.sh --ref)
+          upstream=$(git -C sigma-rules rev-parse HEAD)
+          {
+            echo "pinned=$pinned"
+            echo "upstream=$upstream"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Compare the pinned baselines against upstream
+        env:
+          PINNED: ${{ steps.refs.outputs.pinned }}
+          UPSTREAM: ${{ steps.refs.outputs.upstream }}
+        run: |
+          if [ "$PINNED" = "$UPSTREAM" ]; then
+            echo "pin is current: $PINNED"
+          else
+            echo "pinned:   $PINNED"
+            echo "upstream: $UPSTREAM"
+          fi
+
+          fail=0
+          for plat in linux windows macos; do
+            echo "== $plat =="
+            ./target/release/opseclint --verify-detections \
+              --sigma sigma-rules/rules --platform "$plat" \
+              --sigma-ref "$UPSTREAM" \
+              --diff ".ci/verified-$plat.json" --ci --no-color || fail=1
+          done
+
+          if [ "$fail" -ne 0 ]; then
+            msg="A claim verified against the pinned ruleset no longer verifies"
+            msg="$msg against upstream $UPSTREAM. Review the delta above, then run:"
+            msg="$msg scripts/sync-sigma.sh --bump $UPSTREAM"
+            echo "::warning::$msg"
+          fi
+          exit $fail

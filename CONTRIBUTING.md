@@ -87,6 +87,40 @@ one entry recognizes it either way rather than splitting into two.
 Keep `id`s unique within a file, and add a matching test in
 `crates/opseclint-core/src/analyzer.rs` when you introduce a notable technique.
 
+## Detection-verification baselines
+
+A detection claim in the knowledge base is an assertion about the outside world,
+so CI proves it rather than trusting it. `--verify-detections` synthesizes a
+representative command (and, for an `event` axis, a representative record) for
+every entry carrying a Sigma claim, then checks whether a genuine SigmaHQ rule
+for that technique actually fires on it. The verdicts are committed as
+`.ci/verified-<platform>.json`, and the `verify detections` job fails if an
+entry that was `VERIFIED` stops being so.
+
+That comparison only means something if both sides are fixed, so CI checks out
+the exact SigmaHQ commit named in [`.ci/sigma-ref`](.ci/sigma-ref) rather than
+whatever `main` happens to be. Each baseline also records the revision it was
+computed from, in its own `sigma_ref` field, so a baseline still says what it
+came from when you diff against it locally months later.
+
+The pin and the baselines are one fact stored twice, and
+`scripts/sync-sigma.sh --check` (offline, on every pull request) fails if they
+disagree. Move them together — never hand-edit either:
+
+```bash
+scripts/sync-sigma.sh --ref              # what is pinned right now
+scripts/sync-sigma.sh --bump latest      # or a specific 40-hex commit id
+```
+
+`--bump` prints what the new revision does to the existing baselines *before*
+overwriting them; that delta is what belongs in the pull-request description,
+because the JSON diff alone cannot tell an upstream improvement apart from a
+silently accepted regression.
+
+You should not normally need to bump the pin yourself. The scheduled
+`sigma drift` workflow runs the same comparison against upstream `main`, and a
+red run there is the prompt to review the delta and move the pin.
+
 ## Guidelines
 
 - Cite real ATT&CK technique IDs; keep detection references representative and

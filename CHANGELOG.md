@@ -8,6 +8,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The detection-verification gate runs against a pinned SigmaHQ revision.**
+  CI cloned upstream `main`, then failed the build if a claim that was
+  `VERIFIED` in `.ci/verified-<platform>.json` had stopped firing. Both halves
+  of that comparison were free to move, so the gate was not reproducible: a
+  past run could not be re-created, and an unrelated pull request could go red
+  because SigmaHQ merged a rule overnight. The revision is now named in
+  `.ci/sigma-ref` and checked out exactly, and each baseline records the
+  revision it was computed from in a new `sigma_ref` field, set by
+  `--sigma-ref`. That field is deliberately not inferred from the checkout —
+  `--sigma` may point at any directory, and a guessed provenance committed into
+  a baseline is worse than none — and it is omitted rather than written as
+  `null` when no ref is given, so "unknown" and "recorded" never look alike.
+  Older baselines without the field still load, and `--diff` still compares
+  `status` by `id`: a ruleset mismatch is reported as a note, never a failure,
+  because comparing a pinned baseline against a different ruleset is precisely
+  what the drift check below does on purpose. `scripts/sync-sigma.sh` moves the
+  pin and all three baselines together and refuses to let them drift apart —
+  `--check` is an offline string comparison, so it is cheap enough to require
+  on every pull request, the same trade `sync-packaging.sh` already makes.
+  Pinning changed no verdict: linux, windows and macos read 15 / 23 / 7
+  verified against `3c0d3518`, exactly as before, over the same 251 / 2220 /
+  124 rules.
+- **A scheduled `sigma drift` workflow watches upstream.** Pinning buys
+  reproducibility at the cost of hiding that the pin has gone stale, so the
+  same three comparisons run weekly against SigmaHQ `main`, off the
+  pull-request path entirely. A red run there means the pin needs review, not
+  that someone's change broke something — which is the one thing the old
+  arrangement could never say.
 - **`--verify-detections` can verify a `file_event` / `registry_set` claim.** A
   candidate rule whose logsource is not process-execution was set aside
   unevaluated, and an entry whose candidates were *all* set aside reported
@@ -93,7 +121,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Two more claims became `UNVERIFIED` afterwards — not a regression, but the
   first time they were testable at all (see the `--verify-detections` entry
   above) — and both have since been adjudicated the same way; `unverified` on
-  Windows now reads 0 against SigmaHQ `8eaafff`.
+  Windows now reads 0 against the SigmaHQ revision pinned in `.ci/sigma-ref`,
+  which CI checks out and enforces.
 - **`winlogon-persist` verifies.** It claimed a `registry_set` rule for the
   Winlogon `Shell` / `Userinit` values, and the T1547.004 registry rule covers
   `Winlogon\Notify\logon` with a `.dll` payload instead. But the entry is also a

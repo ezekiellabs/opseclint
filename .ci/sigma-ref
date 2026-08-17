@@ -1,0 +1,19 @@
+# The SigmaHQ/sigma revision that the detection-verification baselines in this
+# directory were computed against. CI checks out exactly this commit, so the
+# regression gate is reproducible: a green run stays green until someone
+# deliberately moves the pin, rather than reddening on an unrelated pull request
+# because upstream merged a rule overnight.
+#
+# Falling behind upstream is a real thing to know about — it is just not a thing
+# that should block a contributor. .github/workflows/sigma-drift.yml runs these
+# same baselines against upstream main on a schedule, so drift surfaces there.
+#
+# The pin and the baselines are one fact stored twice, and they must move
+# together. Never hand-edit this file:
+#
+#     scripts/sync-sigma.sh --bump latest    # or a specific 40-hex commit id
+#
+# scripts/sync-sigma.sh --check runs on every pull request and fails if this
+# value and the `sigma_ref` recorded inside each .ci/verified-<platform>.json
+# have drifted apart.
+3c0d35188942eb6a8c373e4f4973ac7e84116993
