@@ -1,8 +1,10 @@
 # Packaging
 
 Package-manager manifests for opseclint, staged here and version-controlled. Each
-is copied into its real destination repo at submit time. All hashes are for the
-**v1.4.0** GitHub Release artifacts.
+is copied into its real destination repo at submit time. These manifests target the
+**v1.4.0** GitHub Release; the SHA256s below are filled in only once that release
+publishes, so for the duration of the release pull request they still carry the
+*previous* release's digests. That window is expected — see [Release order](#release-order).
 
 The whole bump is scripted — prefer
 [`scripts/sync-packaging.sh`](../scripts/sync-packaging.sh) over hand-editing.
@@ -45,6 +47,9 @@ done
 ```
 
 ## v1.4.0 artifact hashes
+
+Written by step 2 of the release order above, once the artifacts exist. Until
+that step runs, the digests in this table belong to the previous release.
 
 | target | archive | SHA256 |
 |---|---|---|
