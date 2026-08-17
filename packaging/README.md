@@ -2,7 +2,7 @@
 
 Package-manager manifests for opseclint, staged here and version-controlled. Each
 is copied into its real destination repo at submit time. All hashes are for the
-**v1.3.0** GitHub Release artifacts.
+**v1.4.0** GitHub Release artifacts.
 
 The whole bump is scripted — prefer
 [`scripts/sync-packaging.sh`](../scripts/sync-packaging.sh) over hand-editing.
@@ -44,7 +44,7 @@ for a in \
 done
 ```
 
-## v1.3.0 artifact hashes
+## v1.4.0 artifact hashes
 
 | target | archive | SHA256 |
 |---|---|---|

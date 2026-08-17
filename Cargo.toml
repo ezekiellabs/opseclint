@@ -7,14 +7,14 @@ resolver = "3"
 # analysis behaviour cannot reach users under an unchanged binary version.
 # scripts/sync-packaging.sh reads the version from here.
 [workspace.package]
-version = "1.3.0"
+version = "1.4.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/ezekiellabs/opseclint"
 homepage = "https://github.com/ezekiellabs/opseclint"
 
 [workspace.dependencies]
-opseclint-core = { version = "1.3.0", path = "crates/opseclint-core" }
+opseclint-core = { version = "1.4.0", path = "crates/opseclint-core" }
 clap = { version = "4", features = ["derive"] }
 regex = "1"
 serde = { version = "1", features = ["derive"] }

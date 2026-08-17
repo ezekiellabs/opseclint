@@ -4,7 +4,7 @@
 class Opseclint < Formula
   desc "Analyze shell commands for ATT&CK techniques and detection coverage"
   homepage "https://github.com/ezekiellabs/opseclint"
-  version "1.3.0"
+  version "1.4.0"
   license "MIT"
 
   on_macos do
