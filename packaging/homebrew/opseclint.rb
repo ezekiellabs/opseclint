@@ -10,18 +10,18 @@ class Opseclint < Formula
   on_macos do
     on_arm do
       url "https://github.com/ezekiellabs/opseclint/releases/download/v#{version}/opseclint-v#{version}-aarch64-apple-darwin.tar.gz"
-      sha256 "f190f7a4830938d0b3d28b024089255682da79c71eb7bbb31cd2ef14efa108ad"
+      sha256 "f05e946da8ee617daaddee6b7676995c43bf8d3020d2faa64d4dc10523e8daf8"
     end
     on_intel do
       url "https://github.com/ezekiellabs/opseclint/releases/download/v#{version}/opseclint-v#{version}-x86_64-apple-darwin.tar.gz"
-      sha256 "c6a998d3c9468bc9467945c412b2807ffc1521c093e23225e634856efb794b42"
+      sha256 "aabf38598f4954bb2e6e035df206bcf40aa79f57ff53dfed229e035fcb9f7227"
     end
   end
 
   on_linux do
     on_intel do
       url "https://github.com/ezekiellabs/opseclint/releases/download/v#{version}/opseclint-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "c785a675b02a481c67c1775b6e77f390e88f9d570454b79dc3cb3fd57d0f5911"
+      sha256 "3e0ab1cb476d331c01c41a189f5daf3de7b87e5fd3e25bf9b5b015be86f44bae"
     end
   end
 

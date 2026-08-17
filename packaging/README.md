@@ -53,10 +53,10 @@ that step runs, the digests in this table belong to the previous release.
 
 | target | archive | SHA256 |
 |---|---|---|
-| x86_64-unknown-linux-gnu | .tar.gz | `c785a675b02a481c67c1775b6e77f390e88f9d570454b79dc3cb3fd57d0f5911` |
-| aarch64-apple-darwin | .tar.gz | `f190f7a4830938d0b3d28b024089255682da79c71eb7bbb31cd2ef14efa108ad` |
-| x86_64-apple-darwin | .tar.gz | `c6a998d3c9468bc9467945c412b2807ffc1521c093e23225e634856efb794b42` |
-| x86_64-pc-windows-msvc | .zip | `b3bf8aabded20690660cd4e866147d471a9422b9aa709a4f3696f5b2ecb86a0d` |
+| x86_64-unknown-linux-gnu | .tar.gz | `3e0ab1cb476d331c01c41a189f5daf3de7b87e5fd3e25bf9b5b015be86f44bae` |
+| aarch64-apple-darwin | .tar.gz | `f05e946da8ee617daaddee6b7676995c43bf8d3020d2faa64d4dc10523e8daf8` |
+| x86_64-apple-darwin | .tar.gz | `aabf38598f4954bb2e6e035df206bcf40aa79f57ff53dfed229e035fcb9f7227` |
+| x86_64-pc-windows-msvc | .zip | `2d48cff7eb0b47f6efe4b66f255608ebcfbbeee6bddef612e6ef2cb3a19363e2` |
 
 ## Homebrew — `homebrew/opseclint.rb`
 
