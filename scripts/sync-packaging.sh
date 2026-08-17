@@ -2,10 +2,12 @@
 #
 # Keep packaging/ in step with the crate version.
 #
-#   sync-packaging.sh --check       offline: assert every manifest agrees with
-#                                   Cargo.toml, exit non-zero if not
-#   sync-packaging.sh --bump X.Y.Z  offline: move Cargo.toml and every manifest
-#                                   to X.Y.Z, leaving hashes stale
+#   sync-packaging.sh --check       offline: assert Cargo.lock and every
+#                                   manifest agree with Cargo.toml, exit
+#                                   non-zero if not
+#   sync-packaging.sh --bump X.Y.Z  offline: move Cargo.toml, Cargo.lock and
+#                                   every manifest to X.Y.Z, leaving hashes
+#                                   stale
 #   sync-packaging.sh X.Y.Z         online: version strings *and* real hashes,
 #                                   fetched from the published release
 #
@@ -57,6 +59,75 @@ core_dep_version() {
   sed -n 's/^opseclint-core = .*version = "\([^"]*\)".*/\1/p' "$repo_root/Cargo.toml" | head -1
 }
 
+# The workspace member crate names, read from [workspace] members rather than
+# listed here, so a crate added later is covered the day it appears instead of
+# the day someone remembers this file.
+workspace_members() {
+  awk '
+    /^\[/ { in_ws = ($0 == "[workspace]") }
+    in_ws && /^members[[:space:]]*=/ { collecting = 1 }
+    collecting {
+      buf = buf $0
+      if (index($0, "]")) { collecting = 0; done = 1 }
+    }
+    done {
+      while (match(buf, /"[^"]+"/)) {
+        path = substr(buf, RSTART + 1, RLENGTH - 2)
+        sub(/.*\//, "", path)          # crates/opseclint-core -> opseclint-core
+        print path
+        buf = substr(buf, RSTART + RLENGTH)
+      }
+      exit
+    }
+  ' "$repo_root/Cargo.toml"
+}
+
+# A workspace member's version as recorded in Cargo.lock.
+#
+# The lockfile matters because publish.yml runs `cargo publish --locked`, which
+# refuses to build if the lock disagrees with the manifest. A bump that moved
+# Cargo.toml and left the lock behind therefore passed every check here and then
+# failed the release itself — after the tag was pushed, with the binaries
+# already built.
+#
+# A package name is unique within the lockfile, so the [[package]] block is
+# addressed by name and the `version` that follows it is unambiguous.
+lockfile_version() {
+  awk -v want="$1" '
+    /^name = / { name = $3; gsub(/"/, "", name); next }
+    /^version = / && name == want { v = $3; gsub(/"/, "", v); print v; exit }
+  ' "$repo_root/Cargo.lock"
+}
+
+# Bring Cargo.lock's workspace-member entries up to the manifest version.
+#
+# `cargo update --workspace` is the real tool for this and is used when cargo is
+# on PATH. `--offline` keeps --bump's promise that it makes no network calls:
+# the only versions that move belong to path dependencies inside this workspace,
+# so nothing has to be fetched. The awk fallback exists because a release can be
+# prepared on a machine without a toolchain, and a silently un-bumped lockfile is
+# the exact failure this function was added to prevent.
+update_lockfile() {
+  local new="$1" members
+  [ -f "$repo_root/Cargo.lock" ] || return 0
+
+  if command -v cargo >/dev/null 2>&1 \
+     && (cd "$repo_root" && cargo update --workspace --offline --quiet >/dev/null 2>&1); then
+    return 0
+  fi
+
+  members=$(workspace_members | tr '\n' ' ')
+  scratch=${scratch:-$(mktemp -d)}
+  awk -v new="$new" -v members="$members" '
+    BEGIN { n = split(members, m, " "); for (i = 1; i <= n; i++) if (m[i] != "") is_member[m[i]] = 1 }
+    /^name = / { name = $3; gsub(/"/, "", name) }
+    /^version = / && (name in is_member) { print "version = \"" new "\""; next }
+    { print }
+  ' "$repo_root/Cargo.lock" > "$scratch/Cargo.lock"
+  mv "$scratch/Cargo.lock" "$repo_root/Cargo.lock"
+  printf 'note: cargo unavailable or offline update failed; rewrote Cargo.lock directly\n'
+}
+
 sha256_of() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum | cut -d' ' -f1
@@ -106,6 +177,26 @@ check() {
   else
     printf '  %-46s %s  ok\n' "opseclint-core requirement" "$core"
   fi
+
+  # Checked here rather than left to the release: `cargo publish --locked` fails
+  # on a stale lockfile, and by then the tag is pushed and the binaries are
+  # built. This is an offline read of a file that is already in the tree.
+  local member
+  while read -r member; do
+    [ -n "$member" ] || continue
+    got=$(lockfile_version "$member")
+    if [ -z "$got" ]; then
+      printf '  %-46s not in Cargo.lock\n' "$member (lockfile)"
+      rc=1
+    elif [ "$got" != "$want" ]; then
+      printf '  %-46s %s  != %s\n' "$member (lockfile)" "$got" "$want"
+      rc=1
+    else
+      printf '  %-46s %s  ok\n' "$member (lockfile)" "$got"
+    fi
+  done <<EOF
+$(workspace_members)
+EOF
 
   for m in "${MANIFESTS[@]}"; do
     got=$(manifest_version "$m" | head -1)
@@ -249,6 +340,7 @@ bump() {
     assert_bumped "$repo_root/Cargo.toml" "${old//./\\.}" "${new//./\\.}"
     printf 'Cargo.toml %s -> %s\n' "$old" "$new"
   fi
+  update_lockfile "$new"
   bump_versions "$new"
   printf '\nVersions moved to %s. Hashes are now stale until the release for\n' "$new"
   printf 'v%s publishes, after which run: scripts/sync-packaging.sh %s\n\n' "$new" "$new"
