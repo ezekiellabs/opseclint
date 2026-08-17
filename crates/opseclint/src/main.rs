@@ -123,7 +123,17 @@ struct Cli {
     /// saved baseline says which ruleset produced it. Deliberately not derived
     /// from the checkout: `--sigma` may point at any directory, and a guessed
     /// provenance committed into a baseline is worse than none at all.
-    #[arg(long, value_name = "REF", requires = "sigma", help_heading = "Sigma")]
+    /// Scoped to --verify-detections, which is the only mode that records it:
+    /// anywhere else the flag would parse, be ignored, and leave the caller
+    /// believing a provenance had been captured. (That mode already requires
+    /// --sigma, so this is the stricter of the two constraints, not a weaker
+    /// one.)
+    #[arg(
+        long,
+        value_name = "REF",
+        requires = "verify_detections",
+        help_heading = "Sigma"
+    )]
     sigma_ref: Option<String>,
 
     /// Evaluate the input against a single Sigma rule's detection logic and

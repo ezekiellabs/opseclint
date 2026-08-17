@@ -50,10 +50,15 @@ jobs:
 
       - name: Resolve the pinned and upstream revisions
         id: refs
+        # Assigned first so a failing --ref fails the step: inside `echo "..."`
+        # the exit status would be echo's, and an empty pin would read as
+        # "upstream matches" rather than as a broken pin file.
         run: |
+          pinned=$(scripts/sync-sigma.sh --ref)
+          upstream=$(git -C sigma-rules rev-parse HEAD)
           {
-            echo "pinned=$(scripts/sync-sigma.sh --ref)"
-            echo "upstream=$(git -C sigma-rules rev-parse HEAD)"
+            echo "pinned=$pinned"
+            echo "upstream=$upstream"
           } >> "$GITHUB_OUTPUT"
 
       - name: Build release binary

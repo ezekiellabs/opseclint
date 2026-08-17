@@ -124,7 +124,13 @@ jobs:
 
       - name: Read the pinned SigmaHQ revision
         id: sigma
-        run: echo "ref=$(scripts/sync-sigma.sh --ref)" >> "$GITHUB_OUTPUT"
+        # Assigned first, deliberately: in `echo "ref=$(...)"` the exit status
+        # is echo's, so a failing --ref would still pass the step and hand
+        # actions/checkout an empty ref — which silently means the default
+        # branch. As an assignment, `set -e` fails the step instead.
+        run: |
+          ref=$(scripts/sync-sigma.sh --ref)
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
       - name: Check out the pinned SigmaHQ ruleset
         uses: actions/checkout@v7
@@ -165,7 +171,13 @@ jobs:
 
       - name: Read the pinned SigmaHQ revision
         id: sigma
-        run: echo "ref=$(scripts/sync-sigma.sh --ref)" >> "$GITHUB_OUTPUT"
+        # Assigned first, deliberately: in `echo "ref=$(...)"` the exit status
+        # is echo's, so a failing --ref would still pass the step and hand
+        # actions/checkout an empty ref — which silently means the default
+        # branch. As an assignment, `set -e` fails the step instead.
+        run: |
+          ref=$(scripts/sync-sigma.sh --ref)
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
       # Pinned, not floating: this job compares the committed baselines against
       # the ruleset on disk, so if the ruleset moved on its own the comparison

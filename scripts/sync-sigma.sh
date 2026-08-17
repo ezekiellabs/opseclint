@@ -47,9 +47,20 @@ trap cleanup EXIT
 # The pinned commit id: the first line that is not blank and not a comment.
 # One parser, used by both the checker and the workflows, so they cannot
 # disagree about what counts as a comment.
+#
+# Every failure here is fatal rather than an empty string, because the caller
+# that matters is a workflow feeding `actions/checkout` a `ref:`. An empty ref
+# is not an error to that action — it silently checks out the default branch,
+# which is the floating behaviour this whole file exists to remove. Failing
+# loudly is the difference between a red build and a gate that quietly stopped
+# gating.
 pinned_ref() {
   [ -f "$pin_file" ] || die "$pin_file not found"
-  sed -e 's/#.*//' -e 's/[[:space:]]//g' "$pin_file" | grep -m1 . || true
+  local ref
+  ref=$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$pin_file" | grep -m1 . || true)
+  [ -n "$ref" ] || die "$pin_file names no commit id (only comments or blank lines)"
+  require_sha "$ref"
+  printf '%s\n' "$ref"
 }
 
 # Fields are read out of the baselines with sed rather than jq so this stays
@@ -80,9 +91,8 @@ require_sha() {
 
 check() {
   local want rc=0
+  # pinned_ref already fails hard on a missing, empty or malformed pin.
   want=$(pinned_ref)
-  [ -n "$want" ] || die "$pin_file contains no commit id"
-  require_sha "$want"
   printf 'pinned SigmaHQ revision: %s\n\n' "$want"
 
   local plat file got platform rules
