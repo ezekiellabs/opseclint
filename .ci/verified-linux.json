@@ -1,5 +1,6 @@
 {
   "platform": "linux",
+  "sigma_ref": "3c0d35188942eb6a8c373e4f4973ac7e84116993",
   "rules_indexed": 251,
   "results": [
     {

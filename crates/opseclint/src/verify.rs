@@ -138,11 +138,20 @@ pub struct VerifyResult {
     pub because: IndeterminateCause,
 }
 
-/// A saveable verification run: platform, ruleset size, and per-entry results.
-/// Serialized by `--verify-detections --json`, read back by `--diff`.
+/// A saveable verification run: platform, ruleset revision, ruleset size, and
+/// per-entry results. Serialized by `--verify-detections --json`, read back by
+/// `--diff`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerifyReport {
     pub platform: String,
+    /// The ruleset revision this run was computed against, as given by
+    /// `--sigma-ref`. It is what makes a saved baseline say which ruleset
+    /// produced it, so a `--diff` months later can tell a knowledge-base
+    /// regression apart from upstream drift. Absent from older baselines and
+    /// from runs that named no ref, which still deserialize — `--diff`
+    /// compares `status` by `id` and only *notes* a mismatch here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sigma_ref: Option<String>,
     pub rules_indexed: usize,
     pub results: Vec<VerifyResult>,
 }
@@ -343,6 +352,10 @@ pub fn verify(kb: &KnowledgeBase, index: &SigmaIndex, platform: Platform) -> Ver
     results.sort_by(|a, b| a.status.rank().cmp(&b.status.rank()).then(a.id.cmp(&b.id)));
     VerifyReport {
         platform: platform.sigma_product().to_string(),
+        // The caller stamps this from `--sigma-ref`: `verify` is handed an
+        // already-built index and has no way to know which revision produced
+        // it, and a guessed provenance is worse than none.
+        sigma_ref: None,
         rules_indexed: index.rules_indexed,
         results,
     }
@@ -441,6 +454,15 @@ pub fn render_json(report: &VerifyReport) -> String {
     serde_json::to_string_pretty(report).unwrap_or_else(|_| "{}".to_string())
 }
 
+/// Abbreviate a ruleset revision for display. A 40-hex commit id shortens to
+/// its first 12 characters, the length git itself uses for an unambiguous
+/// short id on a repository this size; anything else — a tag, a branch, a
+/// local marker — is shown whole, because there is no safe place to cut it.
+fn short_ref(r: &str) -> &str {
+    let is_sha = r.len() == 40 && r.bytes().all(|b| b.is_ascii_hexdigit());
+    if is_sha { &r[..12] } else { r }
+}
+
 /// Human-readable summary. `color` toggles ANSI styling.
 pub fn render(report: &VerifyReport, color: bool) -> String {
     use crate::theme;
@@ -455,11 +477,18 @@ pub fn render(report: &VerifyReport, color: bool) -> String {
     let total = report.results.len();
 
     let mut out = String::new();
+    // Name the ruleset revision when the run knows it, so a CI log says what it
+    // was computed against without anyone having to reconstruct it.
+    let at = match report.sigma_ref.as_deref() {
+        Some(r) => format!(" @ {}", short_ref(r)),
+        None => String::new(),
+    };
     out.push_str(&format!(
-        "{}opseclint — detection verification ({}, {} rules indexed){}\n",
+        "{}opseclint — detection verification ({}, {} rules indexed{}){}\n",
         c(theme::BOLD),
         report.platform,
         report.rules_indexed,
+        at,
         reset
     ));
     out.push_str(&format!(
@@ -968,6 +997,7 @@ mod tests {
         };
         let report = VerifyReport {
             platform: "windows".into(),
+            sigma_ref: None,
             rules_indexed: 10,
             // One entry per cause: a deliberate tie at 1 each.
             results: vec![mk("a", modifier_only), mk("b", field_only)],
@@ -998,6 +1028,73 @@ mod tests {
         assert_eq!(ranked[0].1, 2);
     }
 
+    /// The provenance field is additive: a baseline committed before it existed
+    /// has to keep working, or pinning the ruleset would silently invalidate
+    /// every saved report and turn the regression gate into an exit-2 error.
+    #[test]
+    fn baseline_without_sigma_ref_still_deserializes() {
+        let older = r#"{
+            "platform": "linux",
+            "rules_indexed": 251,
+            "results": [
+                {
+                    "id": "arp",
+                    "description": "ARP cache enumeration",
+                    "techniques": ["T1018"],
+                    "claimed": ["Remote system discovery utility"],
+                    "status": "unverified"
+                }
+            ]
+        }"#;
+        let report: VerifyReport = serde_json::from_str(older).expect("older baseline must load");
+        assert_eq!(report.sigma_ref, None);
+        assert_eq!(report.rules_indexed, 251);
+        assert_eq!(report.results.len(), 1);
+
+        // And a report that names no ref must not invent the key on the way
+        // back out — an absent provenance stays absent rather than becoming a
+        // null someone could mistake for a recorded value.
+        let round_tripped = render_json(&report);
+        assert!(
+            !round_tripped.contains("sigma_ref"),
+            "an unnamed ref must be omitted, not serialized as null: {round_tripped}"
+        );
+    }
+
+    #[test]
+    fn render_names_the_ruleset_revision_only_when_known() {
+        let base = VerifyReport {
+            platform: "linux".into(),
+            sigma_ref: None,
+            rules_indexed: 251,
+            results: vec![],
+        };
+        let anonymous = render(&base, false);
+        assert!(
+            anonymous.contains("251 rules indexed)"),
+            "no ref means no provenance clause: {anonymous}"
+        );
+        assert!(!anonymous.contains(" @ "));
+
+        let pinned = VerifyReport {
+            sigma_ref: Some("3c0d35188942eb6a8c373e4f4973ac7e84116993".into()),
+            ..base.clone()
+        };
+        let named = render(&pinned, false);
+        assert!(
+            named.contains("251 rules indexed @ 3c0d35188942)"),
+            "a 40-hex commit id abbreviates to 12 chars in the header: {named}"
+        );
+
+        // A ref that is not a commit id has no safe truncation point, so it is
+        // shown whole rather than cut to a length that means nothing.
+        let tagged = VerifyReport {
+            sigma_ref: Some("r2026-08-05".into()),
+            ..base
+        };
+        assert!(render(&tagged, false).contains("@ r2026-08-05)"));
+    }
+
     #[test]
     fn delta_flags_regression_and_improvement() {
         let mk = |id: &str, status: Status| VerifyResult {
@@ -1011,6 +1108,7 @@ mod tests {
         };
         let baseline = VerifyReport {
             platform: "linux".into(),
+            sigma_ref: None,
             rules_indexed: 3,
             results: vec![
                 mk("a", Status::Verified),   // will regress
@@ -1020,6 +1118,7 @@ mod tests {
         };
         let current = VerifyReport {
             platform: "linux".into(),
+            sigma_ref: None,
             rules_indexed: 3,
             results: vec![
                 mk("a", Status::Unverified),
@@ -1050,11 +1149,13 @@ mod tests {
         };
         let baseline = VerifyReport {
             platform: "linux".into(),
+            sigma_ref: None,
             rules_indexed: 1,
             results: vec![mk("gone", Status::Verified), mk("stay", Status::Verified)],
         };
         let current = VerifyReport {
             platform: "linux".into(),
+            sigma_ref: None,
             rules_indexed: 1,
             results: vec![mk("stay", Status::Verified)],
         };

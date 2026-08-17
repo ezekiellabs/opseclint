@@ -118,6 +118,14 @@ struct Cli {
     #[arg(long, help_heading = "Sigma")]
     no_sigma_cache: bool,
 
+    /// Record the ruleset revision this run was computed against (typically a
+    /// SigmaHQ commit SHA), stamping it into `--verify-detections --json` so a
+    /// saved baseline says which ruleset produced it. Deliberately not derived
+    /// from the checkout: `--sigma` may point at any directory, and a guessed
+    /// provenance committed into a baseline is worse than none at all.
+    #[arg(long, value_name = "REF", requires = "sigma", help_heading = "Sigma")]
+    sigma_ref: Option<String>,
+
     /// Evaluate the input against a single Sigma rule's detection logic and
     /// print, per command, whether it FIRES / NO-FIRE / INDETERMINATE.
     #[arg(
@@ -287,7 +295,8 @@ fn run_verify(cli: &Cli) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let current = verify::verify(&kb, &index, cli.platform);
+    let mut current = verify::verify(&kb, &index, cli.platform);
+    current.sigma_ref = cli.sigma_ref.clone();
     let color = !cli.no_color && std::io::stdout().is_terminal();
 
     // --diff: regression gate against a saved snapshot.
@@ -312,6 +321,22 @@ fn run_verify(cli: &Cli) -> ExitCode {
                 baseline.platform, current.platform
             );
             return ExitCode::from(2);
+        }
+        // A ruleset mismatch is a note, never a failure. Comparing a pinned
+        // baseline against a *different* ruleset is exactly what the scheduled
+        // drift check does on purpose, and failing here would replace its
+        // findings with a configuration error. What keeps the two in step on
+        // the pull-request path is scripts/sync-sigma.sh --check, which makes a
+        // mismatched pair impossible to commit in the first place.
+        if let (Some(base_ref), Some(curr_ref)) =
+            (baseline.sigma_ref.as_deref(), current.sigma_ref.as_deref())
+            && base_ref != curr_ref
+        {
+            eprintln!(
+                "opseclint: note — the baseline was computed against ruleset {base_ref}, \
+                 this run against {curr_ref}. A regression below may be upstream drift \
+                 rather than a knowledge-base change."
+            );
         }
         let delta = verify::compute_delta(&baseline, &current);
         if cli.json {

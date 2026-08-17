@@ -66,6 +66,19 @@ jobs:
       - name: Check packaging/ against Cargo.toml
         run: scripts/sync-packaging.sh --check
 
+  sigma-pin:
+    name: sigma pin consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Offline too, for the same reason as the job above: it catches a
+      # baseline regenerated against some ruleset other than the pinned one,
+      # which would otherwise make the regression gate below compare two
+      # things that were never computed from the same rules.
+      - name: Check .ci/sigma-ref against the baselines
+        run: scripts/sync-sigma.sh --check
+
   scan:
     name: code scanning upload
     runs-on: ubuntu-latest
@@ -95,6 +108,9 @@ jobs:
           category: opseclint
 
   sigma-enrich:
+    # "live" here means a real SigmaHQ checkout rather than the hand-written
+    # fixtures the unit tests use — not a floating one. The revision is pinned,
+    # same as the gate below.
     name: sigma live enrichment
     runs-on: ubuntu-latest
     steps:
@@ -106,8 +122,18 @@ jobs:
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Clone the SigmaHQ ruleset
-        run: git clone --depth 1 https://github.com/SigmaHQ/sigma.git sigma-rules
+      - name: Read the pinned SigmaHQ revision
+        id: sigma
+        run: echo "ref=$(scripts/sync-sigma.sh --ref)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the pinned SigmaHQ ruleset
+        uses: actions/checkout@v7
+        with:
+          repository: SigmaHQ/sigma
+          ref: ${{ steps.sigma.outputs.ref }}
+          path: sigma-rules
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Build release binary
         run: cargo build --release
@@ -137,25 +163,45 @@ jobs:
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Clone the SigmaHQ ruleset
-        run: git clone --depth 1 https://github.com/SigmaHQ/sigma.git sigma-rules
+      - name: Read the pinned SigmaHQ revision
+        id: sigma
+        run: echo "ref=$(scripts/sync-sigma.sh --ref)" >> "$GITHUB_OUTPUT"
+
+      # Pinned, not floating: this job compares the committed baselines against
+      # the ruleset on disk, so if the ruleset moved on its own the comparison
+      # would not be reproducible and an unrelated pull request could go red
+      # because SigmaHQ merged a rule overnight. sigma-drift.yml watches
+      # upstream on a schedule instead.
+      - name: Check out the pinned SigmaHQ ruleset
+        uses: actions/checkout@v7
+        with:
+          repository: SigmaHQ/sigma
+          ref: ${{ steps.sigma.outputs.ref }}
+          path: sigma-rules
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Build release binary
         run: cargo build --release
 
       - name: Verify KB detection claims against SigmaHQ (regression gate)
+        # Bound through the environment rather than interpolated into the shell
+        # body: ${{ }} is substituted before bash ever sees the script.
+        env:
+          SIGMA_REF: ${{ steps.sigma.outputs.ref }}
         run: |
           # For each platform, prove the knowledge base's Sigma detection claims
-          # against the live ruleset and fail if any previously-verified detection
-          # regressed vs the committed baseline (.ci/verified-<platform>.json).
-          # When SigmaHQ upstream legitimately shifts a verdict, regenerate the
-          # baseline: opseclint --verify-detections --sigma sigma-rules/rules \
-          #   --platform <p> --json > .ci/verified-<p>.json
+          # against the pinned ruleset and fail if any previously-verified
+          # detection regressed vs the committed baseline
+          # (.ci/verified-<platform>.json). When SigmaHQ upstream legitimately
+          # shifts a verdict, move the pin and the baselines together:
+          #   scripts/sync-sigma.sh --bump <sha|latest>
           fail=0
           for plat in linux windows macos; do
             echo "== $plat =="
             ./target/release/opseclint --verify-detections \
               --sigma sigma-rules/rules --platform "$plat" \
+              --sigma-ref "$SIGMA_REF" \
               --diff ".ci/verified-$plat.json" --ci --no-color || fail=1
           done
           exit $fail
