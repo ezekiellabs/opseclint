@@ -6,6 +6,67 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **No Linux knowledge-base entry claims a Sigma rule that no rule can
+  satisfy.** The twelve remaining `UNVERIFIED` claims were adjudicated one at a
+  time against the ruleset pinned in `.ci/sigma-ref`; eight now verify (15 →
+  23) and four were withdrawn. Five were artifacts of the probe rather than of
+  the claim, the same shape the Windows pass found: `--verify-detections`
+  evaluates an entry's representative line, derived from the matcher's own
+  literals when no `example` is authored, so `arp`, `base64`, `scp`, `wget` and
+  `python3 -c` were each put to a real rule as a bare program name with none of
+  the arguments the rule keys on — a definite *false*, read as contradicted
+  rather than untested. Each now carries a realistic operator command.
+  `python-c` also says what it covers: only the base64-decoding form reaches a
+  rule, so the claim names it and stops implying every `-c` invocation is
+  caught.
+- **`sudoers-tamper` verifies without changing what it matches.** Its `event`
+  axis alternates over `/etc/sudoers` and the `/etc/sudoers.d` drop-in
+  directory, and a representative record is derived from the *first* branch —
+  so the probe was the file, while SigmaHQ's *Persistence Via Sudoers.d Files*
+  watches the directory. The two branches are swapped. Matching is unchanged in
+  both directions; only the record the entry is checked with moves, which is
+  the whole difference between a claim that can be tested and one that cannot.
+- **`login-discovery` named the wrong technique, not a missing rule.** It
+  claimed a T1087.001 rule for `last`, and SigmaHQ's local-account rule covers
+  `/lastlog` — a different binary reading a different file. The rule that does
+  cover `/last` is *System Network Connections Discovery - Linux*, under T1049.
+  That technique is true of the action independent of the rule — `last` reads
+  wtmp, which records the remote origin of each login — so it is added
+  alongside T1087.001 rather than replacing it, the same bar `av-discovery` and
+  `winlogon-persist` were held to. Account enumeration is still what the entry
+  is for.
+- **`bash-history-tamper` now models the form the ruleset can actually see.**
+  Its only candidate is a keyword rule, and opseclint matches Sigma keywords
+  literally, so every wildcard-bearing keyword in it — `rm *sh_history`,
+  `shred *sh_history`, `cat /dev/null >*sh_history` — is unreachable. None of
+  the keywords that *are* reachable mention `.bash_history`, so no single
+  command could satisfy both the entry's matcher and the rule. The matcher is
+  widened to the shell-builtin forms (`history -c`, `history -w`,
+  `export HISTFILESIZE=0`, `shopt -ou history`), which is a coverage gain in its
+  own right: clearing history through the builtin is the common case and was
+  unmodeled. The wildcard limitation is opseclint's, and remains.
+- **Four Linux claims are withdrawn**, because the pinned ruleset carries
+  nothing that can fire on the action and inventing a command to reach one
+  would be worse than claiming nothing. `crontab-l` — the T1053.003 process
+  rule requires `/tmp/`, which describes installing a job rather than listing
+  one with `-l`, and the remaining rule is a `service: cron` keyword rule over a
+  cron *daemon log line*. `ss` — the single T1049 rule enumerates `/who`, `/w`,
+  `/last`, `/lsof` and `/netstat`; SigmaHQ covers the deprecated tool and not
+  its replacement. `python-http-server` — T1105's rules are keyed on `/curl`,
+  `/wget` and scp keywords, T1567's are network, DNS and proxy rules.
+  `usermod-group` — T1098 carries an `/esxcli` rule and a keyword rule over
+  auth.log prose. Each keeps its matcher, techniques, telemetry and score, and
+  now surfaces under `--coverage-gaps` and `--scaffold` instead. A
+  `withdrawn_*_sigma_claims_stay_withdrawn` table per platform records the
+  reason and fails if a claim reappears; `ifeo-debugger`'s existing guard folds
+  into the Windows table.
+- `netstat` verified all along, against *System Network Connections Discovery -
+  Linux* — but its claim named a rule title that does not exist. Corrected in
+  passing: a claim that names no real rule is the same defect whether or not
+  the entry happens to verify.
+
 ### Fixed
 
 - **The detection-verification gate could not see a claim that was never

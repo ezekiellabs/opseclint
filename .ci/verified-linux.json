@@ -4,140 +4,6 @@
   "rules_indexed": 251,
   "results": [
     {
-      "id": "arp",
-      "description": "ARP cache enumeration — adjacent host discovery",
-      "techniques": [
-        "T1018"
-      ],
-      "claimed": [
-        "Remote system discovery utility (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "base64-decode",
-      "description": "Base64 decoding — deobfuscation of payloads",
-      "techniques": [
-        "T1140"
-      ],
-      "claimed": [
-        "Base64 decode chained to execution (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "bash-history-tamper",
-      "description": "Direct manipulation/removal of shell history file — anti-forensics",
-      "techniques": [
-        "T1070.003"
-      ],
-      "claimed": [
-        "Shell history file tampering (file_event_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "crontab-l",
-      "description": "Scheduled task (cron) discovery",
-      "techniques": [
-        "T1053.003"
-      ],
-      "claimed": [
-        "Cron enumeration (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "login-discovery",
-      "description": "Login history enumeration",
-      "techniques": [
-        "T1087.001"
-      ],
-      "claimed": [
-        "Login history discovery (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "python-c",
-      "description": "Inline Python execution — common for one-liner payloads",
-      "techniques": [
-        "T1059.006"
-      ],
-      "claimed": [
-        "Inline Python one-liner execution (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "python-http-server",
-      "description": "Ad-hoc HTTP server — data staging / exfiltration channel",
-      "techniques": [
-        "T1105",
-        "T1567"
-      ],
-      "claimed": [
-        "Python http.server execution (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "scp",
-      "description": "File transfer over SSH — ingress or exfiltration",
-      "techniques": [
-        "T1105",
-        "T1048"
-      ],
-      "claimed": [
-        "File transfer via scp (proc_creation_lnx / network)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "ss",
-      "description": "Socket / network connection discovery",
-      "techniques": [
-        "T1049"
-      ],
-      "claimed": [
-        "Network connection discovery utility (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "sudoers-tamper",
-      "description": "Reading or modifying /etc/sudoers — privilege escalation / persistence",
-      "techniques": [
-        "T1548.003"
-      ],
-      "claimed": [
-        "Sudoers file modification (file_event_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "usermod-group",
-      "description": "Modifying user group membership — privilege escalation / account manipulation",
-      "techniques": [
-        "T1098"
-      ],
-      "claimed": [
-        "User account/group modification (proc_creation_lnx)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "wget",
-      "description": "Remote file download — tool ingress",
-      "techniques": [
-        "T1105"
-      ],
-      "claimed": [
-        "File download via wget (proc_creation_lnx / network)"
-      ],
-      "status": "unverified"
-    },
-    {
       "id": "authorized-keys",
       "description": "Modification of SSH authorized_keys — persistence / account manipulation",
       "techniques": [
@@ -952,6 +818,20 @@
       }
     },
     {
+      "id": "arp",
+      "description": "ARP cache enumeration — adjacent host discovery",
+      "techniques": [
+        "T1018"
+      ],
+      "claimed": [
+        "Linux Remote System Discovery (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Linux Remote System Discovery"
+      ]
+    },
+    {
       "id": "at-job",
       "description": "One-off scheduled job via at — execution / persistence",
       "techniques": [
@@ -963,6 +843,34 @@
       "status": "verified",
       "firing": [
         "Scheduled Task/Job At"
+      ]
+    },
+    {
+      "id": "base64-decode",
+      "description": "Base64 decoding — deobfuscation of payloads",
+      "techniques": [
+        "T1140"
+      ],
+      "claimed": [
+        "Linux Base64 Encoded Pipe to Shell (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Linux Base64 Encoded Pipe to Shell"
+      ]
+    },
+    {
+      "id": "bash-history-tamper",
+      "description": "Direct manipulation/removal of shell history file — anti-forensics",
+      "techniques": [
+        "T1070.003"
+      ],
+      "claimed": [
+        "Linux Command History Tampering (linux builtin)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Linux Command History Tampering"
       ]
     },
     {
@@ -1093,13 +1001,28 @@
       ]
     },
     {
+      "id": "login-discovery",
+      "description": "Login history enumeration",
+      "techniques": [
+        "T1087.001",
+        "T1049"
+      ],
+      "claimed": [
+        "System Network Connections Discovery - Linux (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "System Network Connections Discovery - Linux"
+      ]
+    },
+    {
       "id": "netstat",
       "description": "Network connection discovery",
       "techniques": [
         "T1049"
       ],
       "claimed": [
-        "Network connection discovery utility (proc_creation_lnx)"
+        "System Network Connections Discovery - Linux (proc_creation_lnx)"
       ],
       "status": "verified",
       "firing": [
@@ -1136,6 +1059,35 @@
       ]
     },
     {
+      "id": "python-c",
+      "description": "Inline Python execution — common for one-liner payloads",
+      "techniques": [
+        "T1059.006"
+      ],
+      "claimed": [
+        "Python One-Liners with Base64 Decoding - Linux (proc_creation_lnx); plain -c invocations are uncovered"
+      ],
+      "status": "verified",
+      "firing": [
+        "Python One-Liners with Base64 Decoding - Linux"
+      ]
+    },
+    {
+      "id": "scp",
+      "description": "File transfer over SSH — ingress or exfiltration",
+      "techniques": [
+        "T1105",
+        "T1048"
+      ],
+      "claimed": [
+        "Remote File Copy (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Remote File Copy"
+      ]
+    },
+    {
       "id": "shred",
       "description": "Secure file deletion — anti-forensics",
       "techniques": [
@@ -1150,6 +1102,20 @@
       ]
     },
     {
+      "id": "sudoers-tamper",
+      "description": "Reading or modifying /etc/sudoers — privilege escalation / persistence",
+      "techniques": [
+        "T1548.003"
+      ],
+      "claimed": [
+        "Persistence Via Sudoers.d Files (file_event_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Persistence Via Sudoers.d Files"
+      ]
+    },
+    {
       "id": "uname",
       "description": "Kernel / OS version discovery",
       "techniques": [
@@ -1161,6 +1127,20 @@
       "status": "verified",
       "firing": [
         "System Information Discovery"
+      ]
+    },
+    {
+      "id": "wget",
+      "description": "Remote file download — tool ingress",
+      "techniques": [
+        "T1105"
+      ],
+      "claimed": [
+        "Download File To Potentially Suspicious Directory Via Wget (proc_creation_lnx)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Download File To Potentially Suspicious Directory Via Wget"
       ]
     }
   ]

@@ -716,35 +716,92 @@ mod tests {
         assert_eq!(repr("pipe-to-sh").as_deref(), Some("| sh"));
     }
 
-    /// `ifeo-debugger` claims no Sigma rule, and that absence is a finding, not
-    /// an oversight. SigmaHQ tags no rule for the IFEO `Debugger` value under
-    /// T1546.012 — the two rules that carry it cover `GlobalFlag` and
-    /// `SilentProcessExit` — and no `process_creation` rule carries it at all,
-    /// so no authored `example` can reach one. The rules that do fire on a
-    /// `Debugger` write are accessibility-scoped under T1546.008, which
-    /// `accessibility-sethc` already claims and verifies.
+    /// Assert that every entry whose Sigma claim was withdrawn stays withdrawn.
     ///
-    /// Re-adding a claim here would go unnoticed: the `--verify-detections`
-    /// baseline gate only flags a `VERIFIED` entry losing its status, so an
-    /// entry re-entering the audit as `UNVERIFIED` passes CI silently. This
-    /// test is that missing gate.
+    /// A withdrawal is a finding, not an oversight: the pinned ruleset carries
+    /// nothing that can fire on the action, so claiming a detection would be
+    /// worse than claiming none. Re-adding one would otherwise be easy to miss
+    /// — the entry simply re-enters the audit, and its `UNVERIFIED` verdict is
+    /// only caught by the baseline ratchet, which a regenerated baseline can
+    /// launder. This test is the direct guard.
+    fn assert_withdrawn(kb: &KnowledgeBase, claims: &[(&str, &str)]) {
+        for (id, why) in claims {
+            let entry = kb
+                .entries
+                .iter()
+                .find(|e| e.id == *id)
+                .unwrap_or_else(|| panic!("no KB entry with id `{id}`"));
+            assert!(
+                entry.detections.is_empty(),
+                "`{id}` claims {:?}, but {why}",
+                entry.detections
+            );
+            // The modeling is correct and stays — only the claim was wrong.
+            assert!(
+                !entry.techniques.is_empty(),
+                "`{id}` lost its techniques along with its claim"
+            );
+        }
+    }
+
     #[test]
-    fn the_ifeo_debugger_claim_stays_withdrawn() {
+    fn withdrawn_linux_sigma_claims_stay_withdrawn() {
+        assert_withdrawn(
+            &kb(),
+            &[
+                (
+                    "crontab-l",
+                    "T1053.003's process rule requires `/tmp/` (installing a job, \
+                     not enumerating with -l), its two file_event rules model a \
+                     record this entry does not carry, and the remaining one is a \
+                     `service: cron` keyword rule over a cron *daemon log line*",
+                ),
+                (
+                    "ss",
+                    "the single T1049 rule enumerates /who /w /last /lsof /netstat \
+                     and not /ss — SigmaHQ covers the deprecated tool, not its \
+                     replacement",
+                ),
+                (
+                    "python-http-server",
+                    "T1105's process rules are keyed on /curl, /wget and scp \
+                     keywords, and T1567's are network_connection, dns and proxy \
+                     rules — `python3 -m http.server` reaches none of them",
+                ),
+                (
+                    "usermod-group",
+                    "T1098 carries an /esxcli rule and a keyword rule over \
+                     auth.log prose (`new user` plus `GID=0,`); no usermod \
+                     invocation reaches either",
+                ),
+            ],
+        );
+    }
+
+    #[test]
+    fn withdrawn_windows_sigma_claims_stay_withdrawn() {
+        assert_withdrawn(
+            &win_kb(),
+            &[(
+                "ifeo-debugger",
+                "SigmaHQ tags no rule for the IFEO `Debugger` value under \
+                 T1546.012 — the two rules that carry it cover `GlobalFlag` and \
+                 `SilentProcessExit` — and no process_creation rule carries it at \
+                 all, so no authored `example` can reach one. The rules that do \
+                 fire on a `Debugger` write are accessibility-scoped under \
+                 T1546.008, which `accessibility-sethc` already claims and \
+                 verifies",
+            )],
+        );
+        // The event axis is what makes this entry worth keeping without a claim.
         let kb = win_kb();
-        let entry = kb
+        let e = kb
             .entries
             .iter()
             .find(|e| e.id == "ifeo-debugger")
             .expect("no KB entry with id `ifeo-debugger`");
-        assert!(
-            entry.detections.is_empty(),
-            "ifeo-debugger claims {:?}; SigmaHQ carries no rule for the Debugger \
-             value under T1546.012, so a claim here is one the ruleset contradicts",
-            entry.detections
-        );
-        // The modeling is correct and stays — only the claim was wrong.
-        assert!(entry.matcher.event.is_some());
-        assert!(entry.techniques.iter().any(|t| t.id == "T1546.012"));
+        assert!(e.matcher.event.is_some());
+        assert!(e.techniques.iter().any(|t| t.id == "T1546.012"));
     }
 
     /// The structured leaves (`word`, `path_under`, `not`) tighten entries that

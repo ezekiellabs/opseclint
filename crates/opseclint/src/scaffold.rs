@@ -739,15 +739,20 @@ mod tests {
         // `sudoers-tamper` alternates over two *different* modifiers on one
         // field, which one flat map cannot OR — so it becomes two selections
         // rather than one narrowed to a single branch.
+        //
+        // The drop-in directory leads because the entry's first `any` branch is
+        // also what its representative record is derived from, and that is the
+        // record SigmaHQ's own sudoers rule watches. Branch order is otherwise
+        // immaterial to matching; here it decides what gets probed.
         let kb = linux_kb();
         let v = doc(&docs_for(&kb, "sudoers-tamper", Platform::LinuxAuditd)[1]);
         assert_eq!(
-            v["detection"]["selection"]["TargetFilename"].as_str(),
-            Some("/etc/sudoers")
+            v["detection"]["selection"]["TargetFilename|startswith"].as_str(),
+            Some("/etc/sudoers.d")
         );
         assert_eq!(
-            v["detection"]["selection_1"]["TargetFilename|startswith"].as_str(),
-            Some("/etc/sudoers.d")
+            v["detection"]["selection_1"]["TargetFilename"].as_str(),
+            Some("/etc/sudoers")
         );
         assert_eq!(
             v["detection"]["condition"].as_str(),
