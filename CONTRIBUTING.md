@@ -94,12 +94,20 @@ so CI proves it rather than trusting it. `--verify-detections` synthesizes a
 representative command (and, for an `event` axis, a representative record) for
 every entry carrying a Sigma claim, then checks whether a genuine SigmaHQ rule
 for that technique actually fires on it. The verdicts are committed as
-`.ci/verified-<platform>.json`, and the `verify detections` job fails if a
-verdict gets worse than its baseline, if a change adds a claim the ruleset
-refutes, or if the count of refuted claims rises. A newly added entry has no
-baseline row to fall from, so it is checked on its own terms rather than
-skipped — landing a claim no rule substantiates is the same defect as breaking
-one that used to hold, and neither is allowed in.
+`.ci/verified-<platform>.json`, and the `verify detections` job runs two checks
+against them. The first is relative: it fails if a verdict gets worse than its
+baseline, if a change adds a claim the ruleset refutes, or if the count of
+refuted claims rises. A newly added entry has no baseline row to fall from, so
+it is checked on its own terms rather than skipped — landing a claim no rule
+substantiates is the same defect as breaking one that used to hold.
+
+The second is absolute, and needs no baseline: **no entry may claim a Sigma
+detection that no rule fires on.** All three platforms read zero, and this is
+what holds them there — the relative check compares against a committed file,
+so regenerating that file would otherwise launder a refuted claim into the
+baseline. If your entry cannot reach a real rule, make no claim: omit
+`detections` entirely. That is a finding, not a gap left unfilled, and
+`--coverage-gaps` and `--scaffold` are what it feeds.
 
 That comparison only means something if both sides are fixed, so CI checks out
 the exact SigmaHQ commit named in [`.ci/sigma-ref`](.ci/sigma-ref) rather than

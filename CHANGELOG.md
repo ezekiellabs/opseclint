@@ -8,6 +8,49 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **No knowledge-base entry, on any platform, claims a Sigma rule that no rule
+  can satisfy.** Windows reached that state in v1.4.0; Linux and macOS carried
+  40 refuted claims between them, and both are now at zero — 23 / 23 / 21
+  verified against the ruleset pinned in `.ci/sigma-ref`. CI enforces it
+  absolutely rather than relatively: alongside the baseline comparison, a
+  second baseline-free `--verify-detections --ci` run per platform fails if
+  *any* claim is unverified. The relative check compares against a committed
+  file, so regenerating that file could otherwise launder a refuted claim into
+  the baseline; the absolute one is the term that survives a rewrite.
+- **The macOS knowledge base: 28 refuted claims adjudicated, 14 verified (7 →
+  21), 14 withdrawn.** Twelve were artifacts of the probe and now carry the
+  canonical operator form of the action — `arp -a`, `crontab /tmp/.cache.cron`,
+  `dscl . -list /Groups`, `dscl . -create /Users/svc IsHidden 1`,
+  `security dump-keychain -d`, `sw_vers -productVersion`, `system_profiler
+  SPHardwareDataType`, `xattr -d com.apple.quarantine`, the two `osascript -e`
+  forms, and a PlistBuddy `RunAtLoad` write for each of the LaunchAgent and
+  LaunchDaemon entries. `emond-persist` needed no example: like
+  `sudoers-tamper` on Linux, its `event` axis alternates over two directories
+  and the representative record is derived from the *first*, so the branches
+  are swapped to probe `/private/var/db/emondClients`, which SigmaHQ's rule
+  watches. `curl` keeps its claim but stops overstating it — only the
+  download-piped-to-`osacompile` chain reaches a rule, and the claim now says
+  which and admits plain `curl` is uncovered.
+- **A rule keyed on an absolute `Image:` path cannot be verified predictively,
+  and four macOS claims are withdrawn because of it.** `Image` is synthesized
+  from the program basename, so `Image: '/usr/sbin/screencapture'` compares
+  against `/screencapture` and resolves to a definite *false* — which is why
+  those entries read `UNVERIFIED` rather than `INDETERMINATE`. No example can
+  move them: `screencapture`, `mdfind`, `spctl-status` and
+  `gatekeeper-disable`. This is opseclint's ceiling, not a knowledge-base
+  defect, and it is recorded as such rather than papered over.
+- **Ten further macOS claims are withdrawn** because the ruleset genuinely
+  carries nothing for the action: `base64-decode`, `keychain-find`,
+  `periodic-persist`, `tar-archive`, `ditto-archive`, `python-http-server`,
+  `scp-exfil`, `reverse-shell-devtcp` (T1059.004 has no macOS rule at all),
+  `clipboard-capture` (SigmaHQ's `pbpaste` rule lives under
+  `rules-threat-hunting/`, which the gate does not index), and `netcat`. The
+  last is worth naming: *MacOS Network Service Scanning* would fire, but it is
+  tagged T1046, and asserting that of a bare `nc` invocation is false — its
+  filter is also the single letter `l`, so a hostname like `scanner.local`
+  suppresses it. Reaching it would mean building a command line around a rule
+  quirk instead of describing the action.
+
 - **No Linux knowledge-base entry claims a Sigma rule that no rule can
   satisfy.** The twelve remaining `UNVERIFIED` claims were adjudicated one at a
   time against the ruleset pinned in `.ci/sigma-ref`; eight now verify (15 →
