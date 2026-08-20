@@ -6,6 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`--verify-detections` says which rules refused an `UNVERIFIED` claim.** The
+  status meant "rules exist for this technique and none of them fire", and
+  named none of them — so the only way to find out which had been asked was to
+  grep the ruleset by ATT&CK tag, reconstructing by hand a candidate set the
+  tool had already computed and discarded. Each contradicted entry now lists
+  the rules that answered no, the counterpart of the `firing` list a verified
+  entry carries. A verified entry still lists only what fired: one firing rule
+  settles the claim, and naming what else declined would read as doubt about a
+  verdict that is not in doubt. `NO-RULE` names nothing either, because nothing
+  was asked — an empty list means "no question was put", never "every answer
+  was no". The list is sorted, so a regenerated baseline does not churn, and it
+  costs nothing on the committed baselines, which stay byte-identical while
+  every platform reads zero unverified.
+
 ### Changed
 
 - **No knowledge-base entry, on any platform, claims a Sigma rule that no rule

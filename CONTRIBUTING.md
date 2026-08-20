@@ -87,6 +87,33 @@ one entry recognizes it either way rather than splitting into two.
 Keep `id`s unique within a file, and add a matching test in
 `crates/opseclint-core/src/analyzer.rs` when you introduce a notable technique.
 
+### Writing an `example`
+
+Without one, the command an entry is verified against is derived from its
+matcher's own literals — which is often a fragment no real rule matches, so the
+claim reads contradicted rather than untested. Author an `example` when that
+happens. Four rules, each of which has bitten:
+
+- **Write what an operator would type**, not a string built to satisfy a rule.
+  A claim is that a real rule catches the *action*; an example reverse-engineered
+  from the rule proves only that the rule matches itself.
+- **The first command on the line must be the entry's own program.** Verification
+  parses only the first command, while the self-consistency guard matches any
+  command on the line — so `foo | bar` can satisfy both while proving nothing
+  about `foo`. A pipeline is fine when the rule keys on the whole line and the
+  entry's program leads it.
+- **An `event` axis is probed by the *first* branch of an `any`.** A command
+  `example` cannot stand in for a record, so when a file or registry rule will
+  not fire, the lever is the order of the predicate — not the example. Branch
+  order does not affect matching.
+- **A rule keyed on an absolute `Image:` path cannot fire.** `Image` is
+  synthesized from the program basename, so `Image: '/usr/bin/mdfind'` is a
+  definite *false* against `/mdfind`. No example reaches it; the claim should be
+  withdrawn instead.
+
+`--verify-detections` names the rules that answered no under each `UNVERIFIED`
+entry, which is where to start: read those rules, not the whole ruleset.
+
 ## Detection-verification baselines
 
 A detection claim in the knowledge base is an assertion about the outside world,
