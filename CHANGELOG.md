@@ -8,6 +8,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Sigma's auditd rules are answered with auditd's own records.** Every one of
+  the Linux knowledge base's 24 indeterminate entries was auditd-shaped, and
+  every field they asked after was derivable from the entry's own
+  representative command — but SigmaHQ's `linux/auditd` rules declare no
+  logsource category, so they arrived at the process bucket and were asked
+  about `type`, `a0`, `comm` and `name`, none of which a synthesized
+  process-creation event has ever carried. auditd does not log an event, it
+  logs records: a `SYSCALL`, an `EXECVE`, and a `PATH` per file touched. A
+  rule's search terms describe one of them, so flattening the three would
+  invent a record carrying an `a0` *and* a `name` whose `type` is whichever we
+  picked. They are built and asked separately, and one firing record settles
+  the claim — the rule one firing Sigma rule already settles it by. Which
+  records get asked follows the rule's own field namespace: an auditd rule
+  keys on `type`/`a0`/`comm`/`name`, a process-creation rule on
+  `Image`/`CommandLine`, and asking either about the other only manufactures
+  an abstention about fields it was never going to have. Linux reads 5
+  indeterminate, down from 24, with 36 verified claims, up from 23.
+- **A `PATH` record can come from the file an entry says is written.** An
+  auditd rule watching a path is in the process bucket — it declares no
+  category — so it is asked about a command line, which for an entry like
+  `ld-preload` is the fragment its matcher keys on rather than a full `echo …
+  > /etc/ld.so.preload`. The entry's `event` axis already names the file, and
+  `--verify-detections` now hands it over, so the rule watching exactly that
+  path is answered by it.
+- **`--verify-detections` reports a path-only field apart from a missing one.**
+  A new `path-only fields` row in the cause breakdown, and `partial_fields`
+  in the JSON. The two are answered by different things: a missing field needs
+  telemetry the tool was never given, while a partial one was synthesized and
+  the rule asked about the half of it that was invented. Folding them together
+  reported `Image` as absent when it was present and merely imprecise.
+
 - **`--verify-detections` says which rules refused an `UNVERIFIED` claim.** The
   status meant "rules exist for this technique and none of them fire", and
   named none of them — so the only way to find out which had been asked was to
@@ -40,12 +71,71 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   parsing dominates the run, and evaluation of the full set does not register
   against it. Verification and `--coverage-gaps` were already drawing on the
   full set and are unchanged.
+- **A synthesized path abstains where it used to refuse.** `Image` is
+  `/{basename}`: a command line names the program but not where it lives.
+  Compared as if it were the whole truth, a rule keyed `Image:
+  '/usr/sbin/screencapture'` came out a definite `NO-FIRE`, which the
+  verification gate reads as "the ruleset refutes this claim" — and it refutes
+  nothing of the sort. An event now records which of its fields are known only
+  as far as their final path segment, and a needle put to one is answered in
+  three values. The whole of the uncertainty is the directory, so a needle
+  naming none of it is a claim about the program and the segment we have
+  decides it — `|endswith: '/curl'`, the form real rules are written in, keeps
+  both firing and refusing. A needle that does name a directory gets
+  `INDETERMINATE` when it would match were the directory right, and `NO-FIRE`
+  when its own final segment disagrees with ours, because no directory can
+  rescue a rule that names another program. A `re` pattern is not decomposable
+  that way — an anchored `^/curl$` would match the stand-in and miss the real
+  path — so it abstains outright. An observed value clears the marking, since
+  a recorded path is exact.
+- **A keyword list carrying `|all` is read as a keyword list.** Written as a
+  map so it can hold the modifier, it lowered to a comparison against a field
+  named `""` — which no event carries, so the search abstained, and silently,
+  because an empty name is filtered out of the missing-field report. Fourteen
+  SigmaHQ rules are written that way, the auditd credential search among them.
+  `|all` now means every term rather than any. The cached rule shape changed
+  with it, so the Sigma cache version moves to 5.
+- **The auditd reader keeps auditd's own field names.** It normalized `exe` to
+  `Image` and rebuilt the argument vector into a `CommandLine`, then dropped
+  the record's own names — so a recorded event answered *less* than a
+  synthesized one, which had just learned to derive an `EXECVE` record from a
+  command line. `a0`…`aN`, `comm`, `exe` and `name` now ride alongside the
+  normalized names. `exe` matters most: it is the one field prediction refuses
+  to guess, because `insmod` resolves to `/usr/bin/kmod` and the difference is
+  the basename rather than the directory.
 
 ### Changed
 
+- **The Linux knowledge base: fifteen claims adjudicated, nine verified (23 →
+  36), six withdrawn.** Once auditd rules were answered by auditd records,
+  fifteen entries stopped abstaining and gave an answer. Six needed nothing but
+  a representative that is the canonical operator form rather than the fragment
+  the matcher keys on — a rule keyed `a1|contains` has nothing to read when the
+  representative is a bare program name: `dd if=/dev/zero of=/dev/sda`, `chattr
+  -i /etc/passwd`, `tar -czf`, `tcpdump -c 100 -i eth0`, `getcap -r /`, and the
+  `bash -i >& /dev/tcp/…` one-liner SigmaHQ actually lists. `awk-system-exec`
+  gained the spelling with a space, `BEGIN {system`, which is how the rule is
+  written and how the one-liner is usually typed. `shell-profile-persist`
+  follows the `emond-persist` precedent: its `event` axis alternates, and the
+  branch its representative derives from is now `/root/.bashrc`, a path the
+  ruleset watches, with the general suffix kept behind it. Every verified claim
+  names the rule that fires and says where the rule is narrower than the entry
+  — the `dd` rule needs an `if=` source, the `chattr` rule catches clearing the
+  immutable bit and not setting it.
+- **Six Linux claims are withdrawn** because the ruleset carries nothing for
+  the action. Nothing fires on `find -exec /bin/sh`, or on a download piped to
+  a shell — the curl/wget rule wants `sh -c` plus `/tmp/`, and `Curl Usage on
+  Linux` is a claim about curl, not about the pipe. The insmod rule does not
+  cover `modprobe`. `systemctl enable` reaches neither the reload/start rule
+  nor the unit-creation rule, which needs a `PATH` record with `nametype:
+  CREATE`. `awk-system-exec` is withdrawn for a different reason worth naming:
+  the rule that catches it is tagged `attack.t1059` while the entry declares
+  `T1059.004`, and rules are indexed by exact technique id — 53 of the 98
+  ATT&CK tags on SigmaHQ's Linux rules are bare parents, so rolling them up is
+  a campaign of its own and is recorded in the README instead.
 - **No knowledge-base entry, on any platform, claims a Sigma rule that no rule
   can satisfy.** Windows reached that state in v1.4.0; Linux and macOS carried
-  40 refuted claims between them, and both are now at zero — 23 / 23 / 21
+  40 refuted claims between them, and both are now at zero — 36 / 23 / 21
   verified against the ruleset pinned in `.ci/sigma-ref`. CI enforces it
   absolutely rather than relatively: alongside the baseline comparison, a
   second baseline-free `--verify-detections --ci` run per platform fails if
@@ -66,14 +156,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   watches. `curl` keeps its claim but stops overstating it — only the
   download-piped-to-`osacompile` chain reaches a rule, and the claim now says
   which and admits plain `curl` is uncovered.
-- **A rule keyed on an absolute `Image:` path cannot be verified predictively,
-  and four macOS claims are withdrawn because of it.** `Image` is synthesized
-  from the program basename, so `Image: '/usr/sbin/screencapture'` compares
-  against `/screencapture` and resolves to a definite *false* — which is why
-  those entries read `UNVERIFIED` rather than `INDETERMINATE`. No example can
-  move them: `screencapture`, `mdfind`, `spctl-status` and
-  `gatekeeper-disable`. This is opseclint's ceiling, not a knowledge-base
-  defect, and it is recorded as such rather than papered over.
+- **Four macOS claims are withdrawn over an absolute `Image:` path** —
+  `screencapture`, `mdfind`, `spctl-status` and `gatekeeper-disable`. `Image`
+  is synthesized from the program basename, so `Image:
+  '/usr/sbin/screencapture'` compares against `/screencapture` and resolves to
+  a definite *false*, which is why those entries read `UNVERIFIED` rather than
+  `INDETERMINATE`. Read at the time as opseclint's ceiling; it was a defect,
+  fixed below, and `screencapture` and `mdfind` claim their rules again. The
+  other two are refused on their own merits and stay withdrawn.
 - **Ten further macOS claims are withdrawn** because the ruleset genuinely
   carries nothing for the action: `base64-decode`, `keychain-find`,
   `periodic-persist`, `tar-archive`, `ditto-archive`, `python-http-server`,

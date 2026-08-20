@@ -95,22 +95,62 @@ These bound what can be resolved from a **command line alone**. Since v1.2.0,
 ### Event synthesis
 
 ```rust
-struct Event { fields: HashMap<String, String>, available: HashSet<String> }
+struct Event { fields: HashMap<String, String>, partial: HashSet<&'static str> }
 fn synthesize(cmd: &Command, platform: Platform) -> Event;
 ```
 
 | Sigma field                       | Source                                             | Available |
 |-----------------------------------|----------------------------------------------------|-----------|
 | `CommandLine`                     | `cmd.raw`                                           | yes       |
-| `Image` / `OriginalFileName`      | resolved program path (+ platform extension)       | yes       |
+| `Image` / `OriginalFileName`      | resolved program path (+ platform extension)       | yes, `Image` partial |
 | `TargetFilename`                  | path-shaped args (try each; any match ⇒ hit)       | when present |
 | `ParentImage`, `User`, `Hashes`, registry/network | —                                  | no → drives `INDETERMINATE` |
 
-A `FieldMatch` on a field not in `available` evaluates to `Unknown`.
+A `FieldMatch` on a field the event does not carry evaluates to `Unknown`.
+
+**Partial fields.** `Image` is `/{basename}`: a command line names the program
+but not where it lives. Compared as if it were exact, `Image:
+'/usr/sbin/screencapture'` resolves to a definite *false*, which the
+verification gate reads as a refutation. So the field is marked partial, and a
+needle put to one is answered in three values:
+
+| needle | verdict on a partial field |
+|--------|----------------------------|
+| matches the value | `True` — unchanged; this is what `\|endswith: '/curl'` relies on |
+| names no directory, does not match | `False` — a claim about the program, which the segment answers |
+| names a directory, final segments match | `Unknown` — only the invented half stood in the way |
+| names a directory, final segments differ | `False` — no directory rescues a rule naming another program |
+| a `re` pattern | `Unknown` — an anchored `^/curl$` matches the stand-in and misses the real path, so even a hit proves nothing |
+
+### auditd records
+
+On Linux a rule may be written against auditd's records rather than a
+process-creation event: SigmaHQ's `linux/auditd` tree declares no logsource
+category, so those rules reach the process bucket and ask about `type`, `a0`,
+`comm`, `name`. auditd logs *records*, not one event, and a rule's search terms
+describe one of them — so they are synthesized and asked separately.
+
+| record   | fields | notes |
+|----------|--------|-------|
+| `EXECVE` | `type`, `a0` (partial), `a1…aN`, `CommandLine` | `CommandLine` carries the record's text, which is what an auditd keyword search reads |
+| `SYSCALL`| `type`, `comm` | `comm` is the kernel task name, truncated to 15 bytes |
+| `PATH`   | `type`, `name` (partial unless absolute) | one per file the command names, plus any the caller supplies from an entry's `event` axis |
+
+Deliberately absent, because a synthesized value would refute rules that are in
+fact satisfied: `exe` (the *resolved* executable — `insmod` is a symlink to
+`/usr/bin/kmod`, so the difference is the basename), `SYSCALL` (one call out of
+the many a process makes), and `key` (a tag on the host's own audit rule).
+
+Which records get asked follows the rule's field namespace: an auditd rule keys
+on the fields above, a process-creation rule on `Image`/`CommandLine`, and only
+the matching kind is asked. One firing record settles the rule; a record whose
+only complaint is about fields another record supplies is the wrong record
+answering and drops out rather than counting as an abstention.
 
 With `--telemetry`, the event is **ingested rather than synthesized**, so the
-last row's fields are populated from what the sensor actually recorded and
-`available` grows accordingly — the same evaluator, given a real event.
+missing fields are populated from what the sensor actually recorded — and a
+recorded value clears any partial marking, since a logged path is exact. Same
+evaluator, given a real event.
 
 ### Data model (`crates/opseclint-core/src/sigma_eval.rs`)
 
