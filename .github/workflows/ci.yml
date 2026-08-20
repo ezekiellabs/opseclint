@@ -203,11 +203,21 @@ jobs:
           SIGMA_REF: ${{ steps.sigma.outputs.ref }}
         run: |
           # For each platform, prove the knowledge base's Sigma detection claims
-          # against the pinned ruleset and fail if any previously-verified
-          # detection regressed vs the committed baseline
-          # (.ci/verified-<platform>.json). When SigmaHQ upstream legitimately
-          # shifts a verdict, move the pin and the baselines together:
+          # against the pinned ruleset. Two checks, because they fail on
+          # different things.
+          #
+          # The --diff run is relative: it fails if a verdict got worse than the
+          # committed baseline (.ci/verified-<platform>.json), if this change
+          # adds a claim the ruleset refutes, or if the refuted count rose. When
+          # SigmaHQ upstream legitimately shifts a verdict, move the pin and the
+          # baselines together:
           #   scripts/sync-sigma.sh --bump <sha|latest>
+          #
+          # The baseline-free run is absolute: it fails if *any* claim is
+          # unverified, whatever the baseline says. All three platforms read 0,
+          # and this is what holds them there — the relative check compares
+          # against a committed file, so regenerating that file would otherwise
+          # launder a refuted claim into the baseline.
           fail=0
           for plat in linux windows macos; do
             echo "== $plat =="
@@ -215,5 +225,8 @@ jobs:
               --sigma sigma-rules/rules --platform "$plat" \
               --sigma-ref "$SIGMA_REF" \
               --diff ".ci/verified-$plat.json" --ci --no-color || fail=1
+            ./target/release/opseclint --verify-detections \
+              --sigma sigma-rules/rules --platform "$plat" \
+              --sigma-ref "$SIGMA_REF" --ci --no-color >/dev/null || fail=1
           done
           exit $fail

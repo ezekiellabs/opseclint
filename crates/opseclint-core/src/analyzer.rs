@@ -779,6 +779,90 @@ mod tests {
     }
 
     #[test]
+    fn withdrawn_macos_sigma_claims_stay_withdrawn() {
+        assert_withdrawn(
+            &mac_kb(),
+            &[
+                // A rule keyed on an absolute `Image:` path can never fire
+                // predictively: the evaluator synthesizes `Image` from the
+                // program basename, so the comparison is a definite false.
+                (
+                    "screencapture",
+                    "T1113's only macOS rule is keyed `Image: /usr/sbin/screencapture`",
+                ),
+                (
+                    "mdfind",
+                    "T1083's mdfind branch is keyed `Image: /usr/bin/mdfind`, and the \
+                     sibling `find` branch requires -perm",
+                ),
+                (
+                    "spctl-status",
+                    "T1518.001's only non-csrutil rule is keyed `Image: /usr/bin/grep`",
+                ),
+                (
+                    "gatekeeper-disable",
+                    "T1553.001 carries only the xattr rule; the `spctl disable` branch \
+                     lives under T1685 and is keyed `Image: /usr/sbin/spctl` anyway, so \
+                     re-tagging would buy nothing",
+                ),
+                // The rule exists, but describes a different program.
+                (
+                    "base64-decode",
+                    "T1140's macOS rules need /openssl with /Volumes/, or /bash with \
+                     tail and an image extension",
+                ),
+                (
+                    "keychain-find",
+                    "the keychain rule's reachable branch needs ' dump-keychain ' or \
+                     ' login-keychain '; find-generic-password is not covered, which is \
+                     why keychain-dump keeps its claim and this one does not",
+                ),
+                (
+                    "periodic-persist",
+                    "T1053.003's only macOS rule is the crontab-plus-/tmp/ one",
+                ),
+                (
+                    "tar-archive",
+                    "T1560.001's only macOS rule is Disk Image Mounting Via Hdiutil",
+                ),
+                (
+                    "ditto-archive",
+                    "T1560.001's only macOS rule is Disk Image Mounting Via Hdiutil",
+                ),
+                (
+                    "python-http-server",
+                    "T1105's macOS rules are /nscurl, /chflags and osacompile; T1567's \
+                     are proxy and dns rules",
+                ),
+                (
+                    "scp-exfil",
+                    "T1048 has no macOS rule at all, and T1105's do not cover scp",
+                ),
+                // No rule for the technique in any class this entry models.
+                (
+                    "reverse-shell-devtcp",
+                    "T1059.004 has zero macOS rules, and T1071's only one requires \
+                     ParentImage endswith /installer",
+                ),
+                (
+                    "clipboard-capture",
+                    "T1115's only indexed rule is Clipboard Access Via OSAScript, and \
+                     this entry models pbpaste — SigmaHQ's pbpaste rule lives under \
+                     rules-threat-hunting/, which the gate does not index",
+                ),
+                (
+                    "netcat",
+                    "T1095 has zero macOS rules and T1071's requires ParentImage. \
+                     MacOS Network Service Scanning would fire, but it is tagged T1046 \
+                     — untrue of a bare `nc` — and its filter is the single letter 'l', \
+                     so reaching it means engineering a command line around a rule \
+                     quirk rather than describing the action",
+                ),
+            ],
+        );
+    }
+
+    #[test]
     fn withdrawn_windows_sigma_claims_stay_withdrawn() {
         assert_withdrawn(
             &win_kb(),
