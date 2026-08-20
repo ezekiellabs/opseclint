@@ -607,14 +607,18 @@ mod tests {
 
     #[test]
     fn scaffold_flags_a_dropped_negation_with_a_note() {
-        // `private-key-rsa` excludes `id_rsa.pub` via `not`, which a positive
-        // selection can't express — the scaffold must carry the review NOTE.
+        // `private-key-rsa` excludes `id_rsa.pub` via `not` on its *command*
+        // axis, which a positive selection can't express — the scaffold must
+        // carry the review NOTE. The entry also has an `event` axis and so
+        // scaffolds a second document under `file_event`; the dropped negation
+        // lives in the first, and that is the one under test here.
         let kb = kb::load(kb::Platform::LinuxAuditd).unwrap();
-        let yaml = rule_for(
+        let yaml = documents_for_entry(
             entry(&kb, "private-key-rsa"),
             kb::Platform::LinuxAuditd,
             "2026-07-29",
-        );
+        )
+        .remove(0);
         assert!(
             yaml.contains("# NOTE:"),
             "expected a review NOTE, got:\n{yaml}"

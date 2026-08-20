@@ -604,7 +604,7 @@
     },
     {
       "id": "uac-bypass-fodhelper",
-      "match": { "line": { "contains": "fodhelper" } },
+      "match": { "line": { "contains": "fodhelper" }, "event": { "class": "registry", "field": "TargetObject", "contains": "\\ms-settings\\Shell\\Open\\command" } },
       "description": "UAC bypass via fodhelper.exe auto-elevation",
       "techniques": [{ "id": "T1548.002", "name": "Abuse Elevation Control Mechanism: Bypass User Account Control" }],
       "telemetry": ["Sysmon EID 1: fodhelper.exe spawning an auto-elevated child", "Sysmon EID 13 (Registry Set) under HKCU\\Software\\Classes\\ms-settings\\shell\\open\\command"],
@@ -748,7 +748,7 @@
     },
     {
       "id": "rdp-enable",
-      "match": { "line": { "contains": "fdenytsconnections" } },
+      "match": { "line": { "contains": "fdenytsconnections" }, "event": { "class": "registry", "field": "TargetObject", "suffix": "\\fDenyTSConnections" } },
       "description": "Enabling RDP via the fDenyTSConnections registry value — remote access",
       "techniques": [{ "id": "T1021.001", "name": "Remote Services: Remote Desktop Protocol" }],
       "telemetry": ["Sysmon EID 13 (Registry Set): fDenyTSConnections set to 0"],

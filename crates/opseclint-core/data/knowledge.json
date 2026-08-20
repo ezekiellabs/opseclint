@@ -288,7 +288,7 @@
     },
     {
       "id": "selinux-disable",
-      "match": { "line": { "contains": "setenforce 0" } },
+      "match": { "line": { "contains": "setenforce 0" }, "event": { "class": "file", "field": "TargetFilename", "eq": "/sys/fs/selinux/enforce" } },
       "description": "Disabling SELinux enforcement — defense impairment",
       "techniques": [{ "id": "T1562.001", "name": "Impair Defenses: Disable or Modify Tools" }],
       "telemetry": ["execve() of setenforce", "write to /sys/fs/selinux/enforce"],
@@ -377,7 +377,7 @@
     },
     {
       "id": "private-key-rsa",
-      "match": { "line": { "all": [{ "word": "id_rsa" }, { "not": { "contains": "id_rsa.pub" } }] } },
+      "match": { "line": { "all": [{ "word": "id_rsa" }, { "not": { "contains": "id_rsa.pub" } }] }, "event": { "class": "file", "field": "TargetFilename", "suffix": "/id_rsa" } },
       "description": "Access to an SSH RSA private key — unsecured credential theft",
       "techniques": [{ "id": "T1552.004", "name": "Unsecured Credentials: Private Keys" }],
       "telemetry": ["openat() of ~/.ssh/id_rsa — auditd file watch", "read by non-ssh process"],
@@ -386,7 +386,7 @@
     },
     {
       "id": "private-key-ed25519",
-      "match": { "line": { "all": [{ "word": "id_ed25519" }, { "not": { "contains": "id_ed25519.pub" } }] } },
+      "match": { "line": { "all": [{ "word": "id_ed25519" }, { "not": { "contains": "id_ed25519.pub" } }] }, "event": { "class": "file", "field": "TargetFilename", "suffix": "/id_ed25519" } },
       "description": "Access to an SSH Ed25519 private key — unsecured credential theft",
       "techniques": [{ "id": "T1552.004", "name": "Unsecured Credentials: Private Keys" }],
       "telemetry": ["openat() of ~/.ssh/id_ed25519 — auditd file watch", "read by non-ssh process"],
@@ -499,7 +499,7 @@
     },
     {
       "id": "shell-profile-persist",
-      "match": { "line": { "contains": ".bashrc" } },
+      "match": { "line": { "contains": ".bashrc" }, "event": { "class": "file", "field": "TargetFilename", "suffix": "/.bashrc" } },
       "description": "Modifying a shell rc file (.bashrc) — logon persistence",
       "techniques": [{ "id": "T1546.004", "name": "Event Triggered Execution: Unix Shell Configuration Modification" }],
       "telemetry": ["write()/append to ~/.bashrc — auditd file watch"],
@@ -517,7 +517,7 @@
     },
     {
       "id": "at-job",
-      "match": { "program": "at" },
+      "match": { "program": "at", "event": { "class": "file", "field": "TargetFilename", "path_under": "/var/spool/at" } },
       "description": "One-off scheduled job via at — execution / persistence",
       "techniques": [{ "id": "T1053.002", "name": "Scheduled Task/Job: At" }],
       "telemetry": ["execve() of at", "spool file created under /var/spool/at|cron/atjobs"],
@@ -571,7 +571,7 @@
     },
     {
       "id": "docker-sock",
-      "match": { "line": { "contains": "docker.sock" } },
+      "match": { "line": { "contains": "docker.sock" }, "event": { "class": "file", "field": "TargetFilename", "eq": "/var/run/docker.sock" } },
       "description": "Interacting with the Docker socket — container-to-host escape vector",
       "techniques": [{ "id": "T1611", "name": "Escape to Host" }],
       "telemetry": ["connect() to /var/run/docker.sock", "container spawning a privileged sibling"],
@@ -630,7 +630,7 @@
     },
     {
       "id": "k8s-sa-token",
-      "match": { "line": { "contains": "serviceaccount/token" } },
+      "match": { "line": { "contains": "serviceaccount/token" }, "event": { "class": "file", "field": "TargetFilename", "path_under": "/var/run/secrets/kubernetes.io/serviceaccount" } },
       "description": "Reading the Kubernetes service-account token — credential theft",
       "techniques": [{ "id": "T1552.007", "name": "Unsecured Credentials: Container API" }],
       "telemetry": ["openat()/read() of /var/run/secrets/kubernetes.io/serviceaccount/token"],
@@ -666,7 +666,7 @@
     },
     {
       "id": "proc-root-escape",
-      "match": { "line": { "contains": "/proc/1/root" } },
+      "match": { "line": { "contains": "/proc/1/root" }, "event": { "class": "file", "field": "TargetFilename", "path_under": "/proc/1/root" } },
       "description": "Accessing the host filesystem via /proc/1/root — container escape",
       "techniques": [{ "id": "T1611", "name": "Escape to Host" }],
       "telemetry": ["openat() under /proc/1/root — reaching the host root filesystem from a container"],
@@ -693,7 +693,7 @@
     },
     {
       "id": "rc-local-persist",
-      "match": { "line": { "contains": "rc.local" } },
+      "match": { "line": { "contains": "rc.local" }, "event": { "class": "file", "field": "TargetFilename", "eq": "/etc/rc.local" } },
       "description": "Writing to /etc/rc.local — boot persistence",
       "techniques": [{ "id": "T1037.004", "name": "Boot or Logon Initialization Scripts: RC Scripts" }],
       "telemetry": ["write()/create() to /etc/rc.local", "auditd file watch on /etc/rc.local"],
@@ -702,7 +702,7 @@
     },
     {
       "id": "systemd-timer-persist",
-      "match": { "line": { "contains": ".timer" } },
+      "match": { "line": { "contains": ".timer" }, "event": { "class": "file", "all": [{ "any": [{ "field": "TargetFilename", "path_under": "/etc/systemd/system" }, { "field": "TargetFilename", "path_under": "/.config/systemd/user" }] }, { "field": "TargetFilename", "suffix": ".timer" }] } },
       "description": "Installing a systemd .timer unit — scheduled-task persistence",
       "techniques": [{ "id": "T1053.006", "name": "Scheduled Task/Job: Systemd Timers" }],
       "telemetry": ["write()/create() of a .timer unit under /etc/systemd/system or ~/.config/systemd/user", "systemctl enabling a timer unit"],
