@@ -744,6 +744,99 @@ mod tests {
         }
     }
 
+    /// Put a *realistic* record to the knowledge base, not the derived
+    /// representative the self-consistency guard uses.
+    ///
+    /// That guard proves an entry matches a record built from its own literals,
+    /// which a too-narrow predicate satisfies trivially — the `path_under`
+    /// representative is a `_` leaf, not `/home/op/.ssh/id_rsa`. These are the
+    /// paths a sensor actually reports, and they are the point of the `event`
+    /// axis: none of them carries a command line, so nothing else in the tool
+    /// could recognize them.
+    fn fires_on_record(kb: &KnowledgeBase, class: &str, path: &str) -> Vec<String> {
+        let mut fields = HashMap::new();
+        let field = if class == "registry" {
+            "TargetObject"
+        } else {
+            "TargetFilename"
+        };
+        fields.insert(field.to_string(), path.to_string());
+        let ingest = Ingest {
+            observations: Vec::new(),
+            skipped: 0,
+            event_observations: vec![EventObservation {
+                record: 1,
+                class: class.to_string(),
+                detail: format!("{class} {path}"),
+                event: Arc::new(fields),
+            }],
+        };
+        analyze_telemetry(&ingest, kb)
+            .findings
+            .iter()
+            .map(|f| f.rule_id.clone())
+            .collect()
+    }
+
+    #[test]
+    fn a_real_sensor_path_is_recognized_with_no_command_line() {
+        for (kb, class, path, expect) in [
+            (kb(), "file", "/home/op/.ssh/id_rsa", "private-key-rsa"),
+            (kb(), "file", "/etc/rc.local", "rc-local-persist"),
+            (
+                kb(),
+                "file",
+                "/var/run/secrets/kubernetes.io/serviceaccount/token",
+                "k8s-sa-token",
+            ),
+            (
+                kb(),
+                "file",
+                "/etc/systemd/system/evil.timer",
+                "systemd-timer-persist",
+            ),
+            (kb(), "file", "/proc/1/root/etc/passwd", "proc-root-escape"),
+            (kb(), "file", "/var/run/docker.sock", "docker-sock"),
+            (
+                mac_kb(),
+                "file",
+                "/Users/op/.ssh/authorized_keys",
+                "authorized-keys",
+            ),
+            (
+                mac_kb(),
+                "file",
+                "/etc/periodic/daily/999.backdoor",
+                "periodic-persist",
+            ),
+            (
+                win_kb(),
+                "registry",
+                "HKLM\\System\\CurrentControlSet\\Control\\Terminal Server\\fDenyTSConnections",
+                "rdp-enable",
+            ),
+        ] {
+            let fired = fires_on_record(&kb, class, path);
+            assert!(
+                fired.iter().any(|id| id == expect),
+                "`{path}` should be recognized as `{expect}`, got {fired:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_public_key_is_not_mistaken_for_a_private_one() {
+        // `suffix: "/id_rsa"` carries the exclusion that the command axis spells
+        // out with a `not`: a path ending in `id_rsa.pub` cannot end in
+        // `/id_rsa`. Worth pinning, because widening the leaf to `contains`
+        // would silently break it.
+        let fired = fires_on_record(&kb(), "file", "/home/op/.ssh/id_rsa.pub");
+        assert!(
+            !fired.iter().any(|id| id == "private-key-rsa"),
+            "a public key must not read as private-key access, got {fired:?}"
+        );
+    }
+
     #[test]
     fn withdrawn_linux_sigma_claims_stay_withdrawn() {
         assert_withdrawn(

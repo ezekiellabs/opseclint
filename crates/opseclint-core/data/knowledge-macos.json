@@ -337,7 +337,7 @@
     },
     {
       "id": "private-key-ssh",
-      "match": { "line": { "all": [{ "word": "id_rsa" }, { "not": { "contains": "id_rsa.pub" } }] } },
+      "match": { "line": { "all": [{ "word": "id_rsa" }, { "not": { "contains": "id_rsa.pub" } }] }, "event": { "class": "file", "field": "TargetFilename", "suffix": "/id_rsa" } },
       "description": "Access to an SSH RSA private key — unsecured credentials",
       "techniques": [{ "id": "T1552.004", "name": "Unsecured Credentials: Private Keys" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_OPEN of ~/.ssh/id_rsa"],
@@ -346,7 +346,7 @@
     },
     {
       "id": "private-key-ed25519",
-      "match": { "line": { "all": [{ "word": "id_ed25519" }, { "not": { "contains": "id_ed25519.pub" } }] } },
+      "match": { "line": { "all": [{ "word": "id_ed25519" }, { "not": { "contains": "id_ed25519.pub" } }] }, "event": { "class": "file", "field": "TargetFilename", "suffix": "/id_ed25519" } },
       "description": "Access to an SSH Ed25519 private key — unsecured credentials",
       "techniques": [{ "id": "T1552.004", "name": "Unsecured Credentials: Private Keys" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_OPEN of ~/.ssh/id_ed25519"],
@@ -373,7 +373,7 @@
     },
     {
       "id": "browser-cookies",
-      "match": { "line": { "contains": "cookies.binarycookies" } },
+      "match": { "line": { "contains": "cookies.binarycookies" }, "event": { "class": "file", "field": "TargetFilename", "suffix": "/Cookies.binarycookies" } },
       "description": "Reading Safari's binary cookie store — session-cookie theft",
       "techniques": [{ "id": "T1539", "name": "Steal Web Session Cookie" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_OPEN of ~/Library/Cookies/Cookies.binarycookies"],
@@ -382,7 +382,7 @@
     },
     {
       "id": "chrome-logindata",
-      "match": { "line": { "contains": "chrome/default/login data" } },
+      "match": { "line": { "contains": "chrome/default/login data" }, "event": { "class": "file", "field": "TargetFilename", "suffix": "/Chrome/Default/Login Data" } },
       "description": "Reading Chrome's Login Data store — saved-credential theft",
       "techniques": [{ "id": "T1555.003", "name": "Credentials from Password Stores: Credentials from Web Browsers" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_OPEN of ~/Library/Application Support/Google/Chrome/Default/Login Data"],
@@ -426,7 +426,7 @@
     },
     {
       "id": "crontab-persist",
-      "match": { "program": "crontab" },
+      "match": { "program": "crontab", "event": { "class": "file", "field": "TargetFilename", "path_under": "/usr/lib/cron/tabs" } },
       "example": "crontab /tmp/.cache.cron",
       "description": "Cron job listing or installation — scheduled-task persistence",
       "techniques": [{ "id": "T1053.003", "name": "Scheduled Task/Job: Cron" }],
@@ -445,7 +445,7 @@
     },
     {
       "id": "periodic-persist",
-      "match": { "line": { "contains": "/etc/periodic" } },
+      "match": { "line": { "contains": "/etc/periodic" }, "event": { "class": "file", "field": "TargetFilename", "path_under": "/etc/periodic" } },
       "description": "Dropping a periodic script — scheduled-task persistence",
       "techniques": [{ "id": "T1053.003", "name": "Scheduled Task/Job: Cron" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE under /etc/periodic/{daily,weekly,monthly}"],
@@ -462,7 +462,7 @@
     },
     {
       "id": "authorized-keys",
-      "match": { "line": { "contains": "authorized_keys" } },
+      "match": { "line": { "contains": "authorized_keys" }, "event": { "class": "file", "field": "TargetFilename", "suffix": "/.ssh/authorized_keys" } },
       "description": "Modification of SSH authorized_keys — remote-access persistence",
       "techniques": [{ "id": "T1098.004", "name": "Account Manipulation: SSH Authorized Keys" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_WRITE of ~/.ssh/authorized_keys"],

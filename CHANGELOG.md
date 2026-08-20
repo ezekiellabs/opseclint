@@ -110,6 +110,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   passing: a claim that names no real rule is the same defect whether or not
   the entry happens to verify.
 
+### Added
+
+- **Nineteen more entries recognize their action as a standalone sensor event.**
+  v1.4.0 built the whole non-execution path — ingest on all three formats,
+  standalone matching, verification against a derived record, per-log-source
+  scaffolding — and wired 13 of 233 entries to it, so in practice a file or
+  registry record with no command line matched almost nothing. Entries whose
+  `telemetry` already named a concrete record now carry the `event` axis that
+  says so: SSH private keys and `authorized_keys`, the Kubernetes
+  service-account token, `/etc/rc.local`, systemd `.timer` units, `~/.bashrc`,
+  the Docker socket, `/proc/1/root`, the `at` spool, `/sys/fs/selinux/enforce`,
+  macOS browser credential stores, `/etc/periodic`, cron tabs, and the RDP and
+  fodhelper registry values on Windows. On six auditd `PATH` records carrying no
+  command line at all, the same input went from **0 findings to 6**.
+
+  Chosen for whether the record *identifies the action on its own*: a write to
+  `/etc/rc.local` does, an outbound connection on tcp/22 does not, so `scp` and
+  `ssh` keep to the command axis rather than each claiming every SSH session in
+  a capture. The leaves are boundary-aware for the same reason — `suffix:
+  "/id_rsa"` carries the exclusion the command axis spells out with a `not`,
+  since a path ending in `id_rsa.pub` cannot end in `/id_rsa`, and a test pins
+  it.
+
+  No verdict moves and no claim is added. One measurable change: ten registry
+  rules that `uac-bypass-fodhelper` had been setting aside as a class it did not
+  model are now genuinely evaluated against its record (`inapplicable_rules` 26
+  → 16). Each of these entries also scaffolds its second rule now, under the
+  class's own logsource.
+
 ### Fixed
 
 - **The detection-verification gate could not see a claim that was never
