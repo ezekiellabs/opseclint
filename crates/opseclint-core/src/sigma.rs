@@ -31,7 +31,9 @@ const MAX_RULES_PER_FINDING: usize = 5;
 // 3: SigmaRule gained `category` (logsource), so v2 caches lack it.
 // 4: a field match is cached as its source key plus raw values and re-lowered
 //    on load, so v3 caches carry the old expanded shape.
-const CACHE_VERSION: u32 = 4;
+// 5: `Search::Keywords` gained the `|all` flag and so is cached as a struct
+//    variant; a v4 cache holds the old tuple shape.
+const CACHE_VERSION: u32 = 5;
 
 /// A resolved Sigma rule: metadata plus its parsed detection logic (when the
 /// rule could be lowered for evaluation).

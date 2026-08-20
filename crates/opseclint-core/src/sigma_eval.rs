@@ -398,7 +398,13 @@ impl FieldMatch {
 enum Search {
     Fields(Vec<FieldMatch>),
     OneOfMaps(Vec<Vec<FieldMatch>>),
-    Keywords(Vec<String>),
+    /// A bare list of terms matched against the record's text rather than any
+    /// named field. `all` is the `|all` modifier: every term must appear, not
+    /// merely one.
+    Keywords {
+        values: Vec<String>,
+        all: bool,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -620,9 +626,53 @@ fn parse_fields_map(m: &serde_norway::Mapping) -> Vec<FieldMatch> {
         .collect()
 }
 
+/// A keyword list written as a map so it can carry a modifier: the key is bare
+/// modifiers with no field name at all, as in
+///
+/// ```yaml
+/// keywords:
+///     '|all':
+///         - 'grep'
+///         - 'password'
+/// ```
+///
+/// Read as an ordinary field match this is a comparison against a field named
+/// `""`, which no event carries — so the search abstains, and does so silently,
+/// since an empty name is filtered out of the missing-field report. Fourteen
+/// SigmaHQ rules are written this way, among them the auditd credential-search
+/// rule, and every one of them was answered "I cannot tell" about a question a
+/// command line settles outright.
+///
+/// Only `|all` is recognized. Any other modifier falls through to the field
+/// path, where it is reported as unsupported rather than quietly ignored.
+fn parse_keyword_map(m: &serde_norway::Mapping) -> Option<Search> {
+    if m.len() != 1 {
+        return None;
+    }
+    let (key, val) = m.iter().next()?;
+    let key = key.as_str()?;
+    let mut tokens = key.split('|');
+    if !tokens.next()?.is_empty() {
+        return None;
+    }
+    let tokens: Vec<&str> = tokens.collect();
+    if !tokens.iter().all(|t| *t == "all") {
+        return None;
+    }
+    let Value::Sequence(seq) = val else {
+        return None;
+    };
+    Some(Search::Keywords {
+        values: seq.iter().filter_map(value_to_string).collect(),
+        all: !tokens.is_empty(),
+    })
+}
+
 fn parse_search(v: &Value) -> Option<Search> {
     match v {
-        Value::Mapping(m) => Some(Search::Fields(parse_fields_map(m))),
+        Value::Mapping(m) => {
+            Some(parse_keyword_map(m).unwrap_or_else(|| Search::Fields(parse_fields_map(m))))
+        }
         Value::Sequence(seq) => {
             if !seq.is_empty() && seq.iter().all(|x| x.is_mapping()) {
                 let groups = seq
@@ -631,9 +681,10 @@ fn parse_search(v: &Value) -> Option<Search> {
                     .collect();
                 Some(Search::OneOfMaps(groups))
             } else {
-                Some(Search::Keywords(
-                    seq.iter().filter_map(value_to_string).collect(),
-                ))
+                Some(Search::Keywords {
+                    values: seq.iter().filter_map(value_to_string).collect(),
+                    all: false,
+                })
             }
         }
         _ => None,
@@ -961,6 +1012,121 @@ fn synthesize(cmd: &Command, platform: Platform) -> Event<'static> {
     }
 }
 
+/// The records one auditd event is made of, synthesized from a command line.
+///
+/// auditd does not log an event; it logs several *records* — a `SYSCALL`, an
+/// `EXECVE`, a `PATH` per file touched — and a Sigma rule's search terms all
+/// describe one of them. `type: 'EXECVE'` with `a0` and `type: 'PATH'` with
+/// `name` are two different records, so flattening them into one event would
+/// invent a record that carries an `a0` *and* a `name` and reads `type` as
+/// whichever we picked. Each is built separately and asked separately instead.
+///
+/// Three fields a real record carries are deliberately absent, because a
+/// command line does not imply them and a synthesized value would refute rules
+/// that are in fact satisfied:
+///
+/// * `exe` is the *resolved* executable. `insmod` is a symlink to
+///   `/usr/bin/kmod`, so the difference is not the directory but the basename —
+///   the partial-path machinery cannot express it, and SigmaHQ's insmod rule
+///   keys on exactly that. Unknown is the honest answer.
+/// * `SYSCALL` names one syscall out of the many a process makes. An exec
+///   implies `execve` and nothing else; a rule keyed `SYSCALL: 'sysinfo'` is
+///   asking about a call `ps` really does make and we simply did not record.
+/// * `key` is the tag on the site's own audit rule, which is a property of the
+///   host's configuration rather than of the action.
+fn auditd_records(cmd: &Command, files: &[&str]) -> Vec<Event<'static>> {
+    let mut records = Vec::new();
+
+    // EXECVE: the argument vector as auditd splits it. `a0` is argv[0], which
+    // may be typed as a bare name or an absolute path — partial for the same
+    // reason `Image` is. `a1…aN` are the arguments verbatim, so they are exact.
+    //
+    // `CommandLine` rides along because auditd rules mix `type: 'EXECVE'` with
+    // a keyword list, and a keyword search over an auditd record is a search
+    // over its text — which is the argument vector. Without it a rule like
+    // SigmaHQ's "Credentials In Files" would abstain on the half of itself that
+    // a command line answers completely.
+    let mut execve = HashMap::new();
+    execve.insert("type".to_string(), "EXECVE".to_string());
+    execve.insert("a0".to_string(), cmd.program.clone());
+    for (i, arg) in cmd.args.iter().enumerate() {
+        execve.insert(format!("a{}", i + 1), arg.clone());
+    }
+    execve.insert("CommandLine".to_string(), cmd.raw.clone());
+    records.push(Event {
+        fields: Cow::Owned(execve),
+        partial: HashSet::from(["a0"]),
+    });
+
+    // SYSCALL: `comm` is the kernel's task name — the basename of what was
+    // executed, truncated to 15 characters. Unlike `exe` it survives a symlink,
+    // so it is exact.
+    let mut syscall = HashMap::new();
+    syscall.insert("type".to_string(), "SYSCALL".to_string());
+    syscall.insert("comm".to_string(), truncate_comm(&cmd.program));
+    records.push(Event {
+        fields: Cow::Owned(syscall),
+        partial: HashSet::new(),
+    });
+
+    // PATH: one record per file the action touches — the ones the command names,
+    // plus any the caller knows of from the entry's `event` axis. A relative
+    // path is partial: the segment is known, the directory it resolves against
+    // is not.
+    let mut operands = path_operands(cmd);
+    for f in files {
+        if !operands.iter().any(|p| p == f) {
+            operands.push((*f).to_string());
+        }
+    }
+    for operand in operands {
+        let absolute = operand.starts_with('/');
+        let mut path = HashMap::new();
+        path.insert("type".to_string(), "PATH".to_string());
+        path.insert("name".to_string(), operand);
+        records.push(Event {
+            fields: Cow::Owned(path),
+            partial: if absolute {
+                HashSet::new()
+            } else {
+                HashSet::from(["name"])
+            },
+        });
+    }
+
+    records
+}
+
+/// The kernel's 16-byte `comm`, minus its terminator. A longer program name is
+/// truncated in the record, so a rule keyed on the full name genuinely does not
+/// match one — reproducing that is fidelity, not a limitation.
+fn truncate_comm(program: &str) -> String {
+    program.chars().take(15).collect()
+}
+
+/// The files a command names, as an auditd `PATH` record would report them.
+///
+/// Over-approximate on purpose: a token that looks like a path is taken as one,
+/// since the alternative is deriving no `PATH` record at all and abstaining on
+/// every rule that keys `name`. Flags are skipped, a `key=/path` operand yields
+/// its value (`dd of=/dev/sda`), and a URL is not a file.
+fn path_operands(cmd: &Command) -> Vec<String> {
+    let mut out = Vec::new();
+    for arg in &cmd.args {
+        if arg.starts_with('-') || arg.contains("://") {
+            continue;
+        }
+        let candidate = match arg.split_once('=') {
+            Some((_, value)) => value,
+            None => arg.as_str(),
+        };
+        if candidate.contains('/') && !out.iter().any(|p| p == candidate) {
+            out.push(candidate.to_string());
+        }
+    }
+    out
+}
+
 /// The Windows dash characters `windash` treats as interchangeable. The set
 /// includes `-` and `/` themselves, so a value authored either way gains the
 /// other's form.
@@ -1210,10 +1376,16 @@ fn eval_search(s: &Search, event: &Event) -> Ternary {
                 .iter()
                 .map(|g| and_all(g.iter().map(|f| eval_field(f, event)))),
         ),
-        Search::Keywords(kws) => match event.get("CommandLine") {
+        Search::Keywords { values, all } => match event.get("CommandLine") {
             Some(cl) => {
                 let cl = cl.to_lowercase();
-                if kws.iter().any(|k| keyword_match(&cl, &k.to_lowercase())) {
+                let mut hits = values.iter().map(|k| keyword_match(&cl, &k.to_lowercase()));
+                let matched = if *all {
+                    hits.all(|h| h)
+                } else {
+                    hits.any(|h| h)
+                };
+                if matched {
                     Ternary::True
                 } else {
                     Ternary::False
@@ -1283,7 +1455,7 @@ fn collect_fields(s: &Search, out: &mut HashSet<String>) {
                 out.extend(g.iter().map(|f| f.field.clone()));
             }
         }
-        Search::Keywords(_) => {
+        Search::Keywords { .. } => {
             out.insert("CommandLine".to_string());
         }
     }
@@ -1308,7 +1480,7 @@ fn collect_unsupported(s: &Search, mods: &mut HashSet<String>, null_values: &mut
     match s {
         Search::Fields(fms) => scan(fms),
         Search::OneOfMaps(groups) => groups.iter().for_each(|g| scan(g)),
-        Search::Keywords(_) => {}
+        Search::Keywords { .. } => {}
     }
 }
 
@@ -1331,7 +1503,142 @@ fn unsupported_features(rule: &DetectionRule) -> (Vec<String>, bool) {
 /// mode. A rule keyed on a field a static command line cannot supply (a parent,
 /// a user, an integrity level, a hash) evaluates to `Indeterminate`.
 pub fn evaluate(rule: &DetectionRule, cmd: &Command, platform: Platform) -> Verdict {
+    evaluate_touching(rule, cmd, platform, &[])
+}
+
+/// [`evaluate`], told which files the action touches beyond the ones its command
+/// line names.
+///
+/// A knowledge-base entry's `event` axis says what file the action writes —
+/// `/etc/ld.so.preload` for the preload-injection entry — and that is the file
+/// auditd would emit a `PATH` record for. The command line often does not
+/// contain it: the entry matches on the *line* containing `ld.so.preload`, and
+/// its representative is that fragment rather than a full `echo … > /etc/…`.
+/// Without this the `PATH` rule watching exactly that file would be told the
+/// action touches nothing and would refuse a claim it in fact substantiates.
+pub fn evaluate_touching(
+    rule: &DetectionRule,
+    cmd: &Command,
+    platform: Platform,
+    files: &[&str],
+) -> Verdict {
+    // On Linux a rule may be written against auditd's own records rather than
+    // against a process-creation event — SigmaHQ carries a whole `linux/auditd`
+    // tree, and those rules declare no logsource category, so they arrive here
+    // and are asked about `type`, `a0`, `comm`, `name`.
+    if platform == Platform::LinuxAuditd && auditd_shaped(rule) {
+        return fold_records(rule, &auditd_records(cmd, files));
+    }
     eval_event(rule, &synthesize(cmd, platform))
+}
+
+/// Fields that exist only in an auditd record, and so identify a rule written
+/// against one. `a0`, `a1`, … are the argument vector and are matched by shape.
+///
+/// The two namespaces do not mix: an auditd rule keys on these, a
+/// process-creation rule keys on `Image` / `CommandLine`. Asking the process
+/// event about an auditd rule produces an abstention about fields it was never
+/// going to have, and asking an auditd record about a process-creation rule
+/// does the same in reverse. So the rule picks which kind of event it is about,
+/// and only that kind is asked.
+const AUDITD_FIELDS: [&str; 8] = [
+    "type", "comm", "exe", "key", "name", "nametype", "SYSCALL", "argc",
+];
+
+fn auditd_shaped(rule: &DetectionRule) -> bool {
+    referenced_fields(rule).iter().any(|f| {
+        AUDITD_FIELDS.contains(&f.as_str())
+            || f.strip_prefix('a')
+                .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+    })
+}
+
+/// Fold one auditd rule's verdict across the records of a single event.
+///
+/// One firing record settles it, the same way one firing rule settles a claim:
+/// the question is whether a real rule catches the action, not whether every
+/// record the action produces separately matches.
+///
+/// The subtlety is on the other side. A rule written against `type: 'PATH'` and
+/// `name` is not a question about the `EXECVE` record, and that record's "I
+/// carry neither of those" is not an abstention — it is the wrong record
+/// answering. So a record whose only complaint is about fields another record
+/// *does* supply drops out of the fold entirely, exactly as a rule from another
+/// logsource is set aside rather than counted indeterminate. What is left are
+/// the abstentions someone genuinely could not answer.
+fn fold_records(rule: &DetectionRule, records: &[Event]) -> Verdict {
+    let verdicts: Vec<Verdict> = records.iter().map(|e| eval_event(rule, e)).collect();
+
+    if let Some(fired) = verdicts.iter().find(|v| v.outcome == Outcome::Fires) {
+        return fired.clone();
+    }
+
+    let supplied: HashSet<&str> = records
+        .iter()
+        .flat_map(|e| e.fields.keys().map(String::as_str))
+        .collect();
+    // "This record was the wrong one to ask": indeterminate purely because of
+    // fields that live on another record, with nothing else unresolved.
+    let asked_elsewhere = |v: &Verdict| {
+        v.outcome == Outcome::Indeterminate
+            && v.blocking_modifiers.is_empty()
+            && v.partial_fields.is_empty()
+            && !v.null_value_match
+            && !v.missing_fields.is_empty()
+            && v.missing_fields
+                .iter()
+                .all(|f| supplied.contains(f.as_str()))
+    };
+    let kept: Vec<&Verdict> = verdicts.iter().filter(|v| !asked_elsewhere(v)).collect();
+
+    if !kept.is_empty() && kept.iter().all(|v| v.outcome == Outcome::NoFire) {
+        return Verdict {
+            outcome: Outcome::NoFire,
+            missing_fields: Vec::new(),
+            partial_fields: Vec::new(),
+            blocking_modifiers: Vec::new(),
+            null_value_match: false,
+        };
+    }
+
+    // Nothing survived: every record was the wrong one to ask, which means the
+    // rule spans records no single one of ours carries together. Unfiltered
+    // causes, so the abstention still says what it was waiting on.
+    let causes: Vec<&Verdict> = if kept.is_empty() {
+        verdicts.iter().collect()
+    } else {
+        kept
+    };
+    let mut missing_fields: Vec<String> = causes
+        .iter()
+        .flat_map(|v| v.missing_fields.iter())
+        .cloned()
+        .collect();
+    let mut partial_fields: Vec<String> = causes
+        .iter()
+        .flat_map(|v| v.partial_fields.iter())
+        .cloned()
+        .collect();
+    let mut blocking_modifiers: Vec<String> = causes
+        .iter()
+        .flat_map(|v| v.blocking_modifiers.iter())
+        .cloned()
+        .collect();
+    for list in [
+        &mut missing_fields,
+        &mut partial_fields,
+        &mut blocking_modifiers,
+    ] {
+        list.sort();
+        list.dedup();
+    }
+    Verdict {
+        outcome: Outcome::Indeterminate,
+        missing_fields,
+        partial_fields,
+        blocking_modifiers,
+        null_value_match: causes.iter().any(|v| v.null_value_match),
+    }
 }
 
 /// Evaluate a rule against a *real recorded* event: the synthesized base
@@ -1510,6 +1817,158 @@ detection:
         );
         assert_eq!(
             verdict(yaml, "wget http://example.com/x").outcome,
+            Outcome::NoFire
+        );
+    }
+
+    /// SigmaHQ's auditd rules, in the two shapes that matter: an `EXECVE`
+    /// record's argument vector, and a `SYSCALL` record's task name.
+    const AUDITD_EXECVE: &str = r#"
+title: Discovery via auditd
+id: r-execve
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection:
+        type: 'EXECVE'
+        a0: 'chattr'
+        a1|contains: '+i'
+    condition: selection
+"#;
+
+    #[test]
+    fn an_auditd_execve_rule_fires_on_the_synthesized_record() {
+        // Neither `type` nor `a0` exists on a process-creation event, so this
+        // rule used to be asked a question it could not hear.
+        let v = verdict(AUDITD_EXECVE, "chattr +i /etc/passwd");
+        assert_eq!(v.outcome, Outcome::Fires);
+    }
+
+    #[test]
+    fn an_auditd_execve_rule_still_refuses_the_wrong_arguments() {
+        let v = verdict(AUDITD_EXECVE, "chattr -i /etc/passwd");
+        assert_eq!(v.outcome, Outcome::NoFire);
+    }
+
+    #[test]
+    fn an_auditd_path_record_comes_from_the_file_the_command_names() {
+        let yaml = r#"
+title: Preload persistence
+id: r-path
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection:
+        type: 'PATH'
+        name: '/etc/ld.so.preload'
+    condition: selection
+"#;
+        assert_eq!(
+            verdict(yaml, "echo /tmp/x.so > /etc/ld.so.preload").outcome,
+            Outcome::Fires
+        );
+    }
+
+    #[test]
+    fn a_file_the_entry_names_gets_its_own_path_record() {
+        // The command line is a fragment — the entry matches on the *line*
+        // containing `ld.so.preload` — so the file comes from the caller, and
+        // the rule watching exactly that path is answered rather than refused.
+        let yaml = r#"
+title: Preload modification
+id: r-path-2
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection:
+        type: 'PATH'
+        name: '/etc/ld.so.preload'
+    condition: selection
+"#;
+        let rule = parse_rule(yaml).expect("rule parses");
+        let cmd = cmd("ld.so.preload");
+        assert_eq!(
+            evaluate(&rule, &cmd, Platform::LinuxAuditd).outcome,
+            Outcome::NoFire
+        );
+        assert_eq!(
+            evaluate_touching(&rule, &cmd, Platform::LinuxAuditd, &["/etc/ld.so.preload"]).outcome,
+            Outcome::Fires
+        );
+    }
+
+    #[test]
+    fn a_resolved_executable_is_not_guessed_from_the_program_name() {
+        // `insmod` is a symlink to `/usr/bin/kmod`, so auditd's `exe` differs
+        // from the command in its *basename*, not merely its directory —
+        // synthesizing one would refute a rule that really does fire.
+        let yaml = r#"
+title: Module load
+id: r-exe
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection:
+        type: 'SYSCALL'
+        comm: 'insmod'
+        exe: '/usr/bin/kmod'
+    condition: selection
+"#;
+        let v = verdict(yaml, "insmod /tmp/rootkit.ko");
+        assert_eq!(v.outcome, Outcome::Indeterminate);
+        assert_eq!(v.missing_fields, vec!["exe".to_string()]);
+    }
+
+    #[test]
+    fn a_process_creation_rule_is_not_answered_by_an_auditd_record() {
+        // The auditd records carry no `Image`, and folding their abstention in
+        // would turn a decided verdict indeterminate. A rule that keys on
+        // fields the process event has is the process event's question.
+        let yaml = r#"
+title: Curl
+id: r-proc
+detection:
+    selection:
+        Image|endswith: '/curl'
+    condition: selection
+"#;
+        assert_eq!(
+            verdict(yaml, "wget http://example.com/x").outcome,
+            Outcome::NoFire
+        );
+    }
+
+    #[test]
+    fn a_keyword_list_carrying_the_all_modifier_is_still_a_keyword_list() {
+        // Written as a map so it can hold `|all`, this used to lower to a
+        // comparison against a field named "" — an abstention that did not even
+        // say what it was waiting on. Fourteen SigmaHQ rules are written so.
+        let yaml = r#"
+title: Credentials in files
+id: r-kw-all
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection:
+        type: 'EXECVE'
+    keywords:
+        '|all':
+            - 'grep'
+            - 'password'
+    condition: selection and keywords
+"#;
+        assert_eq!(
+            verdict(yaml, "grep -r password /etc").outcome,
+            Outcome::Fires
+        );
+        // `all` means every term, not any: without the second one it misses.
+        assert_eq!(
+            verdict(yaml, "grep -r secret /etc").outcome,
             Outcome::NoFire
         );
     }
