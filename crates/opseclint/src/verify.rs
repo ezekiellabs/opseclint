@@ -68,6 +68,18 @@ impl Status {
             Status::Removed => 0,
         }
     }
+
+    /// True when the ruleset actively *refutes* the claim: rules for the
+    /// technique exist, were asked, and none fire. Distinct from the merely
+    /// unproven statuses — `NoRule`, `NotApplicable` and `Indeterminate` mean
+    /// nobody answered; `Unverified` means the answer was no. Only the latter
+    /// is a defect the knowledge base owns.
+    ///
+    /// Deliberately not written as `rank() == 0`: `Removed` ranks 0 too, so a
+    /// rank test would read every deletion as a refuted claim.
+    fn is_refuted(self) -> bool {
+        matches!(self, Status::Unverified)
+    }
 }
 
 fn is_zero(n: &usize) -> bool {
@@ -569,23 +581,91 @@ pub struct StatusChange {
     pub to: Status,
 }
 
+/// A claim in the current run with no baseline row at all. Not a
+/// `StatusChange`: there is no `from`, and inventing one would put a transition
+/// in the output that never happened.
+#[derive(Debug, Clone, Serialize)]
+pub struct NewClaim {
+    pub id: String,
+    pub description: String,
+    pub status: Status,
+}
+
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct VerifyDelta {
-    /// Entries that were Verified in the baseline but no longer are.
+    /// Entries whose verdict got worse than the baseline's, by `Status::rank`.
     pub regressions: Vec<StatusChange>,
     /// Entries that became Verified (were not before).
     pub improvements: Vec<StatusChange>,
+    /// Entries present in the current run but absent from the baseline. *Every*
+    /// new claim is listed, not only the refuted ones: a new entry means the
+    /// committed baseline is now stale, and that is worth saying even when the
+    /// claim verifies. Only the refuted ones fail the gate.
+    ///
+    /// Always empty under `sigma drift`, which varies the ruleset and not the
+    /// knowledge base, so baseline and current always share their id set.
+    pub introduced: Vec<NewClaim>,
     pub baseline_verified: usize,
     pub current_verified: usize,
+    pub baseline_unverified: usize,
+    pub current_unverified: usize,
 }
 
 impl VerifyDelta {
+    /// An entry that existed before got worse. Keeps its narrow meaning — a
+    /// newly-added bad claim is not a regression, because nothing regressed.
     pub fn has_regressed(&self) -> bool {
         !self.regressions.is_empty()
     }
 
+    /// This change adds a claim the ruleset refutes. Not a regression: there
+    /// was nothing to fall from. Equally a build failure.
+    pub fn has_unsubstantiated_additions(&self) -> bool {
+        self.introduced.iter().any(|n| n.status.is_refuted())
+    }
+
+    /// The whole `--ci` contract: nothing got worse, no new claim is refuted,
+    /// and the refuted count never rises. The third term is implied by the
+    /// first two today — every route into `Unverified` is either a rank drop or
+    /// a new row — and is kept as the ratchet that becomes a zero floor for
+    /// free once the count reaches zero.
+    pub fn fails_gate(&self) -> bool {
+        self.has_regressed()
+            || self.has_unsubstantiated_additions()
+            || self.current_unverified > self.baseline_unverified
+    }
+
+    /// Why the gate failed, in the caller's words. Lives here so the wording
+    /// sits beside the predicate it explains.
+    pub fn gate_reason(&self) -> String {
+        let mut parts = Vec::new();
+        if self.has_regressed() {
+            parts.push(format!(
+                "{} detection(s) got worse than the baseline",
+                self.regressions.len()
+            ));
+        }
+        let refuted = self
+            .introduced
+            .iter()
+            .filter(|n| n.status.is_refuted())
+            .count();
+        if refuted > 0 {
+            parts.push(format!(
+                "{refuted} new claim(s) the ruleset does not substantiate"
+            ));
+        }
+        if self.current_unverified > self.baseline_unverified {
+            parts.push(format!(
+                "the unverified count rose from {} to {}",
+                self.baseline_unverified, self.current_unverified
+            ));
+        }
+        parts.join("; ")
+    }
+
     pub fn is_empty(&self) -> bool {
-        self.regressions.is_empty() && self.improvements.is_empty()
+        self.regressions.is_empty() && self.improvements.is_empty() && self.introduced.is_empty()
     }
 }
 
@@ -599,17 +679,35 @@ pub fn compute_delta(baseline: &VerifyReport, current: &VerifyReport) -> VerifyD
     let mut delta = VerifyDelta {
         baseline_verified: baseline.count(Status::Verified),
         current_verified: current.count(Status::Verified),
+        baseline_unverified: baseline.count(Status::Unverified),
+        current_unverified: current.count(Status::Unverified),
         ..Default::default()
     };
     for (id, cr) in &curr {
-        let Some(br) = base.get(id) else { continue };
-        if br.status == Status::Verified && cr.status != Status::Verified {
+        // No baseline row at all: the claim is new, so there is no transition
+        // to report — only the claim and how it currently reads.
+        let Some(br) = base.get(id) else {
+            delta.introduced.push(NewClaim {
+                id: cr.id.clone(),
+                description: cr.description.clone(),
+                status: cr.status,
+            });
+            continue;
+        };
+        // Rank, not equality against `Verified`: `no-rule → unverified` and
+        // `indeterminate → unverified` are worsenings too, and the old test
+        // saw neither.
+        if cr.status.rank() < br.status.rank() {
             delta.regressions.push(StatusChange {
                 id: cr.id.clone(),
                 description: cr.description.clone(),
                 from: br.status,
                 to: cr.status,
             });
+        // Deliberately *not* the rank mirror of the arm above. Under `rank`,
+        // `Unverified → NoRule` is an increase — but re-pointing an entry at a
+        // technique nothing covers proves nothing, and labelling it `VERIFIED`
+        // in the output would be a lie. Verification is the only improvement.
         } else if br.status != Status::Verified && cr.status == Status::Verified {
             delta.improvements.push(StatusChange {
                 id: cr.id.clone(),
@@ -622,6 +720,11 @@ pub fn compute_delta(baseline: &VerifyReport, current: &VerifyReport) -> VerifyD
     // A previously-verified entry that vanished from the current run is also a
     // regression: the claim is no longer being proven at all, so the gate must
     // not pass just because the id disappeared.
+    //
+    // Stays keyed on `Verified` rather than on rank, and that is load-bearing:
+    // withdrawing a claim the ruleset refutes is the remedy for an `UNVERIFIED`
+    // entry, so a gate that punished a vanished `Unverified` row would block
+    // its own fix.
     for (id, br) in &base {
         if br.status == Status::Verified && !curr.contains_key(id) {
             delta.regressions.push(StatusChange {
@@ -634,6 +737,10 @@ pub fn compute_delta(baseline: &VerifyReport, current: &VerifyReport) -> VerifyD
     }
     delta.regressions.sort_by(|a, b| a.id.cmp(&b.id));
     delta.improvements.sort_by(|a, b| a.id.cmp(&b.id));
+    // Worst status first, then id — the ordering `verify` itself reports in.
+    delta
+        .introduced
+        .sort_by(|a, b| a.status.rank().cmp(&b.status.rank()).then(a.id.cmp(&b.id)));
     delta
 }
 
@@ -643,8 +750,11 @@ pub fn render_delta(delta: &VerifyDelta, color: bool) -> String {
     let reset = c(theme::RESET);
     let mut out = String::new();
     out.push_str(&format!(
-        "detection verification vs baseline: {} → {} verified\n",
-        delta.baseline_verified, delta.current_verified
+        "detection verification vs baseline: {} → {} verified · {} → {} unverified\n",
+        delta.baseline_verified,
+        delta.current_verified,
+        delta.baseline_unverified,
+        delta.current_unverified,
     ));
     if delta.is_empty() {
         out.push_str("  no change\n");
@@ -659,6 +769,22 @@ pub fn render_delta(delta: &VerifyDelta, color: bool) -> String {
             r.from.label(),
             r.to.label(),
             r.description,
+        ));
+    }
+    // Marked apart from a regression on purpose: one says a claim that used to
+    // hold stopped holding, the other says a claim arrived that never held.
+    // The parenthetical names no transition, because none happened.
+    for n in &delta.introduced {
+        let (mark, label, col) = if n.status.is_refuted() {
+            ("✗", "NEW CLAIM ", c(theme::RED))
+        } else {
+            ("·", "new       ", c(theme::COMMENT))
+        };
+        out.push_str(&format!(
+            "  {col}{mark} {label}{reset} {} ({} — no baseline entry)\n      {}\n",
+            n.id,
+            n.status.label(),
+            n.description,
         ));
     }
     for r in &delta.improvements {
@@ -758,6 +884,29 @@ mod tests {
             .iter()
             .find(|r| r.id == id)
             .unwrap_or_else(|| panic!("no result for {id}"))
+    }
+
+    /// A minimal `VerifyResult` for the delta tests, which care about `id` and
+    /// `status` and nothing else.
+    fn vr(id: &str, status: Status) -> VerifyResult {
+        VerifyResult {
+            id: id.into(),
+            description: format!("{id} desc"),
+            techniques: vec!["T1000".into()],
+            claimed: vec!["some rule".into()],
+            status,
+            firing: vec![],
+            because: IndeterminateCause::default(),
+        }
+    }
+
+    fn report_of(results: Vec<VerifyResult>) -> VerifyReport {
+        VerifyReport {
+            platform: "linux".into(),
+            sigma_ref: None,
+            rules_indexed: 3,
+            results,
+        }
     }
 
     #[test]
@@ -1097,72 +1246,173 @@ mod tests {
 
     #[test]
     fn delta_flags_regression_and_improvement() {
-        let mk = |id: &str, status: Status| VerifyResult {
-            id: id.into(),
-            description: format!("{id} desc"),
-            techniques: vec!["T1000".into()],
-            claimed: vec!["some rule".into()],
-            status,
-            firing: vec![],
-            because: IndeterminateCause::default(),
-        };
-        let baseline = VerifyReport {
-            platform: "linux".into(),
-            sigma_ref: None,
-            rules_indexed: 3,
-            results: vec![
-                mk("a", Status::Verified),   // will regress
-                mk("b", Status::Unverified), // will improve
-                mk("c", Status::Verified),   // unchanged
-            ],
-        };
-        let current = VerifyReport {
-            platform: "linux".into(),
-            sigma_ref: None,
-            rules_indexed: 3,
-            results: vec![
-                mk("a", Status::Unverified),
-                mk("b", Status::Verified),
-                mk("c", Status::Verified),
-            ],
-        };
+        let baseline = report_of(vec![
+            vr("a", Status::Verified),   // will regress
+            vr("b", Status::Unverified), // will improve
+            vr("c", Status::Verified),   // unchanged
+        ]);
+        let current = report_of(vec![
+            vr("a", Status::Unverified),
+            vr("b", Status::Verified),
+            vr("c", Status::Verified),
+        ]);
         let delta = compute_delta(&baseline, &current);
         assert!(delta.has_regressed());
         assert_eq!(delta.regressions.len(), 1);
         assert_eq!(delta.regressions[0].id, "a");
         assert_eq!(delta.improvements.len(), 1);
         assert_eq!(delta.improvements[0].id, "b");
+        assert!(delta.fails_gate());
     }
 
     #[test]
     fn delta_flags_vanished_verified_entry() {
         // A previously-verified entry missing from the current run must count as
         // a regression, not silently pass the gate.
-        let mk = |id: &str, status: Status| VerifyResult {
-            id: id.into(),
-            description: format!("{id} desc"),
-            techniques: vec!["T1000".into()],
-            claimed: vec!["some rule".into()],
-            status,
-            firing: vec![],
-            because: IndeterminateCause::default(),
-        };
-        let baseline = VerifyReport {
-            platform: "linux".into(),
-            sigma_ref: None,
-            rules_indexed: 1,
-            results: vec![mk("gone", Status::Verified), mk("stay", Status::Verified)],
-        };
-        let current = VerifyReport {
-            platform: "linux".into(),
-            sigma_ref: None,
-            rules_indexed: 1,
-            results: vec![mk("stay", Status::Verified)],
-        };
+        let baseline = report_of(vec![
+            vr("gone", Status::Verified),
+            vr("stay", Status::Verified),
+        ]);
+        let current = report_of(vec![vr("stay", Status::Verified)]);
         let delta = compute_delta(&baseline, &current);
         assert!(delta.has_regressed());
         assert_eq!(delta.regressions.len(), 1);
         assert_eq!(delta.regressions[0].id, "gone");
         assert_eq!(delta.regressions[0].to, Status::Removed);
+        // A removal is a regression, never a new claim.
+        assert!(delta.introduced.is_empty());
+        assert!(delta.fails_gate());
+    }
+
+    #[test]
+    fn delta_flags_a_new_unverified_claim() {
+        // The hole this gate closes: a claim added by a change has no baseline
+        // row, so the old `by_id` lookup missed it and it passed CI silently.
+        let baseline = report_of(vec![vr("a", Status::Verified)]);
+        let current = report_of(vec![vr("a", Status::Verified), vr("b", Status::Unverified)]);
+        let delta = compute_delta(&baseline, &current);
+        // It is not a regression — nothing fell. The two stay distinguishable.
+        assert!(!delta.has_regressed());
+        assert_eq!(delta.introduced.len(), 1);
+        assert_eq!(delta.introduced[0].id, "b");
+        assert_eq!(delta.introduced[0].status, Status::Unverified);
+        assert!(delta.has_unsubstantiated_additions());
+        assert!(delta.fails_gate());
+    }
+
+    #[test]
+    fn a_new_claim_that_verifies_is_reported_but_does_not_fail() {
+        // Worth saying (the committed baseline is now stale) without being a
+        // build failure.
+        let baseline = report_of(vec![vr("a", Status::Verified)]);
+        let current = report_of(vec![vr("a", Status::Verified), vr("c", Status::Verified)]);
+        let delta = compute_delta(&baseline, &current);
+        assert!(!delta.fails_gate());
+        assert!(!delta.is_empty());
+        assert!(!render_delta(&delta, false).contains("no change"));
+    }
+
+    #[test]
+    fn delta_flags_a_worsening_that_never_touched_verified() {
+        // The other half of the hole: both of these were invisible when the
+        // test was `baseline == Verified && current != Verified`.
+        let baseline = report_of(vec![
+            vr("b", Status::NoRule),
+            vr("d", Status::Indeterminate),
+        ]);
+        let current = report_of(vec![
+            vr("b", Status::Unverified),
+            vr("d", Status::Unverified),
+        ]);
+        let delta = compute_delta(&baseline, &current);
+        assert_eq!(delta.regressions.len(), 2);
+        assert_eq!(delta.regressions[0].from, Status::NoRule);
+        assert_eq!(delta.regressions[1].from, Status::Indeterminate);
+        assert!(delta.fails_gate());
+    }
+
+    #[test]
+    fn a_deleted_unverified_claim_is_not_a_regression() {
+        // This is how a refuted claim gets fixed: withdraw it. A gate that
+        // punished the withdrawal would block its own remedy.
+        let baseline = report_of(vec![
+            vr("gone", Status::Unverified),
+            vr("stay", Status::Verified),
+        ]);
+        let current = report_of(vec![vr("stay", Status::Verified)]);
+        let delta = compute_delta(&baseline, &current);
+        assert!(!delta.has_regressed());
+        assert!(delta.introduced.is_empty());
+        assert!(!delta.fails_gate());
+        assert_eq!(delta.baseline_unverified, 1);
+        assert_eq!(delta.current_unverified, 0);
+    }
+
+    #[test]
+    fn a_status_move_at_equal_rank_is_neither() {
+        // `NoRule` and `NotApplicable` both rank 1: nobody answered, for two
+        // different reasons. Moving between them is not news.
+        let baseline = report_of(vec![vr("a", Status::NoRule)]);
+        let current = report_of(vec![vr("a", Status::NotApplicable)]);
+        let delta = compute_delta(&baseline, &current);
+        assert!(delta.regressions.is_empty());
+        assert!(delta.improvements.is_empty());
+        assert!(!delta.fails_gate());
+    }
+
+    #[test]
+    fn escaping_unverified_into_no_rule_is_not_an_improvement() {
+        // Re-pointing an entry at a technique nothing covers lowers the
+        // unverified count without proving anything. It must not read as
+        // progress — this is why `improvements` is not the rank mirror of
+        // `regressions`.
+        let baseline = report_of(vec![vr("a", Status::Unverified)]);
+        let current = report_of(vec![vr("a", Status::NoRule)]);
+        let delta = compute_delta(&baseline, &current);
+        assert!(delta.improvements.is_empty());
+        assert!(delta.regressions.is_empty());
+        assert!(!render_delta(&delta, false).contains("VERIFIED"));
+    }
+
+    #[test]
+    fn the_unverified_count_is_reported_on_both_sides() {
+        let baseline = report_of(vec![
+            vr("a", Status::Unverified),
+            vr("b", Status::Unverified),
+        ]);
+        let current = report_of(vec![vr("a", Status::Verified), vr("b", Status::Unverified)]);
+        let delta = compute_delta(&baseline, &current);
+        assert_eq!(delta.baseline_unverified, 2);
+        assert_eq!(delta.current_unverified, 1);
+        assert!(render_delta(&delta, false).contains("2 → 1 unverified"));
+    }
+
+    #[test]
+    fn render_delta_tells_a_regression_apart_from_a_new_claim() {
+        let baseline = report_of(vec![vr("fell", Status::Verified)]);
+        let current = report_of(vec![
+            vr("fell", Status::Unverified),
+            vr("fresh", Status::Unverified),
+        ]);
+        let delta = compute_delta(&baseline, &current);
+        let out = render_delta(&delta, false);
+        assert!(out.contains("REGRESSED"));
+        assert!(out.contains("NEW CLAIM"));
+        // The new claim names no transition, because none happened.
+        assert!(out.contains("fresh (UNVERIFIED — no baseline entry)"));
+    }
+
+    #[test]
+    fn gate_reason_names_every_failing_class() {
+        let baseline = report_of(vec![vr("fell", Status::Verified)]);
+        let current = report_of(vec![
+            vr("fell", Status::Unverified),
+            vr("fresh", Status::Unverified),
+        ]);
+        let delta = compute_delta(&baseline, &current);
+        let why = delta.gate_reason();
+        assert!(why.contains("1 detection(s) got worse"), "{why}");
+        assert!(why.contains("1 new claim(s)"), "{why}");
+        assert!(why.contains("unverified count rose from 0 to 2"), "{why}");
     }
 }

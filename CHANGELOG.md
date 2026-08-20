@@ -6,6 +6,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The detection-verification gate could not see a claim that was never
+  substantiated.** `--verify-detections --diff --ci` compared a run against its
+  committed baseline and failed only when an entry that read `VERIFIED` stopped
+  reading so. A claim *added* by a change has no baseline row at all, so the
+  lookup missed it and it merged silently; `NO-RULE → UNVERIFIED` and
+  `INDETERMINATE → UNVERIFIED` were equally invisible, because neither side was
+  ever `VERIFIED`. The gate now compares verdicts by rank, so any worsening
+  counts, and reports a claim with no baseline row as its own class — listed
+  whatever its status, because a new entry means the committed baseline is
+  stale, but failing the build only when the ruleset refutes it. A count
+  ratchet backs both, matching the shape `--coverage-gaps` already uses.
+  Deleting a refuted claim stays the one way out that the gate does not punish:
+  withdrawing a detection no rule substantiates is the remedy for an
+  `UNVERIFIED` entry, so a vanished entry is still a regression only when it
+  was `VERIFIED`. `UNVERIFIED → NO-RULE` is deliberately *not* reported as an
+  improvement either — re-pointing an entry at a technique nothing covers
+  lowers the count without proving anything, and labelling that `VERIFIED`
+  would be a lie. The scheduled `sigma drift` workflow is unaffected: it varies
+  the ruleset and not the knowledge base, so both sides always share an id set
+  and the new class is always empty there.
+
 ## [1.4.0] - 2026-08-17
 
 ### Added

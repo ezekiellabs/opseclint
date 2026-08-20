@@ -86,8 +86,9 @@ jobs:
           done
 
           if [ "$fail" -ne 0 ]; then
-            msg="A claim verified against the pinned ruleset no longer verifies"
-            msg="$msg against upstream $UPSTREAM. Review the delta above, then run:"
+            msg="A claim's verdict against upstream $UPSTREAM is worse than"
+            msg="$msg its verdict against the pinned ruleset."
+            msg="$msg Review the delta above, then run:"
             msg="$msg scripts/sync-sigma.sh --bump $UPSTREAM"
             echo "::warning::$msg"
           fi
