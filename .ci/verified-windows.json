@@ -130,6 +130,9 @@
         "missing_fields": [
           "Hashes"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 3
       }
     },
@@ -173,6 +176,9 @@
           "ServiceFileName",
           "TargetName"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 28
       }
     },
@@ -191,6 +197,9 @@
           "EventID",
           "Hashes",
           "TargetName"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 18
       }
@@ -228,6 +237,9 @@
         "missing_fields": [
           "EventID",
           "ParentImage"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 8
       }
@@ -279,6 +291,9 @@
           "Product",
           "SearchFilter"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 5
       }
     },
@@ -305,6 +320,9 @@
           "Product",
           "SearchFilter",
           "SubjectUserName"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 5
       }
@@ -337,6 +355,9 @@
           "ServiceFileName",
           "TargetName"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 94
       }
     },
@@ -355,6 +376,9 @@
           "EventID",
           "Hashes",
           "TargetName"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 18
       }
@@ -382,6 +406,9 @@
           "Product",
           "SearchFilter",
           "SubjectUserName"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 5
       }
@@ -427,6 +454,9 @@
           "Workstation",
           "WorkstationName"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 14,
         "null_value_match": true
       }
@@ -455,6 +485,9 @@
           "Product",
           "Provider_Name",
           "ServiceFileName"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 77
       }
@@ -485,6 +518,9 @@
           "TicketEncryptionType",
           "TicketOptions"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 2
       }
     },
@@ -514,6 +550,9 @@
           "TicketEncryptionType",
           "TicketOptions"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 2
       }
     },
@@ -530,6 +569,9 @@
       "because": {
         "missing_fields": [
           "Description"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 2
       }
@@ -589,6 +631,9 @@
           "ServiceFileName",
           "SubjectUserName"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 33
       }
     },
@@ -622,6 +667,9 @@
           "ServiceFileName",
           "SubjectUserName"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 33
       }
     },
@@ -638,6 +686,9 @@
       "because": {
         "missing_fields": [
           "ParentImage"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 1
       }
@@ -696,6 +747,9 @@
           "Description",
           "Product"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 9
       }
     },
@@ -738,6 +792,9 @@
       "because": {
         "missing_fields": [
           "Description"
+        ],
+        "partial_fields": [
+          "Image"
         ]
       }
     },
@@ -762,6 +819,9 @@
           "Product",
           "SourceAddress",
           "SourcePort"
+        ],
+        "partial_fields": [
+          "Image"
         ]
       }
     },
@@ -785,6 +845,9 @@
           "Product",
           "SearchFilter"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 5
       }
     },
@@ -806,6 +869,9 @@
           "Provider_Name",
           "RelativeTargetName",
           "ShareName"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 7
       }
@@ -864,6 +930,9 @@
           "ServiceFileName",
           "TargetName"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 79
       }
     },
@@ -894,6 +963,9 @@
           "Provider_Name",
           "ServiceFileName"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 78
       }
     },
@@ -921,6 +993,9 @@
           "Product",
           "SearchFilter",
           "SubjectUserName"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 6
       }
@@ -964,6 +1039,9 @@
           "SubjectUserName",
           "Workstation",
           "WorkstationName"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 16
       }
@@ -1011,6 +1089,9 @@
           "ObjectName",
           "ObjectType",
           "ProcessName"
+        ],
+        "partial_fields": [
+          "Image"
         ]
       }
     },
@@ -1059,6 +1140,9 @@
         "missing_fields": [
           "ParentCommandLine",
           "ParentImage"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 6,
         "null_value_match": true
@@ -1164,6 +1248,9 @@
           "TicketEncryptionType",
           "TicketOptions"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 2
       }
     },
@@ -1181,6 +1268,9 @@
         "missing_fields": [
           "Description",
           "Hashes"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 1
       }
@@ -1251,6 +1341,9 @@
           "ParentImage",
           "Product"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 16
       }
     },
@@ -1267,6 +1360,9 @@
       "because": {
         "missing_fields": [
           "ParentImage"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 6
       }
@@ -1292,6 +1388,9 @@
           "Query",
           "User"
         ],
+        "partial_fields": [
+          "Image"
+        ],
         "inapplicable_rules": 6
       }
     },
@@ -1309,6 +1408,9 @@
         "missing_fields": [
           "EventID",
           "ParentImage"
+        ],
+        "partial_fields": [
+          "Image"
         ],
         "inapplicable_rules": 8
       }
