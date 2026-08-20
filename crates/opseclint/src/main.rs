@@ -170,7 +170,9 @@ struct Cli {
     /// ruleset (--sigma): for each entry claiming a Sigma detection, check that
     /// a genuine rule for its technique(s) actually fires. Audits the KB itself,
     /// so it needs no input. Honors --json (snapshot) and --diff (regression);
-    /// with --ci, fails on unverified claims — or, with --diff, on regressions.
+    /// with --ci, fails on unverified claims — or, with --diff, on a verdict
+    /// that got worse, a newly-added claim the ruleset refutes, or a rise in
+    /// the unverified count.
     #[arg(
         long,
         requires = "sigma",
@@ -354,11 +356,9 @@ fn run_verify(cli: &Cli) -> ExitCode {
         } else {
             print!("{}", verify::render_delta(&delta, color));
         }
-        if cli.ci && delta.has_regressed() {
+        if cli.ci && delta.fails_gate() {
             if !cli.json {
-                eprintln!(
-                    "\nopseclint: CI gate failed — a verified detection regressed from the baseline"
-                );
+                eprintln!("\nopseclint: CI gate failed — {}", delta.gate_reason());
             }
             return ExitCode::from(1);
         }
