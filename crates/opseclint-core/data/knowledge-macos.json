@@ -55,6 +55,7 @@
       "description": "Spotlight-backed file search — file and directory discovery",
       "techniques": [{ "id": "T1083", "name": "File and Directory Discovery" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of mdfind"],
+      "detections": [{ "source": "Sigma", "rule": "File and Directory Discovery - MacOS (proc_creation_macos); keyed on the absolute `Image` path, so prediction abstains and only recorded telemetry can confirm it", "confidence": "low" }],
       "noise": 32
     },
     {
@@ -213,6 +214,7 @@
       "description": "Screen capture — collection",
       "techniques": [{ "id": "T1113", "name": "Screen Capture" }],
       "telemetry": ["ES_EVENT_TYPE_NOTIFY_EXEC of screencapture"],
+      "detections": [{ "source": "Sigma", "rule": "Screen Capture - macOS (proc_creation_macos); keyed on the absolute `Image` path, so prediction abstains and only recorded telemetry can confirm it", "confidence": "medium" }],
       "noise": 52
     },
     {

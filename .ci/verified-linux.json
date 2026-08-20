@@ -371,156 +371,6 @@
       "status": "no-rule"
     },
     {
-      "id": "awk-system-exec",
-      "description": "Command execution via awk system() (GTFOBins)",
-      "techniques": [
-        "T1059.004"
-      ],
-      "claimed": [
-        "Command execution via awk system() (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "a1",
-          "name",
-          "type"
-        ],
-        "inapplicable_rules": 2
-      }
-    },
-    {
-      "id": "capabilities-enum",
-      "description": "Enumerating file capabilities — privilege-escalation recon",
-      "techniques": [
-        "T1083",
-        "T1548.001"
-      ],
-      "claimed": [
-        "Capabilities enumeration via getcap (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "a1",
-          "a2",
-          "type"
-        ],
-        "inapplicable_rules": 1
-      }
-    },
-    {
-      "id": "chattr-immutable",
-      "description": "Setting file attributes (e.g. immutable) — hide artifacts / resist removal",
-      "techniques": [
-        "T1222.002",
-        "T1564"
-      ],
-      "claimed": [
-        "chattr immutable/append attribute change (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "a1",
-          "type"
-        ]
-      }
-    },
-    {
-      "id": "chmod-exec",
-      "description": "Making a file executable — staging a dropped payload",
-      "techniques": [
-        "T1222.002"
-      ],
-      "claimed": [
-        "chmod +x on file in tmp/user dir (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "a1",
-          "type"
-        ]
-      }
-    },
-    {
-      "id": "creds-in-files",
-      "description": "Grepping the filesystem for passwords — credentials in files",
-      "techniques": [
-        "T1552.001"
-      ],
-      "claimed": [
-        "Credential keyword search (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "type"
-        ]
-      }
-    },
-    {
-      "id": "dd-wipe",
-      "description": "Overwriting a block device with dd — data destruction",
-      "techniques": [
-        "T1485"
-      ],
-      "claimed": [
-        "Disk overwrite via dd (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "a1",
-          "type"
-        ]
-      }
-    },
-    {
-      "id": "find-exec-shell",
-      "description": "Spawning a shell via find -exec — SUID/restricted-shell escape (GTFOBins)",
-      "techniques": [
-        "T1548.001",
-        "T1059.004"
-      ],
-      "claimed": [
-        "Shell spawned via find -exec (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "a1",
-          "name",
-          "type"
-        ],
-        "inapplicable_rules": 2
-      }
-    },
-    {
-      "id": "id",
-      "description": "User and group identity discovery",
-      "techniques": [
-        "T1033"
-      ],
-      "claimed": [
-        "Local system reconnaissance utility execution (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "type"
-        ]
-      }
-    },
-    {
       "id": "kernel-module-insmod",
       "description": "Loading a kernel module — potential rootkit / persistence",
       "techniques": [
@@ -532,44 +382,7 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
-          "comm",
-          "exe",
-          "type"
-        ]
-      }
-    },
-    {
-      "id": "kernel-module-modprobe",
-      "description": "Loading a kernel module by name — potential rootkit / persistence",
-      "techniques": [
-        "T1547.006"
-      ],
-      "claimed": [
-        "Kernel module load via modprobe (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "comm",
-          "exe",
-          "type"
-        ]
-      }
-    },
-    {
-      "id": "ld-preload",
-      "description": "Writing /etc/ld.so.preload — dynamic linker hijacking (userland rootkit)",
-      "techniques": [
-        "T1574.006"
-      ],
-      "claimed": [
-        "ld.so.preload modification (file_event_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "name",
-          "type"
+          "exe"
         ]
       }
     },
@@ -586,8 +399,7 @@
       "because": {
         "missing_fields": [
           "exe",
-          "key",
-          "type"
+          "key"
         ]
       }
     },
@@ -604,54 +416,8 @@
       "because": {
         "missing_fields": [
           "SYSCALL",
-          "a0",
-          "a1",
-          "exe",
-          "name",
-          "type"
+          "exe"
         ]
-      }
-    },
-    {
-      "id": "pipe-to-sh",
-      "description": "Piping downloaded content directly into a shell interpreter",
-      "techniques": [
-        "T1059.004",
-        "T1105"
-      ],
-      "claimed": [
-        "Download piped to shell interpreter (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "a1",
-          "name",
-          "type"
-        ],
-        "inapplicable_rules": 4
-      }
-    },
-    {
-      "id": "pipe-to-shell",
-      "description": "Piping downloaded content directly into a shell interpreter",
-      "techniques": [
-        "T1059.004",
-        "T1105"
-      ],
-      "claimed": [
-        "Download piped to shell interpreter (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "a1",
-          "name",
-          "type"
-        ],
-        "inapplicable_rules": 4
       }
     },
     {
@@ -667,119 +433,7 @@
       "because": {
         "missing_fields": [
           "SYSCALL",
-          "exe",
-          "type"
-        ]
-      }
-    },
-    {
-      "id": "reverse-shell-devtcp",
-      "description": "Bash /dev/tcp reverse shell — interactive C2 channel",
-      "techniques": [
-        "T1059.004",
-        "T1071"
-      ],
-      "claimed": [
-        "Reverse shell via /dev/tcp redirection (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "a1",
-          "name",
-          "type"
-        ],
-        "inapplicable_rules": 2
-      }
-    },
-    {
-      "id": "shell-profile-persist",
-      "description": "Modifying a shell rc file (.bashrc) — logon persistence",
-      "techniques": [
-        "T1546.004"
-      ],
-      "claimed": [
-        "Shell rc file modification (file_event_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "name",
-          "type"
-        ]
-      }
-    },
-    {
-      "id": "systemd-persistence",
-      "description": "Enabling a systemd unit — service persistence",
-      "techniques": [
-        "T1543.002"
-      ],
-      "claimed": [
-        "Systemd service persistence (proc_creation_lnx / file_event_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "a1",
-          "name",
-          "nametype",
-          "type"
-        ]
-      }
-    },
-    {
-      "id": "tar-archive",
-      "description": "Archiving data — collection prior to exfiltration",
-      "techniques": [
-        "T1560.001"
-      ],
-      "claimed": [
-        "Bulk archive creation (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "a1",
-          "type"
-        ]
-      }
-    },
-    {
-      "id": "tcpdump",
-      "description": "Packet capture — network sniffing",
-      "techniques": [
-        "T1040"
-      ],
-      "claimed": [
-        "Packet capture utility execution (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "a1",
-          "a3",
-          "type"
-        ]
-      }
-    },
-    {
-      "id": "timestomp-touch",
-      "description": "Copying a reference file's timestamps with touch — timestomping",
-      "techniques": [
-        "T1070.006"
-      ],
-      "claimed": [
-        "Timestomping via touch (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "type"
+          "exe"
         ]
       }
     },
@@ -795,25 +449,7 @@
       "status": "indeterminate",
       "because": {
         "missing_fields": [
-          "exe",
-          "type"
-        ]
-      }
-    },
-    {
-      "id": "whoami",
-      "description": "System owner / current user discovery",
-      "techniques": [
-        "T1033"
-      ],
-      "claimed": [
-        "Local system reconnaissance utility execution (proc_creation_lnx)"
-      ],
-      "status": "indeterminate",
-      "because": {
-        "missing_fields": [
-          "a0",
-          "type"
+          "exe"
         ]
       }
     },
@@ -874,6 +510,66 @@
       ]
     },
     {
+      "id": "capabilities-enum",
+      "description": "Enumerating file capabilities — privilege-escalation recon",
+      "techniques": [
+        "T1083",
+        "T1548.001"
+      ],
+      "claimed": [
+        "Capabilities Discovery - Linux (proc_creation_lnx) / Linux Capabilities Discovery (auditd); a getcap run without `-r /` is uncovered"
+      ],
+      "status": "verified",
+      "firing": [
+        "Capabilities Discovery - Linux",
+        "Linux Capabilities Discovery"
+      ]
+    },
+    {
+      "id": "chattr-immutable",
+      "description": "Setting file attributes (e.g. immutable) — hide artifacts / resist removal",
+      "techniques": [
+        "T1222.002",
+        "T1564"
+      ],
+      "claimed": [
+        "Remove Immutable File Attribute (proc_creation_lnx / auditd); setting +i, rather than clearing it, is uncovered"
+      ],
+      "status": "verified",
+      "firing": [
+        "Remove Immutable File Attribute",
+        "Remove Immutable File Attribute - Auditd"
+      ]
+    },
+    {
+      "id": "chmod-exec",
+      "description": "Making a file executable — staging a dropped payload",
+      "techniques": [
+        "T1222.002"
+      ],
+      "claimed": [
+        "File or Folder Permissions Change (auditd)"
+      ],
+      "status": "verified",
+      "firing": [
+        "File or Folder Permissions Change"
+      ]
+    },
+    {
+      "id": "creds-in-files",
+      "description": "Grepping the filesystem for passwords — credentials in files",
+      "techniques": [
+        "T1552.001"
+      ],
+      "claimed": [
+        "Credentials In Files - Linux (auditd)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Credentials In Files - Linux"
+      ]
+    },
+    {
       "id": "cron-persist",
       "description": "Writing to system cron locations — scheduled-task persistence",
       "techniques": [
@@ -899,6 +595,20 @@
       "status": "verified",
       "firing": [
         "Curl Usage on Linux"
+      ]
+    },
+    {
+      "id": "dd-wipe",
+      "description": "Overwriting a block device with dd — data destruction",
+      "techniques": [
+        "T1485"
+      ],
+      "claimed": [
+        "Overwriting the File with Dev Zero or Null (auditd); an overwrite with no if= source is uncovered"
+      ],
+      "status": "verified",
+      "firing": [
+        "Overwriting the File with Dev Zero or Null"
       ]
     },
     {
@@ -969,7 +679,22 @@
       ],
       "status": "verified",
       "firing": [
+        "System Information Discovery - Auditd",
         "System Information Discovery"
+      ]
+    },
+    {
+      "id": "id",
+      "description": "User and group identity discovery",
+      "techniques": [
+        "T1033"
+      ],
+      "claimed": [
+        "System Owner or User Discovery - Linux (auditd)"
+      ],
+      "status": "verified",
+      "firing": [
+        "System Owner or User Discovery - Linux"
       ]
     },
     {
@@ -998,6 +723,20 @@
       "status": "verified",
       "firing": [
         "System Network Discovery - Linux"
+      ]
+    },
+    {
+      "id": "ld-preload",
+      "description": "Writing /etc/ld.so.preload — dynamic linker hijacking (userland rootkit)",
+      "techniques": [
+        "T1574.006"
+      ],
+      "claimed": [
+        "Modification of ld.so.preload (auditd)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Modification of ld.so.preload"
       ]
     },
     {
@@ -1073,6 +812,21 @@
       ]
     },
     {
+      "id": "reverse-shell-devtcp",
+      "description": "Bash /dev/tcp reverse shell — interactive C2 channel",
+      "techniques": [
+        "T1059.004",
+        "T1071"
+      ],
+      "claimed": [
+        "Suspicious Reverse Shell Command Line (linux); the rule matches known one-liners, not /dev/tcp in general"
+      ],
+      "status": "verified",
+      "firing": [
+        "Suspicious Reverse Shell Command Line"
+      ]
+    },
+    {
       "id": "scp",
       "description": "File transfer over SSH — ingress or exfiltration",
       "techniques": [
@@ -1085,6 +839,20 @@
       "status": "verified",
       "firing": [
         "Remote File Copy"
+      ]
+    },
+    {
+      "id": "shell-profile-persist",
+      "description": "Modifying a shell rc file (.bashrc) — logon persistence",
+      "techniques": [
+        "T1546.004"
+      ],
+      "claimed": [
+        "Unix Shell Configuration Modification (auditd)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Unix Shell Configuration Modification"
       ]
     },
     {
@@ -1116,6 +884,48 @@
       ]
     },
     {
+      "id": "tar-archive",
+      "description": "Archiving data — collection prior to exfiltration",
+      "techniques": [
+        "T1560.001"
+      ],
+      "claimed": [
+        "Data Compressed (auditd); an archive created without a `-c` flag is uncovered"
+      ],
+      "status": "verified",
+      "firing": [
+        "Data Compressed"
+      ]
+    },
+    {
+      "id": "tcpdump",
+      "description": "Packet capture — network sniffing",
+      "techniques": [
+        "T1040"
+      ],
+      "claimed": [
+        "Network Sniffing - Linux (auditd); the rule keys on `-c` and `-i` in fixed argument positions"
+      ],
+      "status": "verified",
+      "firing": [
+        "Network Sniffing - Linux"
+      ]
+    },
+    {
+      "id": "timestomp-touch",
+      "description": "Copying a reference file's timestamps with touch — timestomping",
+      "techniques": [
+        "T1070.006"
+      ],
+      "claimed": [
+        "File Time Attribute Change - Linux (auditd)"
+      ],
+      "status": "verified",
+      "firing": [
+        "File Time Attribute Change - Linux"
+      ]
+    },
+    {
       "id": "uname",
       "description": "Kernel / OS version discovery",
       "techniques": [
@@ -1126,6 +936,7 @@
       ],
       "status": "verified",
       "firing": [
+        "System Information Discovery - Auditd",
         "System Information Discovery"
       ]
     },
@@ -1141,6 +952,20 @@
       "status": "verified",
       "firing": [
         "Download File To Potentially Suspicious Directory Via Wget"
+      ]
+    },
+    {
+      "id": "whoami",
+      "description": "System owner / current user discovery",
+      "techniques": [
+        "T1033"
+      ],
+      "claimed": [
+        "System Owner or User Discovery - Linux (auditd)"
+      ],
+      "status": "verified",
+      "firing": [
+        "System Owner or User Discovery - Linux"
       ]
     }
   ]

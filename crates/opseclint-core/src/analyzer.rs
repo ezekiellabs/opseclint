@@ -876,18 +876,14 @@ mod tests {
         assert_withdrawn(
             &mac_kb(),
             &[
-                // A rule keyed on an absolute `Image:` path can never fire
-                // predictively: the evaluator synthesizes `Image` from the
-                // program basename, so the comparison is a definite false.
-                (
-                    "screencapture",
-                    "T1113's only macOS rule is keyed `Image: /usr/sbin/screencapture`",
-                ),
-                (
-                    "mdfind",
-                    "T1083's mdfind branch is keyed `Image: /usr/bin/mdfind`, and the \
-                     sibling `find` branch requires -perm",
-                ),
+                // `screencapture` and `mdfind` were once withdrawn from here
+                // too, for a reason that turned out to be a defect rather than a
+                // ceiling: a rule keyed on an absolute `Image:` path was compared
+                // against a synthesized basename and read as a definite false. A
+                // partial path now abstains, so both claim their rule again and
+                // read INDETERMINATE — unproven, but not refuted.
+                //
+                // The two below are refused on their own merits, and stay.
                 (
                     "spctl-status",
                     "T1518.001's only non-csrutil rule is keyed `Image: /usr/bin/grep`",
@@ -895,8 +891,8 @@ mod tests {
                 (
                     "gatekeeper-disable",
                     "T1553.001 carries only the xattr rule; the `spctl disable` branch \
-                     lives under T1685 and is keyed `Image: /usr/sbin/spctl` anyway, so \
-                     re-tagging would buy nothing",
+                     lives under T1685, so it is never a candidate — no path fix \
+                     reaches a rule that was never asked",
                 ),
                 // The rule exists, but describes a different program.
                 (
