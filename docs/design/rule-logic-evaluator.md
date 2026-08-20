@@ -135,7 +135,8 @@ struct FieldMatch {
 enum Search {
     Fields(Vec<FieldMatch>),          // map form: AND across fields
     OneOfMaps(Vec<Vec<FieldMatch>>),  // list-of-maps: OR
-    Keywords(Vec<String>),            // bare list: matched against CommandLine
+    Keywords(Vec<String>),            // bare list: substring-matched against
+                                      // CommandLine, `*`/`?` honored
 }
 
 enum Cond {

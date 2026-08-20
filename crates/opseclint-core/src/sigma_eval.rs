@@ -859,6 +859,28 @@ fn glob_match(text: &str, pat: &str) -> bool {
     j == p.len()
 }
 
+/// Match one Sigma keyword against a command line.
+///
+/// A keyword is a *substring* search, not the anchored whole-value comparison a
+/// field match performs — but it may still carry `*` and `?`, and upstream
+/// authors use them freely. Treating a keyword literally silently kills every
+/// such term: SigmaHQ's *Linux Command History Tampering* lists
+/// `rm *sh_history`, `shred *sh_history` and `truncate -s0 *sh_history`, and
+/// under a literal `contains` none of them could ever match a real command.
+///
+/// Anchoring the pattern with `*` on both ends is what turns the whole-value
+/// [`glob_match`] into the substring search a keyword wants, so the two agree on
+/// wildcard semantics rather than each inventing their own. Keywords without a
+/// wildcard — the common case — keep the cheap `contains` path, which the glob
+/// would only reproduce more slowly.
+fn keyword_match(haystack: &str, keyword: &str) -> bool {
+    if keyword.contains(['*', '?']) {
+        glob_match(haystack, &format!("*{keyword}*"))
+    } else {
+        haystack.contains(keyword)
+    }
+}
+
 fn synthesize(cmd: &Command, platform: Platform) -> HashMap<String, String> {
     let mut m = HashMap::new();
     m.insert("CommandLine".to_string(), cmd.raw.clone());
@@ -1068,7 +1090,7 @@ fn eval_search(s: &Search, event: &HashMap<String, String>) -> Ternary {
         Search::Keywords(kws) => match event.get("CommandLine") {
             Some(cl) => {
                 let cl = cl.to_lowercase();
-                if kws.iter().any(|k| cl.contains(&k.to_lowercase())) {
+                if kws.iter().any(|k| keyword_match(&cl, &k.to_lowercase())) {
                     Ternary::True
                 } else {
                     Ternary::False
@@ -1280,6 +1302,65 @@ mod tests {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
         evaluate_observed(&rule, &cmd(command), Platform::LinuxAuditd, &observed)
+    }
+
+    /// A keyword list, the shape SigmaHQ's `builtin/` rules use: no field
+    /// names, matched against the command line as substrings.
+    const HISTORY_TAMPER: &str = r#"
+title: History tampering
+id: r-kw
+detection:
+    keywords:
+        - 'rm *sh_history'
+        - 'history -c'
+    condition: keywords
+"#;
+
+    #[test]
+    fn a_keyword_wildcard_matches_across_the_gap() {
+        // The bug this replaced: `rm *sh_history` was compared literally, so it
+        // matched nothing a person would ever type.
+        assert_eq!(
+            verdict(HISTORY_TAMPER, "rm -f ~/.bash_history").outcome,
+            Outcome::Fires
+        );
+        assert_eq!(
+            verdict(HISTORY_TAMPER, "rm /home/op/.zsh_history").outcome,
+            Outcome::Fires
+        );
+    }
+
+    #[test]
+    fn a_keyword_without_a_wildcard_is_still_a_plain_substring() {
+        assert_eq!(
+            verdict(HISTORY_TAMPER, "history -c").outcome,
+            Outcome::Fires
+        );
+        // ...and still anchored nowhere: a substring anywhere on the line.
+        assert_eq!(
+            verdict(HISTORY_TAMPER, "bash -lc 'history -c'").outcome,
+            Outcome::Fires
+        );
+    }
+
+    #[test]
+    fn a_keyword_wildcard_does_not_match_everything() {
+        // The failure mode of a too-eager fix: `*` spanning the whole line.
+        assert_eq!(verdict(HISTORY_TAMPER, "ls -la").outcome, Outcome::NoFire);
+        // `rm` and a history file, but not in that order — the wildcard fills a
+        // gap, it does not reorder the terms around it.
+        assert_eq!(
+            verdict(HISTORY_TAMPER, "cat ~/.bash_history && rm /tmp/x").outcome,
+            Outcome::NoFire
+        );
+    }
+
+    #[test]
+    fn keyword_matching_is_case_insensitive_either_way() {
+        assert_eq!(
+            verdict(HISTORY_TAMPER, "RM -F ~/.BASH_HISTORY").outcome,
+            Outcome::Fires
+        );
     }
 
     const SHADOW: &str = r#"

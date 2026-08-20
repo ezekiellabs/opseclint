@@ -97,15 +97,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `winlogon-persist` were held to. Account enumeration is still what the entry
   is for.
 - **`bash-history-tamper` now models the form the ruleset can actually see.**
-  Its only candidate is a keyword rule, and opseclint matches Sigma keywords
+  Its only candidate is a keyword rule, and opseclint matched Sigma keywords
   literally, so every wildcard-bearing keyword in it — `rm *sh_history`,
-  `shred *sh_history`, `cat /dev/null >*sh_history` — is unreachable. None of
-  the keywords that *are* reachable mention `.bash_history`, so no single
+  `shred *sh_history`, `cat /dev/null >*sh_history` — was unreachable. None of
+  the keywords that *were* reachable mention `.bash_history`, so no single
   command could satisfy both the entry's matcher and the rule. The matcher is
   widened to the shell-builtin forms (`history -c`, `history -w`,
   `export HISTFILESIZE=0`, `shopt -ou history`), which is a coverage gain in its
   own right: clearing history through the builtin is the common case and was
-  unmodeled. The wildcard limitation is opseclint's, and remains.
+  unmodeled. The wildcard limitation was opseclint's, and is fixed below; the
+  widened matcher stands on its own merits, and the entry now models both halves
+  of the action rather than only the half the evaluator could see.
 - **Four Linux claims are withdrawn**, because the pinned ruleset carries
   nothing that can fire on the action and inventing a command to reach one
   would be worse than claiming nothing. `crontab-l` — the T1053.003 process
@@ -128,6 +130,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A Sigma keyword carrying a wildcard was dead.** Keywords were matched with a
+  literal `contains`, but a keyword is a substring search that may still carry
+  `*` and `?`, and upstream authors use them freely — so every such term
+  silently matched nothing. SigmaHQ's *Linux Command History Tampering* is the
+  clearest casualty: `rm *sh_history`, `shred *sh_history`,
+  `truncate -s0 *sh_history` and `ln -sf /dev/null *sh_history` could not fire
+  on any real command, leaving only the four wildcard-free terms — none of which
+  mention a history *file* at all. A keyword carrying a wildcard is now anchored
+  with `*` at both ends and put to the same `glob_match` a field comparison
+  uses, so the two agree on wildcard semantics instead of each inventing their
+  own; keywords without one keep the cheap `contains` path. No verdict moves on
+  any platform and all three baselines stay byte-identical — the entries this
+  would have rescued were already adjudicated another way, which is what makes
+  it a latent correctness fix rather than a coverage change.
 - **The detection-verification gate could not see a claim that was never
   substantiated.** `--verify-detections --diff --ci` compared a run against its
   committed baseline and failed only when an entry that read `VERIFIED` stopped
