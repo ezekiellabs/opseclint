@@ -16,6 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use opseclint_core::kb::Platform;
+use opseclint_core::matcher::EventClass;
 use opseclint_core::model::{KbEntry, KnowledgeBase};
 use opseclint_core::parser::{self, Command};
 use opseclint_core::sigma::{SigmaIndex, SigmaRule};
@@ -297,12 +298,27 @@ fn classify(entry: &KbEntry, index: &SigmaIndex, platform: Platform) -> Classifi
         };
     }
 
+    // The file the entry's `event` axis names, if it names one. An auditd rule
+    // watching a path is in the process bucket — it declares no logsource
+    // category — so it is asked about the command line, which for an entry like
+    // `ld-preload` is a fragment that does not carry the path. Handing the file
+    // over is what lets `type: 'PATH'` / `name: '/etc/ld.so.preload'` be
+    // answered by the very file the entry says is written.
+    let touched: Vec<&str> = record
+        .as_ref()
+        .filter(|(class, _)| *class == EventClass::File)
+        .and_then(|(_, fields)| fields.get("TargetFilename"))
+        .map(|f| vec![f.as_str()])
+        .unwrap_or_default();
+
     let mut tally = Tally::default();
     if !process_rules.is_empty() {
         match representative_command(entry) {
             Some(cmd) => {
                 for c in &process_rules {
-                    tally.ask(c, |dr| sigma_eval::evaluate(dr, &cmd, platform));
+                    tally.ask(c, |dr| {
+                        sigma_eval::evaluate_touching(dr, &cmd, platform, &touched)
+                    });
                 }
             }
             None => {
