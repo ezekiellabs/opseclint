@@ -538,7 +538,7 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 
 - Three platforms: Linux/auditd, Windows/Sysmon, macOS/Endpoint Security
 - Real SigmaHQ enrichment with an on-disk cache
-- Detection claims proven in CI, not asserted: every knowledge-base Sigma claim is checked against a real rule from a pinned SigmaHQ revision ([`.ci/sigma-ref`](.ci/sigma-ref)), and a claim that stops firing fails the build
+- Detection claims proven in CI, not asserted: every knowledge-base Sigma claim is checked against a real rule from a pinned SigmaHQ revision ([`.ci/sigma-ref`](.ci/sigma-ref)). On all three platforms the count of claims no rule substantiates is **zero**, and CI fails the build if that number rises, if a verdict gets worse, or if a change adds a claim the ruleset refutes. An entry that cannot reach a real rule makes no claim at all
 - SARIF output → GitHub code scanning
 - Distribution: crates.io, prebuilt binaries, a GitHub Action, and a GHCR image
 - [`opseclint-core`](crates/opseclint-core): the knowledge base, `match` engine, and Sigma evaluator as a library, with this binary as its first consumer
