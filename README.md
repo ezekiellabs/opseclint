@@ -546,6 +546,11 @@ opseclint examples/macos-postex.sh    --platform macos-es        # keychain, Gat
 - [Sigma rule-logic evaluator](docs/design/rule-logic-evaluator.md): three-valued `FIRES` / `NO-FIRE` / `INDETERMINATE`, via `--check-rule`
 - `--coverage-gaps`: flag actions whose techniques have rules but where none fire
 - macOS/Endpoint Security KB at breadth parity with Linux/Windows (66 entries)
+- Sigma's auditd rules answered with auditd's own records: `SYSCALL`, `EXECVE`
+  and one `PATH` per file touched, synthesized from a command line and asked
+  separately, because a rule's search terms describe one record rather than an
+  event. A path field synthesized from a basename abstains where the rule asks
+  about the directory, instead of reading as a refusal
 - [EDR-specific telemetry mappings](#edr-telemetry---edr): CrowdStrike, Defender, SentinelOne, Elastic via `--edr`
 - Linux/Windows KBs with cloud, container/Kubernetes, LOLBin, and modern persistence/evasion coverage (83 / 84 entries)
 - [Coverage diff](#coverage-diff---diff): compare a run against a saved report to see what coverage changed, via `--diff`
@@ -565,11 +570,28 @@ Honest about what isn't done yet:
   `re`, `cidr`, `base64offset` and `windash` are implemented; an unsupported
   token anywhere in a chain still gates the whole field match, which is what
   keeps a UTF-16 rule from being answered with ASCII needles.
+- **Rules are indexed by exact technique id, so a rule tagged with a parent
+  technique is never a candidate for its sub-technique.** SigmaHQ's
+  "Suspicious Invocation of Shell via AWK - Linux" is tagged `attack.t1059`;
+  the knowledge base's `awk-system-exec` declares `T1059.004`, and the two
+  never meet. This is systemic, not one entry's bad luck: 53 of the 98
+  distinct ATT&CK tags on SigmaHQ's Linux rules are bare parents. Rolling
+  parents up moves 16 claims across two platforms, most of them into
+  `UNVERIFIED`, so it is a campaign of its own rather than a flag.
 - **Field-shape mismatch, not modifiers, is what makes Windows claims read
   `INDETERMINATE`.** Of 49 indeterminate Windows entries, all 49 reference a
   field a command line cannot carry — `EventID`, `Description`,
   `Provider_Name`, `Hashes`, `ParentImage`. Richer telemetry ingest, not
-  evaluator features, is what moves that number.
+  evaluator features, is what moves that number. Linux used to read the same
+  way and no longer does: its rules were auditd-shaped, and auditd's fields
+  *are* derivable from a command line.
+- **Five Linux claims stay unproven by design.** `exe` is auditd's resolved
+  executable, and a symlinked tool (`insmod` → `/usr/bin/kmod`) differs from
+  its command name in the basename, not merely the directory. `SYSCALL` names
+  one call out of the many a process makes, so an execve implies nothing about
+  the `sysinfo` a rule asks after. `key` is the tag on the host's own audit
+  rule. Guessing any of the three would refute rules that really do fire;
+  recorded telemetry resolves the first two.
 - **`registry` event matching is Windows-only in practice.** The class is
   platform-general and the `event` axis now works on all three formats, but
   only Sysmon reports a registry event — no auditd or ESF equivalent exists to
