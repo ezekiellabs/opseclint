@@ -1654,6 +1654,23 @@ pub fn evaluate_observed(
     platform: Platform,
     observed: &HashMap<String, String>,
 ) -> Verdict {
+    if platform == Platform::LinuxAuditd && auditd_shaped(rule) {
+        // The same record split as in predictive mode, because a real auditd
+        // event has the same shape: `type` stays the record's own — it is the
+        // one field that differs *between* the records of one event, so
+        // overlaying it would collapse them back into the merged record the
+        // split exists to avoid. Everything else the sensor reported is exact
+        // and replaces its stand-in.
+        let mut records = auditd_records(cmd, &[]);
+        for record in &mut records {
+            for (k, v) in observed {
+                if !v.is_empty() && k != "type" {
+                    record.observe(k, v);
+                }
+            }
+        }
+        return fold_records(rule, &records);
+    }
     let mut event = synthesize(cmd, platform);
     for (k, v) in observed {
         if !v.is_empty() {
@@ -1921,6 +1938,32 @@ detection:
         let v = verdict(yaml, "insmod /tmp/rootkit.ko");
         assert_eq!(v.outcome, Outcome::Indeterminate);
         assert_eq!(v.missing_fields, vec!["exe".to_string()]);
+    }
+
+    #[test]
+    fn an_observed_exe_decides_the_module_load_prediction_could_not() {
+        // The counterpart of the refusal to guess `exe`: recorded, it is exact,
+        // and the rule that had to abstain resolves. `type` is not overlaid —
+        // it is what distinguishes one record of an event from another.
+        let yaml = r#"
+title: Module load
+id: r-exe-obs
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection:
+        type: 'SYSCALL'
+        comm: 'insmod'
+        exe: '/usr/bin/kmod'
+    condition: selection
+"#;
+        let v = observed_verdict(
+            yaml,
+            "insmod /tmp/rootkit.ko",
+            &[("exe", "/usr/bin/kmod"), ("comm", "insmod")],
+        );
+        assert_eq!(v.outcome, Outcome::Fires);
     }
 
     #[test]

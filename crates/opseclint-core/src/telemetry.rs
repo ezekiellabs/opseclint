@@ -541,7 +541,20 @@ fn parse_auditd(text: &str, users: &UserMap) -> Result<Ingest, String> {
             if let Some(exe) = syscall.fields.get("exe") {
                 let exe = decode_value(exe);
                 if !exe.is_empty() {
-                    fields.insert("Image".to_string(), exe);
+                    // Under both names. `Image` is what a process-creation rule
+                    // keys on and what the other two formats normalize to;
+                    // `exe` is what SigmaHQ's auditd rules key on, and it is the
+                    // one field predictive mode refuses to guess — a symlinked
+                    // tool resolves to a different basename, not merely a
+                    // different directory. Recorded, it is exact.
+                    fields.insert("Image".to_string(), exe.clone());
+                    fields.insert("exe".to_string(), exe);
+                }
+            }
+            if let Some(comm) = syscall.fields.get("comm") {
+                let comm = decode_value(comm);
+                if !comm.is_empty() {
+                    fields.insert("comm".to_string(), comm);
                 }
             }
             // The controlling tty and the audit rule tag (`key`) — extra context
@@ -554,6 +567,31 @@ fn parse_auditd(text: &str, users: &UserMap) -> Result<Ingest, String> {
                         fields.insert(dst.to_string(), v);
                     }
                 }
+            }
+        }
+        // The argument vector under auditd's own names, alongside the rebuilt
+        // `CommandLine`. A rule written against `a0` / `a1` is asking about the
+        // `EXECVE` record's fields, and normalizing them away would leave the
+        // recorded event answering less than the synthesized one does.
+        for (k, v) in &execve.fields {
+            if k.strip_prefix('a')
+                .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+            {
+                let v = decode_value(v);
+                if !v.is_empty() {
+                    fields.insert(k.clone(), v);
+                }
+            }
+        }
+        // The first file the event names, as its `PATH` records report it.
+        if let Some(name) = recs
+            .iter()
+            .filter(|r| r.kind == "PATH")
+            .find_map(|r| r.fields.get("name"))
+        {
+            let name = decode_value(name);
+            if !name.is_empty() {
+                fields.insert("name".to_string(), name);
             }
         }
         if let Some(cwd) = recs.iter().find(|r| r.kind == "CWD")
@@ -1641,6 +1679,35 @@ type=PATH msg=audit(1700000001.100:900): item=0 name=\"/usr/bin/cat\" nametype=N
         let ingest = parse(log, Format::Auditd).expect("parses");
         assert_eq!(ingest.observations.len(), 1);
         assert!(ingest.event_observations.is_empty());
+    }
+
+    #[test]
+    fn auditd_execve_fields_survive_normalization_under_their_own_names() {
+        // The rebuilt `CommandLine` and the normalized `Image` are what a
+        // process-creation rule keys on, but SigmaHQ's auditd rules key on
+        // `a0` / `comm` / `exe` / `name`. Dropping those on ingest would leave
+        // a recorded event answering *less* than a synthesized one — and `exe`
+        // in particular is the field prediction refuses to guess, because a
+        // symlinked tool resolves to a different basename.
+        let log = "\
+type=SYSCALL msg=audit(1700000001.100:900): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=1 pid=2000 uid=0 comm=\"insmod\" exe=\"/usr/bin/kmod\" key=\"modules\"
+type=EXECVE msg=audit(1700000001.100:900): argc=2 a0=\"insmod\" a1=\"/tmp/rootkit.ko\"
+type=PATH msg=audit(1700000001.100:900): item=0 name=\"/tmp/rootkit.ko\" nametype=NORMAL
+";
+        let ingest = parse(log, Format::Auditd).expect("parses");
+        let event = &ingest.observations[0].event;
+        assert_eq!(event.get("exe").map(String::as_str), Some("/usr/bin/kmod"));
+        assert_eq!(
+            event.get("Image").map(String::as_str),
+            Some("/usr/bin/kmod")
+        );
+        assert_eq!(event.get("comm").map(String::as_str), Some("insmod"));
+        assert_eq!(event.get("a0").map(String::as_str), Some("insmod"));
+        assert_eq!(event.get("a1").map(String::as_str), Some("/tmp/rootkit.ko"));
+        assert_eq!(
+            event.get("name").map(String::as_str),
+            Some("/tmp/rootkit.ko")
+        );
     }
 
     #[test]
