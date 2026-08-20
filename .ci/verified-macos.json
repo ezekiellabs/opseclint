@@ -4,318 +4,6 @@
   "rules_indexed": 124,
   "results": [
     {
-      "id": "arp",
-      "description": "ARP cache enumeration — adjacent host discovery",
-      "techniques": [
-        "T1018"
-      ],
-      "claimed": [
-        "Remote system discovery via arp (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "base64-decode",
-      "description": "Base64 decoding — deobfuscation of payloads",
-      "techniques": [
-        "T1140"
-      ],
-      "claimed": [
-        "Base64 decode (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "clipboard-capture",
-      "description": "Reading the clipboard — collection",
-      "techniques": [
-        "T1115"
-      ],
-      "claimed": [
-        "Clipboard read via pbpaste (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "crontab-persist",
-      "description": "Cron job listing or installation — scheduled-task persistence",
-      "techniques": [
-        "T1053.003"
-      ],
-      "claimed": [
-        "Cron persistence via crontab (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "curl",
-      "description": "Remote file transfer / HTTP client — tool ingress or exfil",
-      "techniques": [
-        "T1105"
-      ],
-      "claimed": [
-        "File transfer via curl (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "ditto-archive",
-      "description": "Archiving data via ditto — collection prior to exfiltration",
-      "techniques": [
-        "T1560.001"
-      ],
-      "claimed": [
-        "Data archived via ditto (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "dscl-groups",
-      "description": "Local group enumeration via dscl",
-      "techniques": [
-        "T1069.001"
-      ],
-      "claimed": [
-        "Local group discovery via dscl (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "emond-persist",
-      "description": "Writing an emond rule — event-monitor persistence",
-      "techniques": [
-        "T1546.014"
-      ],
-      "claimed": [
-        "Emond rule persistence (file_event_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "gatekeeper-disable",
-      "description": "Disabling Gatekeeper via spctl --master-disable — defense evasion",
-      "techniques": [
-        "T1553.001"
-      ],
-      "claimed": [
-        "Gatekeeper disabled via spctl (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "hidden-user",
-      "description": "Creating an account with IsHidden — hidden local user for persistence",
-      "techniques": [
-        "T1564.002"
-      ],
-      "claimed": [
-        "Hidden user creation via dscl (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "keychain-dump",
-      "description": "Dumping the login keychain — credential access",
-      "techniques": [
-        "T1555.001"
-      ],
-      "claimed": [
-        "Keychain dump via security (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "keychain-find",
-      "description": "Extracting a stored secret via security find-*-password",
-      "techniques": [
-        "T1555.001"
-      ],
-      "claimed": [
-        "Keychain secret extraction (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "launch-agent-persist",
-      "description": "Writing a LaunchAgent plist — user logon persistence",
-      "techniques": [
-        "T1543.001"
-      ],
-      "claimed": [
-        "LaunchAgent persistence (file_event_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "launch-daemon-persist",
-      "description": "Writing a LaunchDaemon plist — system-wide persistence",
-      "techniques": [
-        "T1543.004"
-      ],
-      "claimed": [
-        "LaunchDaemon persistence (file_event_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "mdfind",
-      "description": "Spotlight-backed file search — file and directory discovery",
-      "techniques": [
-        "T1083"
-      ],
-      "claimed": [
-        "Spotlight file discovery (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "netcat",
-      "description": "Raw TCP/UDP connection via nc — potential C2 or exfil channel",
-      "techniques": [
-        "T1095",
-        "T1071"
-      ],
-      "claimed": [
-        "Netcat execution (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "osascript-phish",
-      "description": "AppleScript password prompt (display dialog … with hidden answer) — GUI credential phishing",
-      "techniques": [
-        "T1056.002"
-      ],
-      "claimed": [
-        "osascript credential prompt (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "osascript-shell",
-      "description": "AppleScript spawning a shell (do shell script) — often privilege prompt abuse",
-      "techniques": [
-        "T1059.002"
-      ],
-      "claimed": [
-        "AppleScript do shell script (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "periodic-persist",
-      "description": "Dropping a periodic script — scheduled-task persistence",
-      "techniques": [
-        "T1053.003"
-      ],
-      "claimed": [
-        "Periodic script persistence (file_event_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "python-http-server",
-      "description": "Ad-hoc HTTP server — data staging / exfiltration channel",
-      "techniques": [
-        "T1105",
-        "T1567"
-      ],
-      "claimed": [
-        "Ad-hoc Python HTTP server (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "quarantine-removal",
-      "description": "Removing the quarantine attribute — Gatekeeper bypass",
-      "techniques": [
-        "T1553.001"
-      ],
-      "claimed": [
-        "Quarantine attribute removal (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "reverse-shell-devtcp",
-      "description": "Bash /dev/tcp reverse shell — interactive C2 channel",
-      "techniques": [
-        "T1059.004",
-        "T1071"
-      ],
-      "claimed": [
-        "Reverse shell via /dev/tcp (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "scp-exfil",
-      "description": "File transfer over SSH — ingress or exfiltration",
-      "techniques": [
-        "T1105",
-        "T1048"
-      ],
-      "claimed": [
-        "File transfer via scp (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "screencapture",
-      "description": "Screen capture — collection",
-      "techniques": [
-        "T1113"
-      ],
-      "claimed": [
-        "Screen capture via screencapture (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "spctl-status",
-      "description": "Querying Gatekeeper assessment status — security-software discovery",
-      "techniques": [
-        "T1518.001"
-      ],
-      "claimed": [
-        "Gatekeeper status query (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "sw-vers",
-      "description": "macOS version fingerprinting",
-      "techniques": [
-        "T1082"
-      ],
-      "claimed": [
-        "System information discovery (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "system-profiler",
-      "description": "Detailed system/hardware inventory",
-      "techniques": [
-        "T1082"
-      ],
-      "claimed": [
-        "system_profiler execution (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
-      "id": "tar-archive",
-      "description": "Archiving data — collection prior to exfiltration",
-      "techniques": [
-        "T1560.001"
-      ],
-      "claimed": [
-        "Data archived via tar (proc_creation_macos)"
-      ],
-      "status": "unverified"
-    },
-    {
       "id": "ard-kickstart",
       "description": "Enabling Apple Remote Desktop via kickstart — remote-management foothold",
       "techniques": [
@@ -670,6 +358,20 @@
       }
     },
     {
+      "id": "arp",
+      "description": "ARP cache enumeration — adjacent host discovery",
+      "techniques": [
+        "T1018"
+      ],
+      "claimed": [
+        "Macos Remote System Discovery (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Macos Remote System Discovery"
+      ]
+    },
+    {
       "id": "creds-in-files",
       "description": "Grepping the filesystem for passwords — credential hunting",
       "techniques": [
@@ -681,6 +383,34 @@
       "status": "verified",
       "firing": [
         "Credentials In Files"
+      ]
+    },
+    {
+      "id": "crontab-persist",
+      "description": "Cron job listing or installation — scheduled-task persistence",
+      "techniques": [
+        "T1053.003"
+      ],
+      "claimed": [
+        "Scheduled Cron Task/Job - MacOs (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Scheduled Cron Task/Job - MacOs"
+      ]
+    },
+    {
+      "id": "curl",
+      "description": "Remote file transfer / HTTP client — tool ingress or exfil",
+      "techniques": [
+        "T1105"
+      ],
+      "claimed": [
+        "Potential In-Memory Download And Compile Of Payloads (proc_creation_macos); plain curl invocations are uncovered"
+      ],
+      "status": "verified",
+      "firing": [
+        "Potential In-Memory Download And Compile Of Payloads"
       ]
     },
     {
@@ -698,6 +428,20 @@
       ]
     },
     {
+      "id": "dscl-groups",
+      "description": "Local group enumeration via dscl",
+      "techniques": [
+        "T1069.001"
+      ],
+      "claimed": [
+        "Local Groups Discovery - MacOs (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Local Groups Discovery - MacOs"
+      ]
+    },
+    {
       "id": "dscl-list-users",
       "description": "Local account enumeration via dscl",
       "techniques": [
@@ -712,6 +456,48 @@
       ]
     },
     {
+      "id": "emond-persist",
+      "description": "Writing an emond rule — event-monitor persistence",
+      "techniques": [
+        "T1546.014"
+      ],
+      "claimed": [
+        "MacOS Emond Launch Daemon (file_event_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "MacOS Emond Launch Daemon"
+      ]
+    },
+    {
+      "id": "hidden-user",
+      "description": "Creating an account with IsHidden — hidden local user for persistence",
+      "techniques": [
+        "T1564.002"
+      ],
+      "claimed": [
+        "Hidden User Creation (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Hidden User Creation"
+      ]
+    },
+    {
+      "id": "keychain-dump",
+      "description": "Dumping the login keychain — credential access",
+      "techniques": [
+        "T1555.001"
+      ],
+      "claimed": [
+        "Credentials from Password Stores - Keychain (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Credentials from Password Stores - Keychain"
+      ]
+    },
+    {
       "id": "last-login",
       "description": "Login history enumeration",
       "techniques": [
@@ -723,6 +509,34 @@
       "status": "verified",
       "firing": [
         "Local System Accounts Discovery - MacOs"
+      ]
+    },
+    {
+      "id": "launch-agent-persist",
+      "description": "Writing a LaunchAgent plist — user logon persistence",
+      "techniques": [
+        "T1543.001"
+      ],
+      "claimed": [
+        "Potential Persistence Via PlistBuddy (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Potential Persistence Via PlistBuddy"
+      ]
+    },
+    {
+      "id": "launch-daemon-persist",
+      "description": "Writing a LaunchDaemon plist — system-wide persistence",
+      "techniques": [
+        "T1543.004"
+      ],
+      "claimed": [
+        "Potential Persistence Via PlistBuddy (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Potential Persistence Via PlistBuddy"
       ]
     },
     {
@@ -766,6 +580,76 @@
       "status": "verified",
       "firing": [
         "System Network Connections Discovery - MacOs"
+      ]
+    },
+    {
+      "id": "osascript-phish",
+      "description": "AppleScript password prompt (display dialog … with hidden answer) — GUI credential phishing",
+      "techniques": [
+        "T1056.002"
+      ],
+      "claimed": [
+        "GUI Input Capture - macOS (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "GUI Input Capture - macOS"
+      ]
+    },
+    {
+      "id": "osascript-shell",
+      "description": "AppleScript spawning a shell (do shell script) — often privilege prompt abuse",
+      "techniques": [
+        "T1059.002"
+      ],
+      "claimed": [
+        "MacOS Scripting Interpreter AppleScript (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "MacOS Scripting Interpreter AppleScript"
+      ]
+    },
+    {
+      "id": "quarantine-removal",
+      "description": "Removing the quarantine attribute — Gatekeeper bypass",
+      "techniques": [
+        "T1553.001"
+      ],
+      "claimed": [
+        "Gatekeeper Bypass via Xattr (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "Gatekeeper Bypass via Xattr"
+      ]
+    },
+    {
+      "id": "sw-vers",
+      "description": "macOS version fingerprinting",
+      "techniques": [
+        "T1082"
+      ],
+      "claimed": [
+        "System Information Discovery Using sw_vers (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "System Information Discovery Using sw_vers"
+      ]
+    },
+    {
+      "id": "system-profiler",
+      "description": "Detailed system/hardware inventory",
+      "techniques": [
+        "T1082"
+      ],
+      "claimed": [
+        "System Information Discovery Using System_Profiler (proc_creation_macos)"
+      ],
+      "status": "verified",
+      "firing": [
+        "System Information Discovery Using System_Profiler"
       ]
     }
   ]
