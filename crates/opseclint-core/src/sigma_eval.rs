@@ -14,6 +14,7 @@
 //! the synthesized base, so a rule keyed on `ParentImage` / `User` /
 //! `IntegrityLevel` resolves to `FIRES` / `NO-FIRE` instead of `INDETERMINATE`.
 
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -461,6 +462,15 @@ pub struct Verdict {
     pub outcome: Outcome,
     /// For `Indeterminate`: referenced fields opseclint cannot synthesize.
     pub missing_fields: Vec<String>,
+    /// For `Indeterminate`: referenced fields the event *does* carry, but only
+    /// as a stand-in known to its final path segment — see [`Event`].
+    ///
+    /// Reported apart from `missing_fields` because the two are answered by
+    /// different things. A missing field needs telemetry the tool was never
+    /// given; a partial one was synthesized, and the rule asked about the part
+    /// of it that was invented. Folding them together would report `Image` as
+    /// absent when it was present and merely imprecise.
+    pub partial_fields: Vec<String>,
     /// For `Indeterminate`: modifier tokens the evaluator does not implement
     /// (`re`, `base64offset`, `windash`, …), sorted and deduplicated.
     ///
@@ -881,7 +891,62 @@ fn keyword_match(haystack: &str, keyword: &str) -> bool {
     }
 }
 
-fn synthesize(cmd: &Command, platform: Platform) -> HashMap<String, String> {
+/// The event a rule is evaluated against: the fields themselves, plus which of
+/// them are known only *partially*.
+///
+/// A synthesized `Image` is a stand-in. A command line names the program but
+/// not where it lives, so the value is `/{basename}` — enough for the
+/// `|endswith: '/curl'` form real rules are written in. Compared as if it were
+/// the whole truth it also makes `Image: '/usr/sbin/screencapture'` a definite
+/// *false*, which reads as "the ruleset refutes this claim" when what happened
+/// is that the directory was never known. Marking such a field partial is what
+/// lets [`eval_field`] tell a refusal apart from an abstention.
+///
+/// Only synthesized events carry partial fields. A real recorded value is
+/// exact, so overlaying one clears the marking — which is precisely why
+/// observed mode resolves verdicts predictive mode cannot.
+pub struct Event<'a> {
+    fields: Cow<'a, HashMap<String, String>>,
+    /// Fields whose value is known only as far as its final path segment.
+    /// Borrowed names: every partial field is one this module synthesizes, so
+    /// the set never holds a string the caller supplied.
+    partial: HashSet<&'static str>,
+}
+
+impl<'a> Event<'a> {
+    /// An event every field of which is exactly what a sensor recorded.
+    /// Borrows: nothing here needs to be owned or modified.
+    pub fn known(fields: &'a HashMap<String, String>) -> Self {
+        Event {
+            fields: Cow::Borrowed(fields),
+            partial: HashSet::new(),
+        }
+    }
+
+    fn get(&self, field: &str) -> Option<&String> {
+        self.fields.get(field)
+    }
+
+    fn contains_key(&self, field: &str) -> bool {
+        self.fields.contains_key(field)
+    }
+
+    fn is_partial(&self, field: &str) -> bool {
+        self.partial.contains(field)
+    }
+
+    /// Overlay a value a sensor actually reported. The field stops being
+    /// partial: whatever stand-in was there has been replaced by the real
+    /// thing.
+    fn observe(&mut self, field: &str, value: &str) {
+        self.fields
+            .to_mut()
+            .insert(field.to_string(), value.to_string());
+        self.partial.remove(field);
+    }
+}
+
+fn synthesize(cmd: &Command, platform: Platform) -> Event<'static> {
     let mut m = HashMap::new();
     m.insert("CommandLine".to_string(), cmd.raw.clone());
     let image = match platform {
@@ -890,7 +955,10 @@ fn synthesize(cmd: &Command, platform: Platform) -> HashMap<String, String> {
     };
     m.insert("Image".to_string(), image);
     m.insert("OriginalFileName".to_string(), cmd.program.clone());
-    m
+    Event {
+        fields: Cow::Owned(m),
+        partial: HashSet::from(["Image"]),
+    }
 }
 
 /// The Windows dash characters `windash` treats as interchangeable. The set
@@ -1005,26 +1073,73 @@ fn base64offset_variants(value: &str) -> Option<Vec<String>> {
 
 /// Reduce the needle groups to a verdict: any needle satisfies its own group,
 /// and `all` decides whether every group or merely one has to be satisfied.
-fn group_reduce(fm: &FieldMatch, hit: impl Fn(&str) -> bool) -> Ternary {
-    let matched = if fm.all {
-        fm.needles.iter().all(|g| g.iter().any(|n| hit(n)))
+///
+/// `hit` is three-valued rather than boolean because a needle put to a partial
+/// field can come back undecided (see [`needle_hit`]), and folding that to
+/// `false` here would lose it. The reduction is the same shape either way —
+/// Kleene `or` within a group, `and`/`or` across them.
+fn group_reduce(fm: &FieldMatch, hit: impl Fn(&str) -> Ternary) -> Ternary {
+    let groups = fm.needles.iter().map(|g| or_all(g.iter().map(|n| hit(n))));
+    if fm.all {
+        and_all(groups)
     } else {
-        fm.needles.iter().any(|g| g.iter().any(|n| hit(n)))
-    };
-    if matched {
-        Ternary::True
+        or_all(groups)
+    }
+}
+
+/// The final segment of a path, under either separator. `/usr/bin/curl` and
+/// `C:\\Windows\\cmd.exe` both reduce to their basename; a value with no
+/// separator is already its own final segment.
+fn final_segment(path: &str) -> &str {
+    match path.rfind(['/', '\\']) {
+        Some(i) => &path[i + 1..],
+        None => path,
+    }
+}
+
+/// Put one needle to a value, three-valued, accounting for a `partial` value
+/// whose directory was synthesized rather than observed.
+///
+/// The whole of the uncertainty is the *directory*: the final segment is known.
+/// So a needle that names no directory is a claim about the program, and the
+/// segment we have answers it — that is what makes `|endswith: '/curl'` decide,
+/// and it is why the stand-in exists at all. A needle that *does* name a
+/// directory is asking about the invented part, and gets one of two answers:
+/// if it would match were the directory right, we cannot say no (`Unknown`);
+/// if its own final segment disagrees with ours, no directory could rescue it
+/// and the answer is a real `false`.
+fn needle_hit(
+    hit: &impl Fn(&str, &str) -> bool,
+    value: &str,
+    needle: &str,
+    partial: bool,
+) -> Ternary {
+    if hit(value, needle) {
+        return Ternary::True;
+    }
+    if !partial || !needle.contains(['/', '\\']) {
+        return Ternary::False;
+    }
+    // Re-put the same question to the final segments alone, through the same
+    // `hit` so the operator and its case folding are preserved: a `startswith`
+    // needle stays a prefix test, a glob stays a glob. Matching there means the
+    // directory was the only thing in the way, and the directory is what we
+    // invented.
+    if hit(final_segment(value), final_segment(needle)) {
+        Ternary::Unknown
     } else {
         Ternary::False
     }
 }
 
-fn eval_field(fm: &FieldMatch, event: &HashMap<String, String>) -> Ternary {
+fn eval_field(fm: &FieldMatch, event: &Event) -> Ternary {
     if !fm.supported() {
         return Ternary::Unknown;
     }
     let Some(raw) = event.get(&fm.field) else {
         return Ternary::Unknown;
     };
+    let partial = event.is_partial(&fm.field);
     // Addresses are compared numerically, not as text.
     if let MatchOp::Cidr(nets) = &fm.op {
         // Not an address, so we cannot say it is outside the network either.
@@ -1046,6 +1161,13 @@ fn eval_field(fm: &FieldMatch, event: &HashMap<String, String>) -> Ternary {
     // Patterns compile case-insensitively, so they run against the raw value —
     // a pre-lowercased haystack would defeat an inline `(?-i)`.
     if let MatchOp::Re(res) = &fm.op {
+        // A pattern is not decomposable into "the part about the directory" and
+        // "the part about the program" the way a literal needle is — an anchored
+        // `^/curl$` would match the stand-in and miss the real path, so even a
+        // hit proves nothing. Abstain outright on a partial field.
+        if partial {
+            return Ternary::Unknown;
+        }
         let matched = if fm.all {
             res.iter().all(|r| r.is_match(raw))
         } else {
@@ -1063,23 +1185,24 @@ fn eval_field(fm: &FieldMatch, event: &HashMap<String, String>) -> Ternary {
     } else {
         raw.to_lowercase()
     };
+    let hit = |haystack: &str, needle: &str| match fm.op {
+        MatchOp::Contains => haystack.contains(needle),
+        MatchOp::StartsWith => haystack.starts_with(needle),
+        MatchOp::EndsWith => haystack.ends_with(needle),
+        // `Re` and `Cidr` are handled above; neither reaches the needle loop.
+        MatchOp::Glob | MatchOp::Re(_) | MatchOp::Cidr(_) => glob_match(haystack, needle),
+    };
     group_reduce(fm, |needle| {
         let n = if fm.case_sensitive {
             needle.to_string()
         } else {
             needle.to_lowercase()
         };
-        match fm.op {
-            MatchOp::Contains => val.contains(&n),
-            MatchOp::StartsWith => val.starts_with(&n),
-            MatchOp::EndsWith => val.ends_with(&n),
-            // `Re` and `Cidr` are handled above; neither reaches the needle loop.
-            MatchOp::Glob | MatchOp::Re(_) | MatchOp::Cidr(_) => glob_match(&val, &n),
-        }
+        needle_hit(&hit, &val, &n, partial)
     })
 }
 
-fn eval_search(s: &Search, event: &HashMap<String, String>) -> Ternary {
+fn eval_search(s: &Search, event: &Event) -> Ternary {
     match s {
         Search::Fields(fms) => and_all(fms.iter().map(|f| eval_field(f, event))),
         Search::OneOfMaps(groups) => or_all(
@@ -1119,11 +1242,7 @@ fn matching_ids<'a>(pat: &str, searches: &'a HashMap<String, Search>) -> Vec<&'a
     }
 }
 
-fn eval_cond(
-    cond: &Cond,
-    searches: &HashMap<String, Search>,
-    event: &HashMap<String, String>,
-) -> Ternary {
+fn eval_cond(cond: &Cond, searches: &HashMap<String, Search>, event: &Event) -> Ternary {
     match cond {
         Cond::Id(name) => searches
             .get(name)
@@ -1231,7 +1350,7 @@ pub fn evaluate_observed(
     let mut event = synthesize(cmd, platform);
     for (k, v) in observed {
         if !v.is_empty() {
-            event.insert(k.clone(), v.clone());
+            event.observe(k, v);
         }
     }
     eval_event(rule, &event)
@@ -1247,12 +1366,12 @@ pub fn evaluate_observed(
 /// a rule that happens to key on `CommandLine` would fire on evidence from a
 /// different log source entirely.
 pub fn evaluate_record(rule: &DetectionRule, event: &HashMap<String, String>) -> Verdict {
-    eval_event(rule, event)
+    eval_event(rule, &Event::known(event))
 }
 
 /// Evaluate a rule's condition against a fully-built event, reporting the fields
 /// it referenced but the event did not carry when the verdict is indeterminate.
-fn eval_event(rule: &DetectionRule, event: &HashMap<String, String>) -> Verdict {
+fn eval_event(rule: &DetectionRule, event: &Event) -> Verdict {
     let outcome = match eval_cond(&rule.condition, &rule.searches, event) {
         Ternary::True => Outcome::Fires,
         Ternary::False => Outcome::NoFire,
@@ -1262,19 +1381,32 @@ fn eval_event(rule: &DetectionRule, event: &HashMap<String, String>) -> Verdict 
         return Verdict {
             outcome,
             missing_fields: Vec::new(),
+            partial_fields: Vec::new(),
             blocking_modifiers: Vec::new(),
             null_value_match: false,
         };
     }
-    let mut missing_fields: Vec<String> = referenced_fields(rule)
-        .into_iter()
+    let referenced = referenced_fields(rule);
+    let mut missing_fields: Vec<String> = referenced
+        .iter()
         .filter(|f| !f.is_empty() && !event.contains_key(f))
+        .cloned()
         .collect();
     missing_fields.sort();
+    // Present, but only as far as its final segment. Over-approximated the same
+    // way `missing_fields` is: every partial field the rule referenced, not
+    // only the one whose abstention decided the outcome.
+    let mut partial_fields: Vec<String> = referenced
+        .iter()
+        .filter(|f| event.is_partial(f))
+        .cloned()
+        .collect();
+    partial_fields.sort();
     let (blocking_modifiers, null_value_match) = unsupported_features(rule);
     Verdict {
         outcome,
         missing_fields,
+        partial_fields,
         blocking_modifiers,
         null_value_match,
     }
@@ -1302,6 +1434,84 @@ mod tests {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
         evaluate_observed(&rule, &cmd(command), Platform::LinuxAuditd, &observed)
+    }
+
+    /// A rule keyed on an absolute `Image` path, the shape that used to be
+    /// answered with a basename and read as a refusal.
+    const ABSOLUTE_IMAGE: &str = r#"
+title: Screen capture
+id: r-abs
+detection:
+    selection:
+        Image: '/usr/sbin/screencapture'
+    condition: selection
+"#;
+
+    #[test]
+    fn an_absolute_path_against_a_synthesized_image_abstains() {
+        // `Image` is synthesized as `/screencapture`, so a literal comparison
+        // against `/usr/sbin/screencapture` is false — but only because the
+        // directory was invented. Reporting that as NO-FIRE is what withdrew
+        // four macOS claims the ruleset never actually refuted.
+        let v = verdict(ABSOLUTE_IMAGE, "screencapture -x /tmp/out.png");
+        assert_eq!(v.outcome, Outcome::Indeterminate);
+        assert_eq!(v.partial_fields, vec!["Image".to_string()]);
+        assert!(
+            v.missing_fields.is_empty(),
+            "Image was present, not missing: {:?}",
+            v.missing_fields
+        );
+    }
+
+    #[test]
+    fn a_different_program_is_still_refused() {
+        // The abstention is about the directory alone. A rule naming another
+        // program disagrees on the segment we *do* know, and no directory could
+        // rescue it — so this stays a real negative.
+        let v = verdict(ABSOLUTE_IMAGE, "mdfind -name secret");
+        assert_eq!(v.outcome, Outcome::NoFire);
+    }
+
+    #[test]
+    fn an_observed_image_decides_what_the_stand_in_could_not() {
+        // The recorded path is exact, so the field stops being partial and the
+        // same rule resolves — in both directions.
+        let fires = observed_verdict(
+            ABSOLUTE_IMAGE,
+            "screencapture -x /tmp/out.png",
+            &[("Image", "/usr/sbin/screencapture")],
+        );
+        assert_eq!(fires.outcome, Outcome::Fires);
+        let misses = observed_verdict(
+            ABSOLUTE_IMAGE,
+            "screencapture -x /tmp/out.png",
+            &[("Image", "/opt/homebrew/bin/screencapture")],
+        );
+        assert_eq!(misses.outcome, Outcome::NoFire);
+    }
+
+    #[test]
+    fn a_needle_naming_no_directory_still_decides() {
+        // Only the directory is unknown, so a needle that names none of it is
+        // a claim about the program — which the synthesized segment answers.
+        // This is the form real rules are written in, and it must keep deciding
+        // or the stand-in would have no purpose at all.
+        let yaml = r#"
+title: Curl download
+id: r-ends
+detection:
+    selection:
+        Image|endswith: '/curl'
+    condition: selection
+"#;
+        assert_eq!(
+            verdict(yaml, "curl -o /tmp/x http://example.com/x").outcome,
+            Outcome::Fires
+        );
+        assert_eq!(
+            verdict(yaml, "wget http://example.com/x").outcome,
+            Outcome::NoFire
+        );
     }
 
     /// A keyword list, the shape SigmaHQ's `builtin/` rules use: no field

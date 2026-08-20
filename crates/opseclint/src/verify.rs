@@ -107,6 +107,13 @@ pub struct IndeterminateCause {
     /// Fields a rule keys on that a command line cannot supply.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub missing_fields: Vec<String>,
+    /// Fields a rule keys on that *were* synthesized, but only as far as their
+    /// final path segment — the rule asked about the directory, which a command
+    /// line does not name. Distinct from `missing_fields` because no telemetry
+    /// is owed here: the entry's own example would have to name the absolute
+    /// path, or the rule is simply beyond what prediction can settle.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub partial_fields: Vec<String>,
     /// Candidate rules that could not be lowered to detection logic at all.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub unparsed_rules: usize,
@@ -327,6 +334,7 @@ struct Tally {
     any_indet: bool,
     mods: BTreeSet<String>,
     fields: BTreeSet<String>,
+    partial: BTreeSet<String>,
     cause: IndeterminateCause,
 }
 
@@ -347,6 +355,7 @@ impl Tally {
                 self.any_indet = true;
                 self.mods.extend(v.blocking_modifiers);
                 self.fields.extend(v.missing_fields);
+                self.partial.extend(v.partial_fields);
                 self.cause.null_value_match |= v.null_value_match;
             }
             Outcome::NoFire => self.not_firing.push(rule.title.clone()),
@@ -369,6 +378,7 @@ impl Tally {
             let mut cause = self.cause;
             cause.modifiers = self.mods.into_iter().collect();
             cause.missing_fields = self.fields.into_iter().collect();
+            cause.partial_fields = self.partial.into_iter().collect();
             cause.inapplicable_rules = inapplicable;
             Classification {
                 because: cause,
@@ -439,8 +449,9 @@ fn top_n(hist: &BTreeMap<String, usize>, n: usize) -> String {
 fn summarize_causes(report: &VerifyReport) -> Vec<(&'static str, usize, String)> {
     let mut by_mod: BTreeMap<String, usize> = BTreeMap::new();
     let mut by_field: BTreeMap<String, usize> = BTreeMap::new();
+    let mut by_partial: BTreeMap<String, usize> = BTreeMap::new();
     let (mut n_mods, mut n_fields, mut n_unparsed, mut n_null, mut n_none) = (0, 0, 0, 0, 0);
-    let mut n_inapp = 0;
+    let (mut n_inapp, mut n_partial) = (0, 0);
 
     for r in report
         .results
@@ -458,6 +469,12 @@ fn summarize_causes(report: &VerifyReport) -> Vec<(&'static str, usize, String)>
             n_fields += 1;
             for f in &b.missing_fields {
                 *by_field.entry(f.clone()).or_default() += 1;
+            }
+        }
+        if !b.partial_fields.is_empty() {
+            n_partial += 1;
+            for f in &b.partial_fields {
+                *by_partial.entry(f.clone()).or_default() += 1;
             }
         }
         if b.unparsed_rules > 0 {
@@ -480,6 +497,9 @@ fn summarize_causes(report: &VerifyReport) -> Vec<(&'static str, usize, String)>
     }
     if n_fields > 0 {
         rows.push(("missing fields", n_fields, top_n(&by_field, 5)));
+    }
+    if n_partial > 0 {
+        rows.push(("path-only fields", n_partial, top_n(&by_partial, 5)));
     }
     if n_unparsed > 0 {
         rows.push(("unparsed rules", n_unparsed, String::new()));
