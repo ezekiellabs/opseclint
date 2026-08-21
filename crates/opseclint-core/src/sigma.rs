@@ -455,8 +455,25 @@ fn verdict_label(v: &crate::sigma_eval::Verdict) -> String {
     match v.outcome {
         Outcome::Fires => "fires".to_string(),
         Outcome::NoFire => "no-fire".to_string(),
-        Outcome::Indeterminate if v.missing_fields.is_empty() => "indeterminate".to_string(),
-        Outcome::Indeterminate => format!("indeterminate (needs {})", v.missing_fields.join(", ")),
+        Outcome::Indeterminate if !v.missing_fields.is_empty() => {
+            format!("indeterminate (needs {})", v.missing_fields.join(", "))
+        }
+        // Nothing is missing, so what is left to explain the abstention is a
+        // field that *is* present but synthesized only as far as its final path
+        // segment. Reported only in that case: `Image` is partial on every
+        // synthesized event, so naming it alongside a genuinely absent field
+        // would add a clause to almost every abstention and point at the wrong
+        // one. An abstention that names nothing at all is the single thing this
+        // label exists to prevent.
+        Outcome::Indeterminate if !v.partial_fields.is_empty() => {
+            let needs: Vec<String> = v
+                .partial_fields
+                .iter()
+                .map(|f| format!("a full path for {f}"))
+                .collect();
+            format!("indeterminate (needs {})", needs.join(", "))
+        }
+        Outcome::Indeterminate => "indeterminate".to_string(),
     }
 }
 
