@@ -231,16 +231,18 @@ impl SigmaIndex {
         out
     }
 
-    /// The same candidates, truncated for display: a widely-tagged technique
-    /// can carry dozens of rules, and attaching them all to one finding drowns
-    /// the report.
+    /// The same candidates, truncated for display *without* asking them
+    /// anything: a widely-tagged technique can carry dozens of rules, and
+    /// attaching them all to one finding drowns the report.
     ///
-    /// Never derive a verdict from this. The cut is by severity then *title*,
-    /// so the one rule that would fire can sort past the cap on nothing but
-    /// its first letter — which is exactly how T1490's
-    /// `Shadow Copies Deletion Using Operating Systems Utilities` sat unseen
-    /// behind four rules beginning A, B, C and D. Verification and coverage
-    /// analysis call [`candidate_rules`](Self::candidate_rules) instead.
+    /// Never derive a verdict from this, and prefer it only where there are no
+    /// verdicts to rank by. The cut is by severity then *title*, so the one
+    /// rule that would fire can sort past the cap on nothing but its first
+    /// letter — which is exactly how T1490's `Shadow Copies Deletion Using
+    /// Operating Systems Utilities` sat unseen behind four rules beginning A,
+    /// B, C and D. Verification, coverage analysis and [`enrich`] all evaluate
+    /// [`candidate_rules`](Self::candidate_rules) in full instead, and
+    /// `enrich` cuts to the same cap only once the answers are in.
     pub fn rules_for(&self, technique_ids: &[String]) -> Vec<SigmaRule> {
         let mut out = self.candidate_rules(technique_ids);
         out.truncate(MAX_RULES_PER_FINDING);
@@ -368,15 +370,25 @@ fn load_with_cache(
 /// the technique matches, annotating each with whether the rule would actually
 /// fire on the matched command. Findings with no match keep their seed
 /// detections. Returns the number of findings that were enriched.
+///
+/// The whole candidate set is evaluated and only then cut to
+/// `MAX_RULES_PER_FINDING`, because the two orderings disagree about what
+/// matters. [`candidate_rules`](SigmaIndex::candidate_rules) ranks by severity
+/// then title, which is the best guess available before anything is asked; once
+/// the rules have answered, a `low` rule that fires is worth more than five
+/// `medium` ones that do not. Cutting first hid exactly that: T1033 carries six
+/// Linux rules — five ESXi ones at `medium`, and `System Owner or User
+/// Discovery - Linux` at `low` — so a `whoami` finding showed five refusals and
+/// dropped the only rule with anything to say about it.
 pub fn enrich(report: &mut Report, index: &SigmaIndex, platform: Platform) -> usize {
     let mut enriched = 0;
     for f in &mut report.findings {
         let tids: Vec<String> = f.techniques.iter().map(|t| t.id.clone()).collect();
-        let rules = index.rules_for(&tids);
-        if rules.is_empty() {
+        let candidates = index.candidate_rules(&tids);
+        if candidates.is_empty() {
             continue;
         }
-        f.detections = rules
+        let mut ranked: Vec<(u8, Detection)> = candidates
             .into_iter()
             .map(|r| {
                 let verdict = match (&r.rule, &f.matched_command) {
@@ -389,21 +401,50 @@ pub fn enrich(report: &mut Report, index: &SigmaIndex, platform: Platform) -> us
                             Some(ev) => crate::sigma_eval::evaluate_observed(dr, cmd, platform, ev),
                             None => crate::sigma_eval::evaluate(dr, cmd, platform),
                         };
-                        Some(verdict_label(&v))
+                        Some(v)
                     }
                     _ => None,
                 };
-                Detection {
-                    source: "Sigma".to_string(),
-                    rule: format!("{} ({})", r.title, r.id),
-                    confidence: r.level,
-                    verdict,
-                }
+                (
+                    verdict_rank(verdict.as_ref()),
+                    Detection {
+                        source: "Sigma".to_string(),
+                        rule: format!("{} ({})", r.title, r.id),
+                        confidence: r.level,
+                        verdict: verdict.as_ref().map(verdict_label),
+                    },
+                )
             })
+            .collect();
+        // Stable, so rules that answered alike keep the severity-then-title
+        // order `candidate_rules` established. A finding with no matched command
+        // has no verdicts to rank by, and comes out in exactly that order.
+        ranked.sort_by_key(|(rank, _)| *rank);
+        f.detections = ranked
+            .into_iter()
+            .take(MAX_RULES_PER_FINDING)
+            .map(|(_, d)| d)
             .collect();
         enriched += 1;
     }
     enriched
+}
+
+/// Display order for a verdict: what the rule had to say, most to least.
+///
+/// A rule that fires is the answer the reader came for. An abstention is worth
+/// seeing next — it names a field that, supplied, would settle the question.
+/// A refusal is real information but the least urgent of the three, and it is
+/// what the cap should drop first. A rule that was never asked — the finding
+/// has no matched command, or the rule would not lower to logic — ranks with
+/// the abstentions, since "no answer" is what both amount to.
+fn verdict_rank(v: Option<&crate::sigma_eval::Verdict>) -> u8 {
+    use crate::sigma_eval::Outcome;
+    match v.map(|v| v.outcome) {
+        Some(Outcome::Fires) => 0,
+        Some(Outcome::Indeterminate) | None => 1,
+        Some(Outcome::NoFire) => 2,
+    }
 }
 
 /// A short verdict label for a detection line.
@@ -717,6 +758,99 @@ mod tests {
         assert!(
             !shown.iter().any(|r| r.title == "Zebra Snapshot Deletion"),
             "the firing rule sorts last on title and falls off the display cap"
+        );
+    }
+
+    /// The other half of the story above: `enrich` asks first, so the rule the
+    /// display cap used to drop is the one it now leads with.
+    #[test]
+    fn enrichment_shows_the_rule_that_fires_over_five_that_do_not() {
+        let index = SigmaIndex::load_dir(&fixtures(), "linux").expect("fixtures load");
+        let command = "lvremove --force /dev/vg0/data";
+        let mut report = Report {
+            platform: "linux-auditd".into(),
+            note: String::new(),
+            findings: vec![crate::model::Finding {
+                line: 1,
+                source: command.into(),
+                rule_id: "lvremove".into(),
+                description: "Logical volume removal".into(),
+                techniques: vec![crate::model::Technique {
+                    id: "T1490".into(),
+                    name: "Inhibit System Recovery".into(),
+                }],
+                telemetry: vec![],
+                detections: vec![],
+                edr: vec![],
+                observed_side_effects: vec![],
+                noise: 60,
+                severity: crate::model::Severity::from_noise(60),
+                matched_command: crate::parser::parse_line(command).into_iter().next(),
+                observed_event: None,
+            }],
+            max_noise: 60,
+            lines_analyzed: 1,
+        };
+
+        assert_eq!(enrich(&mut report, &index, kb::Platform::LinuxAuditd), 1);
+        let shown = &report.findings[0].detections;
+        assert_eq!(shown.len(), MAX_RULES_PER_FINDING);
+        assert!(
+            shown[0].rule.starts_with("Zebra Snapshot Deletion"),
+            "the one firing rule leads, not the five refusals: {:?}",
+            shown.iter().map(|d| &d.rule).collect::<Vec<_>>()
+        );
+        assert_eq!(shown[0].verdict.as_deref(), Some("fires"));
+        assert!(
+            shown[1..]
+                .iter()
+                .all(|d| d.verdict.as_deref() == Some("no-fire")),
+            "the decoys keep their severity-then-title order behind it"
+        );
+    }
+
+    /// With nothing to rank by, the order is the one `candidate_rules`
+    /// established — a finding carrying no command must not be reshuffled.
+    #[test]
+    fn enrichment_without_a_command_keeps_the_severity_order() {
+        let index = SigmaIndex::load_dir(&fixtures(), "linux").expect("fixtures load");
+        let mut report = Report {
+            platform: "linux-auditd".into(),
+            note: String::new(),
+            findings: vec![crate::model::Finding {
+                line: 1,
+                source: "lvremove --force".into(),
+                rule_id: "lvremove".into(),
+                description: "Logical volume removal".into(),
+                techniques: vec![crate::model::Technique {
+                    id: "T1490".into(),
+                    name: "Inhibit System Recovery".into(),
+                }],
+                telemetry: vec![],
+                detections: vec![],
+                edr: vec![],
+                observed_side_effects: vec![],
+                noise: 60,
+                severity: crate::model::Severity::from_noise(60),
+                matched_command: None,
+                observed_event: None,
+            }],
+            max_noise: 60,
+            lines_analyzed: 1,
+        };
+
+        enrich(&mut report, &index, kb::Platform::LinuxAuditd);
+        let shown: Vec<&str> = report.findings[0]
+            .detections
+            .iter()
+            .map(|d| d.rule.as_str())
+            .collect();
+        assert!(shown[0].starts_with("Aardvark Decoy Rule"), "{shown:?}");
+        assert!(
+            report.findings[0]
+                .detections
+                .iter()
+                .all(|d| d.verdict.is_none())
         );
     }
 
