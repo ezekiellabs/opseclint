@@ -951,7 +951,7 @@ fn keyword_match(haystack: &str, keyword: &str) -> bool {
 /// the whole truth it also makes `Image: '/usr/sbin/screencapture'` a definite
 /// *false*, which reads as "the ruleset refutes this claim" when what happened
 /// is that the directory was never known. Marking such a field partial is what
-/// lets [`eval_field`] tell a refusal apart from an abstention.
+/// lets the field comparison tell a refusal apart from an abstention.
 ///
 /// Only synthesized events carry partial fields. A real recorded value is
 /// exact, so overlaying one clears the marking — which is precisely why
