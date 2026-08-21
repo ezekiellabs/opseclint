@@ -1109,22 +1109,42 @@ fn truncate_comm(program: &str) -> String {
 /// Over-approximate on purpose: a token that looks like a path is taken as one,
 /// since the alternative is deriving no `PATH` record at all and abstaining on
 /// every rule that keys `name`. Flags are skipped, a `key=/path` operand yields
-/// its value (`dd of=/dev/sda`), and a URL is not a file.
+/// its value (`dd of=/dev/sda`), a redirection yields its target, and a URL is
+/// not a file.
 fn path_operands(cmd: &Command) -> Vec<String> {
     let mut out = Vec::new();
     for arg in &cmd.args {
         if arg.starts_with('-') || arg.contains("://") {
             continue;
         }
-        let candidate = match arg.split_once('=') {
+        let candidate = strip_redirection(arg);
+        let candidate = match candidate.split_once('=') {
             Some((_, value)) => value,
-            None => arg.as_str(),
+            None => candidate,
         };
         if candidate.contains('/') && !out.iter().any(|p| p == candidate) {
             out.push(candidate.to_string());
         }
     }
     out
+}
+
+/// The file a redirection writes, without the operator the tokenizer left
+/// attached: `>/etc/ld.so.preload`, `2>>/var/log/x`, `&>/dev/null`.
+///
+/// Worth stripping rather than ignoring: the redirection target is very often
+/// *the* file the action is about, and auditd records a `PATH` for it. Left
+/// attached, the operator also turns an absolute path into something that
+/// parses as relative, which then reads as a partial value and abstains — the
+/// rule watching that exact file would neither fire nor say why.
+///
+/// Only touched when the token actually carries a redirection, so a filename
+/// beginning with a digit is left alone.
+fn strip_redirection(token: &str) -> &str {
+    if !token.contains(['<', '>']) {
+        return token;
+    }
+    token.trim_start_matches(|c: char| matches!(c, '<' | '>' | '&') || c.is_ascii_digit())
 }
 
 /// The Windows dash characters `windash` treats as interchangeable. The set
@@ -1915,6 +1935,41 @@ detection:
             evaluate_touching(&rule, &cmd, Platform::LinuxAuditd, &["/etc/ld.so.preload"]).outcome,
             Outcome::Fires
         );
+    }
+
+    #[test]
+    fn a_redirection_target_is_the_file_the_action_touches() {
+        // The tokenizer keeps `>/etc/ld.so.preload` whole, and the operator is
+        // not part of the file's name. Left attached it also makes an absolute
+        // path parse as relative, which reads as partial and abstains — so the
+        // rule watching that exact file would neither fire nor say why.
+        let yaml = r#"
+title: Preload modification
+id: r-redirect
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection:
+        type: 'PATH'
+        name: '/etc/ld.so.preload'
+    condition: selection
+"#;
+        assert_eq!(
+            verdict(yaml, "echo '/tmp/evil.so' >/etc/ld.so.preload").outcome,
+            Outcome::Fires
+        );
+        assert_eq!(
+            verdict(yaml, "echo x 2>>/etc/ld.so.preload").outcome,
+            Outcome::Fires
+        );
+        // A filename that merely starts with a digit carries no redirection and
+        // is left alone.
+        assert_eq!(strip_redirection("2024.log"), "2024.log");
+        assert_eq!(strip_redirection("&>/dev/null"), "/dev/null");
+        // A file-descriptor dup names no file, and comes out as nothing —
+        // which `path_operands` then drops for want of a `/`.
+        assert_eq!(strip_redirection("2>&1"), "");
     }
 
     #[test]

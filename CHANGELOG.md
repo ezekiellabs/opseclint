@@ -31,7 +31,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `ld-preload` is the fragment its matcher keys on rather than a full `echo …
   > /etc/ld.so.preload`. The entry's `event` axis already names the file, and
   `--verify-detections` now hands it over, so the rule watching exactly that
-  path is answered by it.
+  path is answered by it. A redirection target counts as a file too: the
+  tokenizer keeps `>/etc/ld.so.preload` whole, and the operator is not part of
+  the name — left attached it also made an absolute path parse as relative, so
+  the rule watching that exact file neither fired nor said why.
 - **`--verify-detections` reports a path-only field apart from a missing one.**
   A new `path-only fields` row in the cause breakdown, and `partial_fields`
   in the JSON. The two are answered by different things: a missing field needs
@@ -87,7 +90,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rescue a rule that names another program. A `re` pattern is not decomposable
   that way — an anchored `^/curl$` would match the stand-in and miss the real
   path — so it abstains outright. An observed value clears the marking, since
-  a recorded path is exact.
+  a recorded path is exact. A detection line names the partial field when
+  nothing else is missing (`indeterminate (needs a full path for exe)`) rather
+  than abstaining without saying what it waits on — but only then, since
+  `Image` is partial on every synthesized event and naming it beside a
+  genuinely absent field would point at the wrong one.
 - **A keyword list carrying `|all` is read as a keyword list.** Written as a
   map so it can hold the modifier, it lowered to a comparison against a field
   named `""` — which no event carries, so the search abstained, and silently,
