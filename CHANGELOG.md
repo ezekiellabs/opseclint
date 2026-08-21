@@ -22,6 +22,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   costs nothing on the committed baselines, which stay byte-identical while
   every platform reads zero unverified.
 
+### Fixed
+
+- **A finding shows the rules that had something to say, not the five with the
+  highest severity.** Enrichment cut the candidate set to five *before* asking
+  any of them, and the cut ranks by severity then title — so a rule that fires
+  could be dropped in favour of five that do not. T1033 is the plainest case:
+  it carries six Linux rules, five ESXi ones at `medium` and `System Owner or
+  User Discovery - Linux` at `low`, so a `whoami` finding listed five refusals
+  about ESXCLI and omitted the only rule with anything to say about it. The
+  whole candidate set is now evaluated and cut afterwards, ranked by what the
+  rules answered — fires, then abstentions, then refusals — with the severity
+  ordering kept intact among rules that answered alike. A finding with no
+  matched command has nothing to rank by and comes out in exactly the order it
+  did before. Across the bundled examples this moves 24 firing rules into view
+  that were previously hidden behind refusals, at no measurable cost: rule
+  parsing dominates the run, and evaluation of the full set does not register
+  against it. Verification and `--coverage-gaps` were already drawing on the
+  full set and are unchanged.
+
 ### Changed
 
 - **No knowledge-base entry, on any platform, claims a Sigma rule that no rule
