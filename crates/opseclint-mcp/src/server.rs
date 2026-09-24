@@ -9,7 +9,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use rmcp::handler::server::wrapper::{Json, Parameters};
-use rmcp::model::{Implementation, ProtocolVersion, ServerCapabilities, ServerInfo};
+use rmcp::model::{Implementation, ProtocolVersion, ServerCapabilities, ServerConfig};
 use rmcp::schemars::{self, JsonSchema};
 use rmcp::{ErrorData, ServerHandler, tool, tool_router};
 
@@ -451,12 +451,12 @@ impl Opseclint {
 // tools/list and tools/call, where this uses the one built at startup.
 #[rmcp::tool_handler(router = self.tool_router)]
 impl ServerHandler for Opseclint {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut implementation = Implementation::default();
         implementation.name = "opseclint".into();
         implementation.version = env!("CARGO_PKG_VERSION").into();
 
-        let mut info = ServerInfo::default();
+        let mut info = ServerConfig::default();
         info.protocol_version = ProtocolVersion::default();
         info.capabilities = ServerCapabilities::builder().enable_tools().build();
         info.server_info = implementation;
